@@ -4,7 +4,10 @@
 
 pub mod ast;
 pub mod error;
+pub mod lexer;
 
 pub fn parse(input: &str) -> Result<ast::DiagramAst, error::ParseError> {
-    Err(error::ParseError::UnsupportedDiagramType("placeholder".to_string()))
+    Err(error::ParseError::UnsupportedDiagramType(
+        "placeholder".to_string(),
+    ))
 }
