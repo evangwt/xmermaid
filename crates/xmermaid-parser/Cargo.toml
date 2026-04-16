@@ -1,0 +1,12 @@
+[package]
+name = "xmermaid-parser"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+nom = "7.1"
+
+[dev-dependencies]
