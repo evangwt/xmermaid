@@ -1,12 +1,10 @@
 [package]
 name = "xmermaid-layout"
-version.workspace = true
-edition.workspace = true
+version = "0.1.0"
+edition = "2021"
 
 [dependencies]
-serde.workspace = true
-serde_json.workspace = true
-thiserror.workspace = true
-petgraph = "0.6"
-
-[dev-dependencies]
+xmermaid-parser = { path = "../xmermaid-parser" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
