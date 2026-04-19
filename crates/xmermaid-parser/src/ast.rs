@@ -15,7 +15,7 @@ pub struct FlowchartAst {
     pub subgraphs: Vec<Subgraph>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum FlowDirection {
     TB,
@@ -34,7 +34,7 @@ pub struct Node {
     pub styles: Vec<StyleDef>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum NodeShape {
     Rect,
@@ -58,7 +58,7 @@ pub struct Edge {
     pub min_length: usize,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum EdgeStyle {
     Arrow,
