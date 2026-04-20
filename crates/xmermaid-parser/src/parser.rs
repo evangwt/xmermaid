@@ -123,23 +123,48 @@ impl<'a> Parser<'a> {
             let bracket = self.current().value.clone();
             self.advance();
 
-            if self.current().ty == TokenType::Label {
-                label = Some(self.current().value.clone());
-                self.advance();
+            // Check for circle shape: lexer produces Label("(text") for ((text))
+            // The label value starts with "(" when it's a double-paren circle
+            if self.current().ty == TokenType::Label && bracket == "(" {
+                let label_val = self.current().value.clone();
+                if label_val.starts_with('(') {
+                    // Circle shape: ((text))
+                    shape = NodeShape::Circle;
+                    label = Some(label_val[1..].trim().to_string());
+                    self.advance();
+
+                    // Skip two BracketClose tokens (for both parens)
+                    if self.current().ty == TokenType::BracketClose {
+                        self.advance();
+                    }
+                    if self.current().ty == TokenType::BracketClose {
+                        self.advance();
+                    }
+                    return (shape, label);
+                }
             }
 
-            // Check for nested bracket (circle: ((...)))
+            // Check for nested BracketOpen (when lexer produces separate tokens)
             if self.current().ty == TokenType::BracketOpen {
                 let inner = self.current().value.clone();
                 self.advance();
+
                 if inner == "(" && bracket == "(" {
                     shape = NodeShape::Circle;
                 }
+
                 if self.current().ty == TokenType::Label {
                     label = Some(self.current().value.clone());
                     self.advance();
                 }
+
                 if self.current().ty == TokenType::BracketClose {
+                    self.advance();
+                }
+            } else {
+                // Single bracket: [label] or (label)
+                if self.current().ty == TokenType::Label {
+                    label = Some(self.current().value.clone());
                     self.advance();
                 }
             }
@@ -171,8 +196,9 @@ impl<'a> Parser<'a> {
 
         Self::add_node_if_new(nodes, seen_nodes, node_id.clone(), label, shape);
 
-        // Check for edge
-        if self.current().ty == TokenType::Arrow {
+        // Parse chain of edges: A-->B-->C
+        let mut current_id = node_id;
+        while self.current().ty == TokenType::Arrow {
             let arrow = self.current().value.clone();
             self.advance();
 
@@ -191,12 +217,14 @@ impl<'a> Parser<'a> {
             Self::add_node_if_new(nodes, seen_nodes, target_id.clone(), target_label, target_shape);
 
             edges.push(Edge {
-                from: node_id,
-                to: target_id,
+                from: current_id,
+                to: target_id.clone(),
                 style,
                 label: None,
                 min_length: 1,
             });
+
+            current_id = target_id;
         }
 
         Ok(())
