@@ -1,5 +1,5 @@
 use xmermaid_layout::compute_flowchart_layout;
-use xmermaid_parser::{parse, DiagramAst};
+use xmermaid_parser::parse;
 
 #[test]
 fn test_layout_two_nodes() {

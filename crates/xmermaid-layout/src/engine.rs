@@ -87,7 +87,7 @@ pub fn compute_flowchart_layout(ast: &DiagramAst) -> Result<LayoutResult, Layout
     let mut positions: Vec<(String, Point)> = Vec::with_capacity(node_count);
 
     for (layer_idx, group) in layer_groups.iter().enumerate() {
-        let count = group.len();
+        let _count = group.len();
         for (pos_in_layer, &node_idx) in group.iter().enumerate() {
             let x = if is_horizontal {
                 PADDING + layer_idx as f64 * (NODE_WIDTH + H_SPACING)
