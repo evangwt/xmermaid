@@ -56,7 +56,7 @@ fn test_render_pipeline() {
     let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
     assert!(parsed["ast"].is_object());
     assert!(parsed["layout"].is_object());
-    assert_eq!(parsed["ast"]["type"].as_str(), Some("Flowchart"));
+    assert_eq!(parsed["ast"]["type"].as_str(), Some("flowchart"));
 }
 
 #[test]
