@@ -1,11 +1,12 @@
 import { SVGRenderer } from './renderer';
 import { getWasm, initWasm, isWasmReady } from './wasm';
+import { XMermaidError } from './types/error';
 import type { XMermaidOptions, DiagramAst, LayoutResult, FlowchartAst } from './types';
 
 export interface ParseResult {
   success: boolean;
   ast: DiagramAst;
-  errors?: unknown[];
+  errors?: XMermaidError[];
 }
 
 export interface RenderResult {
@@ -41,7 +42,7 @@ export class XMermaid {
       return {
         success: false,
         ast: {} as DiagramAst,
-        errors: [{ code: 'PARSE_ERROR', type: 'syntax', message: String(error) }],
+        errors: [new XMermaidError('PARSE_ERROR', String(error), { error })],
       };
     }
   }
@@ -50,7 +51,7 @@ export class XMermaid {
     const start = performance.now();
     const parseResult = await this.parse(dsl);
     if (!parseResult.success) {
-      throw new Error(`Parse failed: ${JSON.stringify(parseResult.errors)}`);
+      throw parseResult.errors![0];
     }
 
     const parseTime = performance.now() - start;
@@ -58,7 +59,7 @@ export class XMermaid {
     const layoutTime = performance.now() - start - parseTime;
 
     if (parseResult.ast.type !== 'flowchart') {
-      throw new Error('Only flowchart supported in MVP');
+      throw new XMermaidError('UNSUPPORTED_DIAGRAM', 'Only flowchart diagrams are supported in MVP');
     }
 
     const svg = this.svgRenderer.render(parseResult.ast as FlowchartAst, layoutResult);
@@ -73,7 +74,10 @@ export class XMermaid {
 
     const parser = new DOMParser();
     const doc = parser.parseFromString(svgString, 'image/svg+xml');
-    const svg = doc.querySelector('svg')!;
+    const svg = doc.querySelector('svg');
+    if (!svg) {
+      throw new XMermaidError('RENDER_ERROR', 'Failed to parse generated SVG');
+    }
     container.appendChild(svg);
 
     const total = performance.now() - start;
@@ -84,7 +88,6 @@ export class XMermaid {
     };
   }
 
-  /** Full pipeline via WASM: parse + layout in one call. Returns raw JSON. */
   async pipeline(dsl: string): Promise<{ ast: DiagramAst; layout: LayoutResult }> {
     await this.ensureWasmReady();
     const wasm = getWasm();
@@ -103,6 +106,26 @@ export class XMermaid {
   private async ensureWasmReady(): Promise<void> {
     if (!isWasmReady()) {
       await initWasm();
+    }
+  }
+
+  /** Scan the DOM for elements with class "mermaid" and render them. */
+  static async run(options: XMermaidOptions = {}): Promise<void> {
+    const xm = new XMermaid(options);
+    const elements = document.querySelectorAll('.mermaid');
+
+    for (const el of elements) {
+      if (el instanceof HTMLElement) {
+        const dsl = el.textContent?.trim();
+        if (dsl) {
+          el.textContent = '';
+          try {
+            await xm.render(dsl, el);
+          } catch (e) {
+            el.textContent = `Error: ${e instanceof Error ? e.message : String(e)}`;
+          }
+        }
+      }
     }
   }
 }

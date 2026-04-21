@@ -1,15 +1,18 @@
-export type ErrorType = 'syntax' | 'validation' | 'layout' | 'render' | 'plugin';
+export type XMermaidErrorCode =
+  | 'PARSE_ERROR'
+  | 'LAYOUT_ERROR'
+  | 'RENDER_ERROR'
+  | 'WASM_ERROR'
+  | 'UNSUPPORTED_DIAGRAM';
 
-export interface ErrorLocation {
-  line: number;
-  column: number;
-  snippet: string;
-}
+export class XMermaidError extends Error {
+  code: XMermaidErrorCode;
+  details?: unknown;
 
-export interface XMermaidError {
-  code: string;
-  type: ErrorType;
-  message: string;
-  location?: ErrorLocation;
-  suggestion?: string;
+  constructor(code: XMermaidErrorCode, message: string, details?: unknown) {
+    super(message);
+    this.name = 'XMermaidError';
+    this.code = code;
+    this.details = details;
+  }
 }

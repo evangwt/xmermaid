@@ -1,6 +1,7 @@
 export { XMermaid } from './xmermaid';
 export { SVGRenderer } from './renderer';
 export { initWasm, isWasmReady } from './wasm';
+export { XMermaidError } from './types/error';
 export type {
   DiagramAst,
   FlowchartAst,
@@ -15,5 +16,4 @@ export type {
   Point,
   Dimensions,
   XMermaidOptions,
-  XMermaidError,
 } from './types';
