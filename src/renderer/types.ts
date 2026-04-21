@@ -1,12 +1,12 @@
-import type { FlowchartAst, LayoutResult } from '../types';
-
 export interface RenderContext {
-  ast: FlowchartAst;
-  layout: LayoutResult;
-  container?: Element;
+  ast: unknown;
+  layout: unknown;
+  theme: string;
+  container?: HTMLElement;
 }
 
 export interface RenderOutput {
-  element: SVGElement;
-  dimensions: { width: number; height: number };
+  svg: SVGElement;
+  width: number;
+  height: number;
 }

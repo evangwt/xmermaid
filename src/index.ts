@@ -1,5 +1,19 @@
 export { XMermaid } from './xmermaid';
-export type { ParseResult, RenderResult } from './xmermaid';
-export { initWasm, isWasmReady } from './wasm';
 export { SVGRenderer } from './renderer';
-export * from './types';
+export { initWasm, isWasmReady } from './wasm';
+export type {
+  DiagramAst,
+  FlowchartAst,
+  SequenceAst,
+  FlowDirection,
+  NodeShape,
+  EdgeStyle,
+  FlowchartNode,
+  FlowchartEdge,
+  Subgraph,
+  LayoutResult,
+  Point,
+  Dimensions,
+  XMermaidOptions,
+  XMermaidError,
+} from './types';

@@ -26,7 +26,7 @@ export class XMermaid {
       securityLevel: options.securityLevel ?? 'strict',
       performance: options.performance ?? {},
     };
-    this.svgRenderer = new SVGRenderer();
+    this.svgRenderer = new SVGRenderer(this.options.theme);
   }
 
   async parse(dsl: string): Promise<ParseResult> {
@@ -82,6 +82,15 @@ export class XMermaid {
       output: svg,
       performance: { parse: 0, layout: 0, render: 0, total },
     };
+  }
+
+  /** Full pipeline via WASM: parse + layout in one call. Returns raw JSON. */
+  async pipeline(dsl: string): Promise<{ ast: DiagramAst; layout: LayoutResult }> {
+    await this.ensureWasmReady();
+    const wasm = getWasm();
+    const json = wasm.render_pipeline(dsl);
+    const result = JSON.parse(json);
+    return { ast: result.ast, layout: result.layout };
   }
 
   private async computeLayout(ast: DiagramAst): Promise<LayoutResult> {
