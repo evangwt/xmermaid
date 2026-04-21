@@ -1,38 +1,16 @@
+use crate::token::{Token, TokenType};
 use std::iter::Peekable;
 use std::str::Chars;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Token {
-    pub ty: TokenType,
-    pub value: String,
-    pub line: usize,
-    pub column: usize,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum TokenType {
-    Keyword,
-    Direction,
-    NodeId,
-    Arrow,
-    Label,
-    BracketOpen,
-    BracketClose,
-    Newline,
-    Eof,
-    Unknown,
-}
-
-#[derive(Debug, Clone, PartialEq)]
 enum LexerState {
     Normal,
-    InLabel(char),
+    InLabel(char), // close char: ']', ')', '}'
 }
 
 pub struct Lexer<'a> {
     input: Peekable<Chars<'a>>,
     line: usize,
-    column: usize,
     state: LexerState,
     done: bool,
 }
@@ -42,7 +20,6 @@ impl<'a> Lexer<'a> {
         Self {
             input: input.chars().peekable(),
             line: 1,
-            column: 1,
             state: LexerState::Normal,
             done: false,
         }
@@ -56,9 +33,6 @@ impl<'a> Lexer<'a> {
         let c = self.input.next();
         if let Some('\n') = c {
             self.line += 1;
-            self.column = 1;
-        } else {
-            self.column += 1;
         }
         c
     }
@@ -107,6 +81,16 @@ impl<'a> Lexer<'a> {
         }
         label.trim().to_string()
     }
+
+    fn skip_comment(&mut self) {
+        // Already consumed first %, skip until newline or EOF
+        while let Some(&c) = self.peek() {
+            self.advance();
+            if c == '\n' {
+                break;
+            }
+        }
+    }
 }
 
 impl<'a> Iterator for Lexer<'a> {
@@ -118,7 +102,6 @@ impl<'a> Iterator for Lexer<'a> {
         }
 
         let line = self.line;
-        let column = self.column;
 
         match self.state {
             LexerState::InLabel(close_char) => match self.peek() {
@@ -129,17 +112,21 @@ impl<'a> Iterator for Lexer<'a> {
                         ty: TokenType::Eof,
                         value: String::new(),
                         line,
-                        column,
                     });
                 }
                 Some(&c) if c == close_char => {
                     self.advance();
                     self.state = LexerState::Normal;
+                    let ty = match close_char {
+                        ']' => TokenType::BracketClose,
+                        ')' => TokenType::ParenClose,
+                        '}' => TokenType::BraceClose,
+                        _ => TokenType::BracketClose,
+                    };
                     return Some(Token {
-                        ty: TokenType::BracketClose,
+                        ty,
                         value: c.to_string(),
                         line,
-                        column,
                     });
                 }
                 Some(_) => {
@@ -148,7 +135,6 @@ impl<'a> Iterator for Lexer<'a> {
                         ty: TokenType::Label,
                         value: label,
                         line,
-                        column,
                     });
                 }
             },
@@ -156,7 +142,6 @@ impl<'a> Iterator for Lexer<'a> {
                 self.skip_whitespace();
 
                 let line = self.line;
-                let column = self.column;
 
                 match self.peek() {
                     None => {
@@ -165,7 +150,6 @@ impl<'a> Iterator for Lexer<'a> {
                             ty: TokenType::Eof,
                             value: String::new(),
                             line,
-                            column,
                         })
                     }
                     Some(&'\n') => {
@@ -174,38 +158,150 @@ impl<'a> Iterator for Lexer<'a> {
                             ty: TokenType::Newline,
                             value: "\n".to_string(),
                             line,
-                            column,
                         })
                     }
-                    Some(&c) if c == '[' => {
+                    // Comments: %%
+                    Some(&'%') => {
+                        self.advance();
+                        if let Some(&'%') = self.peek() {
+                            self.advance();
+                            self.skip_comment();
+                            // Return newline so parser sees statement boundary
+                            Some(Token {
+                                ty: TokenType::Newline,
+                                value: "\n".to_string(),
+                                line,
+                            })
+                        } else {
+                            Some(Token {
+                                ty: TokenType::Unknown,
+                                value: "%".to_string(),
+                                line,
+                            })
+                        }
+                    }
+                    // Semicolons
+                    Some(&';') => {
+                        self.advance();
+                        Some(Token {
+                            ty: TokenType::Semicolon,
+                            value: ";".to_string(),
+                            line,
+                        })
+                    }
+                    // Pipe for edge labels
+                    Some(&'|') => {
+                        self.advance();
+                        Some(Token {
+                            ty: TokenType::Pipe,
+                            value: "|".to_string(),
+                            line,
+                        })
+                    }
+                    // Ampersand for node chaining
+                    Some(&'&') => {
+                        self.advance();
+                        Some(Token {
+                            ty: TokenType::Ampersand,
+                            value: "&".to_string(),
+                            line,
+                        })
+                    }
+                    // Slash for parallelogram [/.../]
+                    Some(&'/') => {
+                        self.advance();
+                        Some(Token {
+                            ty: TokenType::Slash,
+                            value: "/".to_string(),
+                            line,
+                        })
+                    }
+                    // Backslash for trapezoid [\...\]
+                    Some(&'\\') => {
+                        self.advance();
+                        Some(Token {
+                            ty: TokenType::Backslash,
+                            value: "\\".to_string(),
+                            line,
+                        })
+                    }
+                    // Square brackets [ — enters InLabel state
+                    Some(&'[') => {
                         self.advance();
                         self.state = LexerState::InLabel(']');
                         Some(Token {
                             ty: TokenType::BracketOpen,
-                            value: c.to_string(),
+                            value: "[".to_string(),
                             line,
-                            column,
                         })
                     }
-                    Some(&c) if c == '(' => {
-                        self.advance();
-                        self.state = LexerState::InLabel(')');
-                        Some(Token {
-                            ty: TokenType::BracketOpen,
-                            value: c.to_string(),
-                            line,
-                            column,
-                        })
-                    }
-                    Some(&c) if c == ']' || c == ')' => {
+                    Some(&']') => {
                         self.advance();
                         Some(Token {
                             ty: TokenType::BracketClose,
-                            value: c.to_string(),
+                            value: "]".to_string(),
                             line,
-                            column,
                         })
                     }
+                    // Parentheses ( — enters InLabel state
+                    Some(&'(') => {
+                        self.advance();
+                        self.state = LexerState::InLabel(')');
+                        Some(Token {
+                            ty: TokenType::ParenOpen,
+                            value: "(".to_string(),
+                            line,
+                        })
+                    }
+                    Some(&')') => {
+                        self.advance();
+                        Some(Token {
+                            ty: TokenType::ParenClose,
+                            value: ")".to_string(),
+                            line,
+                        })
+                    }
+                    // Curly braces { — enters InLabel state for diamond shapes
+                    Some(&'{') => {
+                        self.advance();
+                        self.state = LexerState::InLabel('}');
+                        Some(Token {
+                            ty: TokenType::BraceOpen,
+                            value: "{".to_string(),
+                            line,
+                        })
+                    }
+                    Some(&'}') => {
+                        self.advance();
+                        Some(Token {
+                            ty: TokenType::BraceClose,
+                            value: "}".to_string(),
+                            line,
+                        })
+                    }
+                    // Angle brackets for asymmetric shape >...]
+                    Some(&'<') => {
+                        self.advance();
+                        Some(Token {
+                            ty: TokenType::AngleOpen,
+                            value: "<".to_string(),
+                            line,
+                        })
+                    }
+                    Some(&'>') => {
+                        // Could be part of arrow; if not, it's AngleClose
+                        // But > is always consumed by read_arrow when preceded by -
+                        // Standalone > for asymmetric shape: enters InLabel(']')
+                        // similar to how [ enters InLabel(']')
+                        self.advance();
+                        self.state = LexerState::InLabel(']');
+                        Some(Token {
+                            ty: TokenType::AngleClose,
+                            value: ">".to_string(),
+                            line,
+                        })
+                    }
+                    // Arrows: starts with -, =, ~, or .
                     Some(&'-') | Some(&'=') | Some(&'~') => {
                         let arrow = self.read_arrow();
                         let ty = if arrow.len() >= 2 {
@@ -217,13 +313,38 @@ impl<'a> Iterator for Lexer<'a> {
                             ty,
                             value: arrow,
                             line,
-                            column,
                         })
                     }
+                    Some(&'.') => {
+                        // Could be start of dotted arrow -.-> or just a dot
+                        if let Some(&'-') = self.input.peek() {
+                            let arrow = self.read_arrow();
+                            let ty = if arrow.len() >= 2 {
+                                TokenType::Arrow
+                            } else {
+                                TokenType::Unknown
+                            };
+                            Some(Token {
+                                ty,
+                                value: arrow,
+                                line,
+                            })
+                        } else {
+                            self.advance();
+                            Some(Token {
+                                ty: TokenType::Unknown,
+                                value: ".".to_string(),
+                                line,
+                            })
+                        }
+                    }
+                    // Words: keywords, directions, node IDs
                     Some(&c) if c.is_alphanumeric() || c == '_' => {
                         let word = self.read_word();
                         let ty = match word.as_str() {
-                            "graph" | "flowchart" | "subgraph" => TokenType::Keyword,
+                            "graph" | "flowchart" | "subgraph" | "end"
+                            | "classDef" | "class" | "style" | "click"
+                            | "direction" => TokenType::Keyword,
                             "TD" | "TB" | "BT" | "LR" | "RL" => TokenType::Direction,
                             _ => TokenType::NodeId,
                         };
@@ -231,7 +352,6 @@ impl<'a> Iterator for Lexer<'a> {
                             ty,
                             value: word,
                             line,
-                            column,
                         })
                     }
                     Some(_) => {
@@ -240,7 +360,6 @@ impl<'a> Iterator for Lexer<'a> {
                             ty: TokenType::Unknown,
                             value: String::new(),
                             line,
-                            column,
                         })
                     }
                 }

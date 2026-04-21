@@ -1,4 +1,5 @@
-use xmermaid_parser::lexer::{Lexer, Token, TokenType};
+use xmermaid_parser::lexer::Lexer;
+use xmermaid_parser::{Token, TokenType};
 
 #[test]
 fn test_lexer_identifies_keywords() {

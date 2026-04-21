@@ -1,11 +1,12 @@
 use crate::ast::*;
 use crate::error::ParseError;
-use crate::lexer::{Lexer, Token, TokenType};
+use crate::lexer::Lexer;
+use crate::token::{Token, TokenType};
 
 pub struct Parser<'a> {
     tokens: Vec<Token>,
     pos: usize,
-    _input: &'a str,
+    _input: std::marker::PhantomData<&'a str>,
 }
 
 impl<'a> Parser<'a> {
@@ -17,13 +18,12 @@ impl<'a> Parser<'a> {
                 ty: TokenType::Eof,
                 value: String::new(),
                 line: 0,
-                column: 0,
             });
         }
         Self {
             tokens,
             pos: 0,
-            _input: input,
+            _input: std::marker::PhantomData,
         }
     }
 
@@ -71,27 +71,174 @@ impl<'a> Parser<'a> {
 
         let mut nodes: Vec<Node> = Vec::new();
         let mut edges: Vec<Edge> = Vec::new();
+        let mut subgraphs: Vec<Subgraph> = Vec::new();
         let mut seen_nodes: std::collections::HashSet<String> = std::collections::HashSet::new();
 
         while self.current().ty != TokenType::Eof {
-            self.skip_newlines();
+            self.skip_newlines_and_semicolons();
             if self.current().ty == TokenType::Eof {
                 break;
             }
-            self.parse_flowchart_statement(&mut nodes, &mut edges, &mut seen_nodes)?;
-            self.skip_newlines();
+
+            match self.current().ty {
+                TokenType::Keyword => {
+                    match self.current().value.as_str() {
+                        "subgraph" => {
+                            let sg = self.parse_subgraph(&mut nodes, &mut edges, &mut seen_nodes)?;
+                            subgraphs.push(sg);
+                        }
+                        "classDef" | "class" | "style" | "click" => {
+                            // Skip style-related statements (not yet fully supported)
+                            self.skip_statement();
+                        }
+                        "end" => {
+                            // end outside subgraph — skip
+                            self.advance();
+                        }
+                        _ => {
+                            return Err(ParseError::UnexpectedToken(format!(
+                                "Unexpected keyword '{}' in flowchart body",
+                                self.current().value
+                            )));
+                        }
+                    }
+                }
+                TokenType::NodeId => {
+                    self.parse_flowchart_statement(&mut nodes, &mut edges, &mut seen_nodes)?;
+                }
+                _ => {
+                    // Skip unknown tokens
+                    self.advance();
+                }
+            }
         }
 
         Ok(DiagramAst::Flowchart(FlowchartAst {
             direction,
             nodes,
             edges,
-            subgraphs: Vec::new(),
+            subgraphs,
         }))
     }
 
-    fn skip_newlines(&mut self) {
-        while self.current().ty == TokenType::Newline {
+    fn skip_statement(&mut self) {
+        // Consume tokens until newline, semicolon, or EOF
+        while self.current().ty != TokenType::Newline
+            && self.current().ty != TokenType::Semicolon
+            && self.current().ty != TokenType::Eof
+        {
+            self.advance();
+        }
+    }
+
+    fn parse_subgraph(
+        &mut self,
+        nodes: &mut Vec<Node>,
+        edges: &mut Vec<Edge>,
+        seen_nodes: &mut std::collections::HashSet<String>,
+    ) -> Result<Subgraph, ParseError> {
+        self.expect(TokenType::Keyword)?; // consume "subgraph"
+
+        // Subgraph title: could be a NodeId, or a NodeId followed by bracketed label
+        let title = if self.current().ty == TokenType::NodeId {
+            let id = self.current().value.clone();
+            self.advance();
+            // Check for bracketed title: subgraph myId [My Title]
+            if self.current().ty == TokenType::BracketOpen {
+                self.advance();
+                let label = if self.current().ty == TokenType::Label {
+                    let v = self.current().value.clone();
+                    self.advance();
+                    v
+                } else {
+                    String::new()
+                };
+                if self.current().ty == TokenType::BracketClose {
+                    self.advance();
+                }
+                // If bracketed label exists, use it as title; otherwise use id
+                if label.is_empty() { id } else { label }
+            } else {
+                id
+            }
+        } else if self.current().ty == TokenType::BracketOpen {
+            self.advance();
+            let t = if self.current().ty == TokenType::Label {
+                let v = self.current().value.clone();
+                self.advance();
+                v
+            } else {
+                String::new()
+            };
+            if self.current().ty == TokenType::BracketClose {
+                self.advance();
+            }
+            t
+        } else {
+            String::new()
+        };
+
+        // Optional direction after title
+        if self.current().ty == TokenType::Direction {
+            self.advance();
+        }
+
+        self.skip_newlines_and_semicolons();
+
+        let mut sg_nodes: Vec<String> = Vec::new();
+        let mut sg_subgraphs: Vec<Subgraph> = Vec::new();
+
+        while self.current().ty != TokenType::Eof {
+            self.skip_newlines_and_semicolons();
+            if self.current().ty == TokenType::Eof {
+                break;
+            }
+            if self.current().ty == TokenType::Keyword && self.current().value == "end" {
+                self.advance();
+                break;
+            }
+
+            match self.current().ty {
+                TokenType::Keyword => {
+                    if self.current().value == "subgraph" {
+                        let nested = self.parse_subgraph(nodes, edges, seen_nodes)?;
+                        sg_subgraphs.push(nested);
+                    } else if self.current().value == "direction" {
+                        // direction LR inside subgraph — consume and skip
+                        self.advance(); // consume "direction"
+                        if self.current().ty == TokenType::Direction {
+                            self.advance(); // consume direction value
+                        }
+                    } else {
+                        self.skip_statement();
+                    }
+                }
+                TokenType::NodeId => {
+                    self.parse_flowchart_statement(nodes, edges, seen_nodes)?;
+                    // Track nodes added in this subgraph
+                    // We add all node IDs that were just added
+                    // Simple approach: track the last node added
+                    if let Some(last) = nodes.last() {
+                        if !sg_nodes.contains(&last.id) {
+                            sg_nodes.push(last.id.clone());
+                        }
+                    }
+                }
+                _ => {
+                    self.advance();
+                }
+            }
+        }
+
+        Ok(Subgraph {
+            title,
+            nodes: sg_nodes,
+            subgraphs: sg_subgraphs,
+        })
+    }
+
+    fn skip_newlines_and_semicolons(&mut self) {
+        while self.current().ty == TokenType::Newline || self.current().ty == TokenType::Semicolon {
             self.advance();
         }
     }
@@ -116,73 +263,197 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_node_shape_and_label(&mut self) -> (NodeShape, Option<String>) {
-        let mut shape = NodeShape::Rect;
-        let mut label: Option<String> = None;
-
-        if self.current().ty == TokenType::BracketOpen {
-            let bracket = self.current().value.clone();
-            self.advance();
-
-            // Check for circle shape: lexer produces Label("(text") for ((text))
-            // The label value starts with "(" when it's a double-paren circle
-            if self.current().ty == TokenType::Label && bracket == "(" {
-                let label_val = self.current().value.clone();
-                if label_val.starts_with('(') {
-                    // Circle shape: ((text))
-                    shape = NodeShape::Circle;
-                    label = Some(label_val[1..].trim().to_string());
-                    self.advance();
-
-                    // Skip two BracketClose tokens (for both parens)
-                    if self.current().ty == TokenType::BracketClose {
-                        self.advance();
-                    }
-                    if self.current().ty == TokenType::BracketClose {
-                        self.advance();
-                    }
-                    return (shape, label);
-                }
-            }
-
-            // Check for nested BracketOpen (when lexer produces separate tokens)
-            if self.current().ty == TokenType::BracketOpen {
-                let inner = self.current().value.clone();
+        // Asymmetric shape: >text] — in Mermaid, > opens and ] closes
+        if self.current().ty == TokenType::AngleClose {
+            self.advance(); // consume >
+            // Read label content until ]
+            let label = if self.current().ty == TokenType::Label {
+                let v = self.current().value.clone();
                 self.advance();
-
-                if inner == "(" && bracket == "(" {
-                    shape = NodeShape::Circle;
-                }
-
-                if self.current().ty == TokenType::Label {
-                    label = Some(self.current().value.clone());
-                    self.advance();
-                }
-
-                if self.current().ty == TokenType::BracketClose {
-                    self.advance();
-                }
+                Some(v)
             } else {
-                // Single bracket: [label] or (label)
-                if self.current().ty == TokenType::Label {
-                    label = Some(self.current().value.clone());
-                    self.advance();
-                }
-            }
-
+                None
+            };
             if self.current().ty == TokenType::BracketClose {
                 self.advance();
             }
-
-            if shape != NodeShape::Circle {
-                shape = match bracket.as_str() {
-                    "[" => NodeShape::Rect,
-                    "(" => NodeShape::Rounded,
-                    _ => NodeShape::Rect,
-                };
-            }
+            return (NodeShape::Asymmetric, label);
         }
 
-        (shape, label)
+        // Parallelogram: [/text/]
+        if self.current().ty == TokenType::BracketOpen {
+            self.advance(); // consume [
+            // The lexer enters InLabel(']') after [, so the next token is either
+            // a Label (content inside brackets) or BracketClose (empty brackets).
+            // We inspect the label content for [/.../], [\...\], [[...]] patterns.
+            if self.current().ty == TokenType::Label {
+                let label_val = self.current().value.clone();
+                // Check for parallelogram: label starts with /
+                if label_val.starts_with('/') {
+                    self.advance(); // consume the Label token
+                    let inner_label = label_val[1..].trim().to_string();
+                    // Check for trailing /
+                    let inner_label = if inner_label.ends_with('/') {
+                        inner_label[..inner_label.len()-1].trim().to_string()
+                    } else {
+                        inner_label
+                    };
+                    if self.current().ty == TokenType::BracketClose {
+                        self.advance();
+                    }
+                    let label = if inner_label.is_empty() { None } else { Some(inner_label) };
+                    return (NodeShape::Parallelogram, label);
+                }
+                // Check for trapezoid: label starts with \
+                if label_val.starts_with('\\') {
+                    self.advance(); // consume the Label token
+                    let inner_label = label_val[1..].trim().to_string();
+                    // Check for trailing \
+                    let inner_label = if inner_label.ends_with('\\') {
+                        inner_label[..inner_label.len()-1].trim().to_string()
+                    } else {
+                        inner_label
+                    };
+                    if self.current().ty == TokenType::BracketClose {
+                        self.advance();
+                    }
+                    let label = if inner_label.is_empty() { None } else { Some(inner_label) };
+                    return (NodeShape::Trapezoid, label);
+                }
+                // Check for subroutine: label starts with [
+                if label_val.starts_with('[') {
+                    self.advance(); // consume the Label token
+                    let inner_label = label_val[1..].trim().to_string();
+                    if self.current().ty == TokenType::BracketClose {
+                        self.advance(); // first ]
+                    }
+                    // Subroutine has two closing brackets: [[text]] — the lexer
+                    // produces Label("[text") then BracketClose then BracketClose
+                    if self.current().ty == TokenType::BracketClose {
+                        self.advance(); // second ]
+                    }
+                    let label = if inner_label.is_empty() { None } else { Some(inner_label) };
+                    return (NodeShape::Subroutine, label);
+                }
+                // Regular rect: [text]
+                self.advance(); // consume the Label token
+                let label = if label_val.is_empty() { None } else { Some(label_val) };
+                if self.current().ty == TokenType::BracketClose {
+                    self.advance();
+                }
+                return (NodeShape::Rect, label);
+            }
+            // Empty brackets: []
+            if self.current().ty == TokenType::BracketClose {
+                self.advance();
+            }
+            return (NodeShape::Rect, None);
+        }
+
+        // Parentheses: (text) or ((text)) for circle or (((text))) for double circle
+        if self.current().ty == TokenType::ParenOpen {
+            self.advance(); // consume first (
+
+            // The lexer's InLabel state for ( may produce a Label that starts
+            // with ( or (( for nested parens like ((circle)) or (((triple)))
+            let mut paren_depth: usize = 0;
+            let label_val = if self.current().ty == TokenType::Label {
+                let v = self.current().value.clone();
+                self.advance();
+                // Count leading ( chars in label value
+                paren_depth = v.chars().take_while(|c| *c == '(').count();
+                let trimmed = v[paren_depth..].trim().to_string();
+                if trimmed.is_empty() { None } else { Some(trimmed) }
+            } else {
+                None
+            };
+
+            // Count closing parens
+            let close_count = self.count_and_consume_paren_closes();
+
+            let shape = if paren_depth >= 2 && close_count >= 3 {
+                NodeShape::DoubleCircle
+            } else if paren_depth >= 1 && close_count >= 2 {
+                NodeShape::Circle
+            } else {
+                NodeShape::Rounded
+            };
+
+            return (shape, label_val);
+        }
+
+        // Curly braces: {text} for diamond or {{text}} for hexagon
+        if self.current().ty == TokenType::BraceOpen {
+            self.advance(); // consume first {
+
+            // Similar to parens: lexer InLabel may produce Label starting with {
+            let mut brace_depth: usize = 0;
+            let label_val = if self.current().ty == TokenType::Label {
+                let v = self.current().value.clone();
+                self.advance();
+                brace_depth = v.chars().take_while(|c| *c == '{').count();
+                let trimmed = v[brace_depth..].trim().to_string();
+                if trimmed.is_empty() { None } else { Some(trimmed) }
+            } else {
+                None
+            };
+
+            let close_count = self.count_and_consume_brace_closes();
+
+            let shape = if brace_depth >= 1 && close_count >= 2 {
+                NodeShape::Hexagon
+            } else {
+                NodeShape::Diamond
+            };
+
+            return (shape, label_val);
+        }
+
+        (NodeShape::Rect, None)
+    }
+
+    fn count_and_consume_paren_closes(&mut self) -> usize {
+        let mut count = 0;
+        while self.current().ty == TokenType::ParenClose {
+            self.advance();
+            count += 1;
+        }
+        count
+    }
+
+    fn count_and_consume_brace_closes(&mut self) -> usize {
+        let mut count = 0;
+        while self.current().ty == TokenType::BraceClose {
+            self.advance();
+            count += 1;
+        }
+        count
+    }
+
+    fn parse_edge_label(&mut self) -> Option<String> {
+        // Edge label: |text| between arrow parts
+        if self.current().ty == TokenType::Pipe {
+            self.advance(); // consume opening |
+            let mut label_parts: Vec<String> = Vec::new();
+            while self.current().ty != TokenType::Pipe
+                && self.current().ty != TokenType::Eof
+                && self.current().ty != TokenType::Newline
+            {
+                label_parts.push(self.current().value.clone());
+                self.advance();
+            }
+            if self.current().ty == TokenType::Pipe {
+                self.advance(); // consume closing |
+            }
+            let label = label_parts.join(" ").trim().to_string();
+            if label.is_empty() {
+                None
+            } else {
+                Some(label)
+            }
+        } else {
+            None
+        }
     }
 
     fn parse_flowchart_statement(
@@ -211,6 +482,9 @@ impl<'a> Parser<'a> {
                 _ => EdgeStyle::Arrow,
             };
 
+            // Optional edge label: |text|
+            let edge_label = self.parse_edge_label();
+
             let target_id = self.expect(TokenType::NodeId)?;
             let (target_shape, target_label) = self.parse_node_shape_and_label();
 
@@ -220,11 +494,22 @@ impl<'a> Parser<'a> {
                 from: current_id,
                 to: target_id.clone(),
                 style,
-                label: None,
+                label: edge_label,
                 min_length: 1,
             });
 
             current_id = target_id;
+        }
+
+        // Handle & operator: A & B means both on same line
+        while self.current().ty == TokenType::Ampersand {
+            self.advance(); // consume &
+            if self.current().ty == TokenType::NodeId {
+                let next_id = self.current().value.clone();
+                self.advance();
+                let (next_shape, next_label) = self.parse_node_shape_and_label();
+                Self::add_node_if_new(nodes, seen_nodes, next_id, next_label, next_shape);
+            }
         }
 
         Ok(())

@@ -289,7 +289,7 @@ fn test_parse_ast_roundtrip_json() {
 // ─── Edge label is always None in MVP ────────────────────────────
 
 #[test]
-fn test_parse_edge_label_always_none() {
+fn test_parse_edge_label_none_by_default() {
     let ast = parse("graph TD\n  A-->B").unwrap();
     match ast {
         DiagramAst::Flowchart(fc) => {
@@ -355,24 +355,38 @@ fn test_falsify_keyword_then_invalid_direction() {
 }
 
 #[test]
-fn test_falsify_diamond_shape_unsupported() {
-    // {diamond} syntax is not supported by lexer
-    let result = parse("graph TD\n  A{diamond}");
-    assert!(result.is_err());
+fn test_parse_diamond_shape() {
+    let ast = parse("graph TD\n  A{Decision}").unwrap();
+    match ast {
+        DiagramAst::Flowchart(fc) => {
+            assert_eq!(fc.nodes[0].shape, NodeShape::Diamond);
+            assert_eq!(fc.nodes[0].label, Some("Decision".to_string()));
+        }
+        _ => panic!("Expected Flowchart"),
+    }
 }
 
 #[test]
-fn test_falsify_edge_label_pipe_unsupported() {
-    // -->|label| syntax not supported
-    let result = parse("graph TD\n  A-->|my label|B");
-    assert!(result.is_err());
+fn test_parse_edge_label_pipe() {
+    let ast = parse("graph TD\n  A-->|my label|B").unwrap();
+    match ast {
+        DiagramAst::Flowchart(fc) => {
+            assert_eq!(fc.edges[0].label, Some("my label".to_string()));
+        }
+        _ => panic!("Expected Flowchart"),
+    }
 }
 
 #[test]
-fn test_falsify_subgraph_not_parsed() {
-    // subgraph keyword is recognized by lexer but not handled by parser
-    let result = parse("graph TD\n  subgraph sg\n  A-->B\n  end");
-    assert!(result.is_err());
+fn test_parse_subgraph() {
+    let ast = parse("graph TD\n  subgraph sg\n  A-->B\n  end").unwrap();
+    match ast {
+        DiagramAst::Flowchart(fc) => {
+            assert_eq!(fc.subgraphs.len(), 1);
+            assert_eq!(fc.subgraphs[0].title, "sg");
+        }
+        _ => panic!("Expected Flowchart"),
+    }
 }
 
 #[test]
