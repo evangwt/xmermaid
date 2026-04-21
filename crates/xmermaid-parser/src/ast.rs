@@ -9,6 +9,7 @@ pub enum FlowDirection {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum NodeShape {
     Rect,
     Rounded,
@@ -25,6 +26,7 @@ pub enum NodeShape {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum EdgeStyle {
     Arrow,
     Line,
@@ -72,7 +74,7 @@ pub struct SequenceAst {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type")]
+#[serde(tag = "type", rename_all = "lowercase")]
 pub enum DiagramAst {
     Flowchart(FlowchartAst),
     Sequence(SequenceAst),
