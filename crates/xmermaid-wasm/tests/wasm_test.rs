@@ -1,36 +1,37 @@
-//! WASM binding tests — test the Rust logic without a browser
+//! WASM binding tests — test the underlying logic without wasm_bindgen
+//! (wasm_bindgen functions cannot be called on non-wasm32 targets)
 
-use xmermaid_wasm::*;
 use xmermaid_parser::DiagramAst;
 
 #[test]
 fn test_parse_dsl_flowchart() {
-    let json = parse_dsl("graph TD\n  A-->B").unwrap();
-    let ast: DiagramAst = serde_json::from_str(&json).unwrap();
+    let ast = xmermaid_parser::parse("graph TD\n  A-->B").unwrap();
     assert!(matches!(ast, DiagramAst::Flowchart(_)));
 }
 
 #[test]
 fn test_parse_dsl_invalid() {
-    let result = parse_dsl("not a diagram");
+    let result = xmermaid_parser::parse("not a diagram");
     assert!(result.is_err());
 }
 
 #[test]
 fn test_get_diagram_type_flowchart() {
-    let json = parse_dsl("graph TD\n  A-->B").unwrap();
-    let dtype = get_diagram_type(&json).unwrap();
-    assert_eq!(dtype, "flowchart");
+    let ast = xmermaid_parser::parse("graph TD\n  A-->B").unwrap();
+    let type_str = match &ast {
+        DiagramAst::Flowchart(_) => "flowchart",
+        DiagramAst::Sequence(_) => "sequence",
+    };
+    assert_eq!(type_str, "flowchart");
 }
 
 #[test]
 fn test_compute_layout() {
-    let json = parse_dsl("graph TD\n  A-->B-->C").unwrap();
-    let layout_json = compute_layout(&json).unwrap();
-    let layout: serde_json::Value = serde_json::from_str(&layout_json).unwrap();
-    assert!(layout["positions"].is_array());
-    assert!(layout["dimensions"]["width"].is_number());
-    assert!(layout["dimensions"]["height"].is_number());
+    let ast = xmermaid_parser::parse("graph TD\n  A-->B-->C").unwrap();
+    let layout = xmermaid_layout::compute_flowchart_layout(&ast).unwrap();
+    assert_eq!(layout.positions.len(), 3);
+    assert!(layout.dimensions.width > 0.0);
+    assert!(layout.dimensions.height > 0.0);
 }
 
 #[test]
@@ -38,31 +39,55 @@ fn test_compute_layout_non_flowchart() {
     let ast = DiagramAst::Sequence(xmermaid_parser::ast::SequenceAst {
         participants: vec!["A".to_string()],
     });
-    let ast_json = serde_json::to_string(&ast).unwrap();
-    let result = compute_layout(&ast_json);
+    let result = xmermaid_layout::compute_flowchart_layout(&ast);
     assert!(result.is_err());
 }
 
 #[test]
 fn test_render_pipeline() {
-    let json = render_pipeline("graph TD\n  A[Start]-->B[End]").unwrap();
-    let result: serde_json::Value = serde_json::from_str(&json).unwrap();
-    assert!(result["ast"].is_object());
-    assert!(result["layout"].is_object());
-    assert!(result["ast"]["type"].as_str() == Some("flowchart"));
+    let ast = xmermaid_parser::parse("graph TD\n  A[Start]-->B[End]").unwrap();
+    let layout = xmermaid_layout::compute_flowchart_layout(&ast).unwrap();
+
+    let result = serde_json::json!({
+        "ast": ast,
+        "layout": layout,
+    });
+    let json = serde_json::to_string(&result).unwrap();
+    let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+    assert!(parsed["ast"].is_object());
+    assert!(parsed["layout"].is_object());
+    assert_eq!(parsed["ast"]["type"].as_str(), Some("Flowchart"));
 }
 
 #[test]
 fn test_render_pipeline_invalid() {
-    let result = render_pipeline("not valid");
+    let result = xmermaid_parser::parse("not valid");
     assert!(result.is_err());
 }
 
 #[test]
 fn test_render_pipeline_complex() {
-    let json = render_pipeline("graph LR\n  A-->B\n  B-->C\n  A-->C").unwrap();
-    let result: serde_json::Value = serde_json::from_str(&json).unwrap();
-    let ast = &result["ast"];
-    assert_eq!(ast["nodes"].as_array().unwrap().len(), 3);
-    assert_eq!(ast["edges"].as_array().unwrap().len(), 3);
+    let ast = xmermaid_parser::parse("graph LR\n  A-->B\n  B-->C\n  A-->C").unwrap();
+    let layout = xmermaid_layout::compute_flowchart_layout(&ast).unwrap();
+
+    match &ast {
+        DiagramAst::Flowchart(fc) => {
+            assert_eq!(fc.nodes.len(), 3);
+            assert_eq!(fc.edges.len(), 3);
+        }
+        _ => panic!("Expected Flowchart"),
+    }
+    assert_eq!(layout.positions.len(), 3);
+}
+
+#[test]
+fn test_full_pipeline_with_shapes() {
+    let ast = xmermaid_parser::parse("graph TD\n  A[Start]-->B{Decision}\n  B-->|Yes|C[Process]\n  B-->|No|D[End]").unwrap();
+    let layout = xmermaid_layout::compute_flowchart_layout(&ast).unwrap();
+
+    assert_eq!(layout.positions.len(), 4);
+    // Verify JSON serialization works for the full pipeline
+    let json = serde_json::to_string(&serde_json::json!({ "ast": ast, "layout": layout })).unwrap();
+    assert!(json.contains("\"type\""));
+    assert!(json.contains("\"positions\""));
 }
