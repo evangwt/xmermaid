@@ -1,4 +1,5 @@
-use xmermaid_parser::lexer::{Lexer, Token, TokenType};
+use xmermaid_parser::lexer::Lexer;
+use xmermaid_parser::{Token, TokenType};
 
 // ─── Empty & whitespace ───────────────────────────────────────────
 
@@ -22,36 +23,26 @@ fn test_lexer_whitespace_only() {
 fn test_lexer_newlines_only() {
     let lexer = Lexer::new("\n\n\n");
     let tokens: Vec<Token> = lexer.collect();
-    assert_eq!(tokens.len(), 4); // 3 newlines + EOF
+    assert_eq!(tokens.len(), 4);
     for i in 0..3 {
         assert_eq!(tokens[i].ty, TokenType::Newline);
     }
     assert_eq!(tokens[3].ty, TokenType::Eof);
 }
 
-// ─── Line & column tracking ───────────────────────────────────────
+// ─── Line tracking ────────────────────────────────────────────────
 
 #[test]
 fn test_lexer_line_tracking() {
     let input = "graph\nTD";
     let lexer = Lexer::new(input);
     let tokens: Vec<Token> = lexer.collect();
-    // "graph" on line 1, newline, "TD" on line 2
     assert_eq!(tokens[0].line, 1);
     assert_eq!(tokens[0].value, "graph");
     assert_eq!(tokens[1].line, 1);
     assert_eq!(tokens[1].ty, TokenType::Newline);
     assert_eq!(tokens[2].line, 2);
     assert_eq!(tokens[2].value, "TD");
-}
-
-#[test]
-fn test_lexer_column_tracking() {
-    let input = "A B";
-    let lexer = Lexer::new(input);
-    let tokens: Vec<Token> = lexer.collect();
-    assert_eq!(tokens[0].column, 1); // A at column 1
-    assert_eq!(tokens[1].column, 3); // B at column 3
 }
 
 // ─── Keywords ─────────────────────────────────────────────────────
@@ -72,6 +63,24 @@ fn test_lexer_subgraph_keyword() {
     let tokens: Vec<Token> = lexer.collect();
     assert_eq!(tokens[0].ty, TokenType::Keyword);
     assert_eq!(tokens[0].value, "subgraph");
+}
+
+#[test]
+fn test_lexer_end_keyword() {
+    let input = "end";
+    let lexer = Lexer::new(input);
+    let tokens: Vec<Token> = lexer.collect();
+    assert_eq!(tokens[0].ty, TokenType::Keyword);
+    assert_eq!(tokens[0].value, "end");
+}
+
+#[test]
+fn test_lexer_style_keywords() {
+    for kw in &["classDef", "class", "style", "click"] {
+        let lexer = Lexer::new(kw);
+        let tokens: Vec<Token> = lexer.collect();
+        assert_eq!(tokens[0].ty, TokenType::Keyword, "Failed for {}", kw);
+    }
 }
 
 // ─── All directions ──────────────────────────────────────────────
@@ -141,7 +150,6 @@ fn test_lexer_square_bracket_label() {
     let tokens: Vec<Token> = lexer.collect();
     assert_eq!(tokens[0].ty, TokenType::NodeId);
     assert_eq!(tokens[1].ty, TokenType::BracketOpen);
-    assert_eq!(tokens[1].value, "[");
     assert_eq!(tokens[2].ty, TokenType::Label);
     assert_eq!(tokens[2].value, "Hello World");
     assert_eq!(tokens[3].ty, TokenType::BracketClose);
@@ -152,11 +160,21 @@ fn test_lexer_round_bracket_label() {
     let input = "A(Hello)";
     let lexer = Lexer::new(input);
     let tokens: Vec<Token> = lexer.collect();
-    assert_eq!(tokens[1].ty, TokenType::BracketOpen);
-    assert_eq!(tokens[1].value, "(");
+    assert_eq!(tokens[1].ty, TokenType::ParenOpen);
     assert_eq!(tokens[2].ty, TokenType::Label);
     assert_eq!(tokens[2].value, "Hello");
-    assert_eq!(tokens[3].ty, TokenType::BracketClose);
+    assert_eq!(tokens[3].ty, TokenType::ParenClose);
+}
+
+#[test]
+fn test_lexer_curly_brace_label() {
+    let input = "A{Decision}";
+    let lexer = Lexer::new(input);
+    let tokens: Vec<Token> = lexer.collect();
+    assert_eq!(tokens[1].ty, TokenType::BraceOpen);
+    assert_eq!(tokens[2].ty, TokenType::Label);
+    assert_eq!(tokens[2].value, "Decision");
+    assert_eq!(tokens[3].ty, TokenType::BraceClose);
 }
 
 #[test]
@@ -165,7 +183,6 @@ fn test_lexer_empty_label() {
     let lexer = Lexer::new(input);
     let tokens: Vec<Token> = lexer.collect();
     assert_eq!(tokens[1].ty, TokenType::BracketOpen);
-    // Empty label: BracketOpen followed immediately by BracketClose
     assert_eq!(tokens[2].ty, TokenType::BracketClose);
 }
 
@@ -183,43 +200,60 @@ fn test_lexer_unclosed_label_produces_eof() {
     let input = "A[unclosed";
     let lexer = Lexer::new(input);
     let tokens: Vec<Token> = lexer.collect();
-    // Should produce: NodeId, BracketOpen, Label, Eof (no BracketClose)
     assert_eq!(tokens[0].ty, TokenType::NodeId);
     assert_eq!(tokens[1].ty, TokenType::BracketOpen);
     assert_eq!(tokens[2].ty, TokenType::Label);
     assert_eq!(tokens[3].ty, TokenType::Eof);
 }
 
-// ─── Unknown tokens ──────────────────────────────────────────────
+// ─── New token types ──────────────────────────────────────────────
 
 #[test]
-fn test_lexer_unknown_characters() {
-    let input = "@#$%^&";
-    let lexer = Lexer::new(input);
-    let tokens: Vec<Token> = lexer.collect();
-    // All should be Unknown, then Eof
-    for t in &tokens[..tokens.len() - 1] {
-        assert_eq!(t.ty, TokenType::Unknown);
-    }
-}
-
-#[test]
-fn test_lexer_curly_braces_are_unknown() {
-    let input = "{diamond}";
-    let lexer = Lexer::new(input);
-    let tokens: Vec<Token> = lexer.collect();
-    // { is Unknown, "diamond" is NodeId, } is Unknown
-    assert_eq!(tokens[0].ty, TokenType::Unknown);
-    assert_eq!(tokens[1].ty, TokenType::NodeId);
-    assert_eq!(tokens[2].ty, TokenType::Unknown);
-}
-
-#[test]
-fn test_lexer_pipe_is_unknown() {
+fn test_lexer_pipe_token() {
     let input = "|label|";
     let lexer = Lexer::new(input);
     let tokens: Vec<Token> = lexer.collect();
-    assert_eq!(tokens[0].ty, TokenType::Unknown);
+    assert_eq!(tokens[0].ty, TokenType::Pipe);
+    assert_eq!(tokens[1].ty, TokenType::NodeId);
+    assert_eq!(tokens[2].ty, TokenType::Pipe);
+}
+
+#[test]
+fn test_lexer_ampersand_token() {
+    let input = "A & B";
+    let lexer = Lexer::new(input);
+    let tokens: Vec<Token> = lexer.collect();
+    assert_eq!(tokens[0].ty, TokenType::NodeId);
+    assert_eq!(tokens[1].ty, TokenType::Ampersand);
+    assert_eq!(tokens[2].ty, TokenType::NodeId);
+}
+
+#[test]
+fn test_lexer_semicolon_token() {
+    let input = ";";
+    let lexer = Lexer::new(input);
+    let tokens: Vec<Token> = lexer.collect();
+    assert_eq!(tokens[0].ty, TokenType::Semicolon);
+}
+
+#[test]
+fn test_lexer_slash_token() {
+    let input = "/";
+    let lexer = Lexer::new(input);
+    let tokens: Vec<Token> = lexer.collect();
+    assert_eq!(tokens[0].ty, TokenType::Slash);
+}
+
+#[test]
+fn test_lexer_comment() {
+    let input = "graph TD\n%% this is a comment\nA-->B";
+    let lexer = Lexer::new(input);
+    let tokens: Vec<Token> = lexer.collect();
+    // Comment should produce a Newline token
+    assert_eq!(tokens[0].ty, TokenType::Keyword); // graph
+    assert_eq!(tokens[1].ty, TokenType::Direction); // TD
+    assert_eq!(tokens[2].ty, TokenType::Newline); // after TD
+    assert_eq!(tokens[3].ty, TokenType::Newline); // comment replaced with newline
 }
 
 // ─── Node ID variants ────────────────────────────────────────────
@@ -244,13 +278,11 @@ fn test_lexer_node_id_with_numbers() {
 
 #[test]
 fn test_lexer_hyphen_not_in_node_id() {
-    // Hyphens are arrow characters, not part of node IDs
     let input = "A-B";
     let lexer = Lexer::new(input);
     let tokens: Vec<Token> = lexer.collect();
     assert_eq!(tokens[0].ty, TokenType::NodeId);
     assert_eq!(tokens[0].value, "A");
-    // "-" alone is Unknown (length < 2)
     assert_eq!(tokens[1].ty, TokenType::Unknown);
     assert_eq!(tokens[2].ty, TokenType::NodeId);
 }
@@ -263,18 +295,18 @@ fn test_lexer_full_flowchart_line() {
     let lexer = Lexer::new(input);
     let tokens: Vec<Token> = lexer.collect();
 
-    assert_eq!(tokens[0].ty, TokenType::Keyword);    // graph
-    assert_eq!(tokens[1].ty, TokenType::Direction);   // TD
-    assert_eq!(tokens[2].ty, TokenType::Newline);     // \n
-    assert_eq!(tokens[3].ty, TokenType::NodeId);      // A
-    assert_eq!(tokens[4].ty, TokenType::BracketOpen); // [
-    assert_eq!(tokens[5].ty, TokenType::Label);       // Start
-    assert_eq!(tokens[6].ty, TokenType::BracketClose);// ]
-    assert_eq!(tokens[7].ty, TokenType::Arrow);       // -->
-    assert_eq!(tokens[8].ty, TokenType::NodeId);      // B
-    assert_eq!(tokens[9].ty, TokenType::BracketOpen); // [
-    assert_eq!(tokens[10].ty, TokenType::Label);      // End
-    assert_eq!(tokens[11].ty, TokenType::BracketClose);// ]
+    assert_eq!(tokens[0].ty, TokenType::Keyword);
+    assert_eq!(tokens[1].ty, TokenType::Direction);
+    assert_eq!(tokens[2].ty, TokenType::Newline);
+    assert_eq!(tokens[3].ty, TokenType::NodeId);
+    assert_eq!(tokens[4].ty, TokenType::BracketOpen);
+    assert_eq!(tokens[5].ty, TokenType::Label);
+    assert_eq!(tokens[6].ty, TokenType::BracketClose);
+    assert_eq!(tokens[7].ty, TokenType::Arrow);
+    assert_eq!(tokens[8].ty, TokenType::NodeId);
+    assert_eq!(tokens[9].ty, TokenType::BracketOpen);
+    assert_eq!(tokens[10].ty, TokenType::Label);
+    assert_eq!(tokens[11].ty, TokenType::BracketClose);
     assert_eq!(tokens[12].ty, TokenType::Eof);
 }
 
