@@ -114,4 +114,17 @@ describe('XMermaid', () => {
     });
     await expect(xm.renderToSVG('sequenceDiagram\n  A->>B')).rejects.toThrow('Only flowchart');
   });
+
+  it('XMermaid.run scans DOM for .mermaid elements', async () => {
+    const el = document.createElement('div');
+    el.className = 'mermaid';
+    el.textContent = 'graph TD\n  A-->B';
+    document.body.appendChild(el);
+
+    await XMermaid.run({ theme: 'default' });
+
+    // The element should now contain an SVG
+    expect(el.querySelector('svg')).toBeTruthy();
+    document.body.removeChild(el);
+  });
 });
