@@ -133,12 +133,10 @@ fn test_layout_bt_direction() {
     let ast = parse("graph BT\n  A-->B").unwrap();
     let layout = compute_flowchart_layout(&ast).unwrap();
 
-    // KNOWN LIMITATION: BT direction doesn't reverse y coordinates
-    // Currently BT uses same layout as TD
     let a = layout.positions.iter().find(|(id, _)| id == "A").unwrap().1;
     let b = layout.positions.iter().find(|(id, _)| id == "B").unwrap().1;
-    // In current implementation, A is still above B (not reversed)
-    assert!(a.y < b.y, "Known limitation: BT doesn't reverse y");
+    // BT reverses y: source A should be below target B
+    assert!(a.y > b.y, "BT: A should be below B (y reversed)");
 }
 
 #[test]
@@ -146,11 +144,10 @@ fn test_layout_rl_direction() {
     let ast = parse("graph RL\n  A-->B").unwrap();
     let layout = compute_flowchart_layout(&ast).unwrap();
 
-    // KNOWN LIMITATION: RL direction doesn't reverse x coordinates
     let a = layout.positions.iter().find(|(id, _)| id == "A").unwrap().1;
     let b = layout.positions.iter().find(|(id, _)| id == "B").unwrap().1;
-    // In current implementation, A is still left of B (not reversed)
-    assert!(a.x < b.x, "Known limitation: RL doesn't reverse x");
+    // RL reverses x: source A should be right of target B
+    assert!(a.x > b.x, "RL: A should be right of B (x reversed)");
 }
 
 // ─── Exact coordinate verification ───────────────────────────────
@@ -235,42 +232,42 @@ fn test_falsify_non_flowchart_returns_error() {
 
 #[test]
 fn test_falsify_bt_direction_not_reversed() {
-    // KNOWN LIMITATION: BT direction should place A below B, but currently doesn't
+    // BT direction now correctly reverses y coordinates
     let ast = parse("graph BT\n  A-->B").unwrap();
     let layout = compute_flowchart_layout(&ast).unwrap();
 
     let a = layout.positions.iter().find(|(id, _)| id == "A").unwrap().1;
     let b = layout.positions.iter().find(|(id, _)| id == "B").unwrap().1;
 
-    // In correct BT layout, A.y > B.y (A below B)
-    // But current implementation doesn't reverse, so A.y < B.y
-    assert!(a.y < b.y, "Known bug: BT direction doesn't reverse y coordinates");
+    // In BT layout, A.y > B.y (A below B) — this is now correctly reversed
+    assert!(a.y > b.y, "BT direction reverses y coordinates correctly");
 }
 
 #[test]
 fn test_falsify_rl_direction_not_reversed() {
-    // KNOWN LIMITATION: RL direction should place A right of B, but currently doesn't
+    // RL direction now correctly reverses x coordinates
     let ast = parse("graph RL\n  A-->B").unwrap();
     let layout = compute_flowchart_layout(&ast).unwrap();
 
     let a = layout.positions.iter().find(|(id, _)| id == "A").unwrap().1;
     let b = layout.positions.iter().find(|(id, _)| id == "B").unwrap().1;
 
-    // In correct RL layout, A.x > B.x (A right of B)
-    // But current implementation doesn't reverse, so A.x < B.x
-    assert!(a.x < b.x, "Known bug: RL direction doesn't reverse x coordinates");
+    // In RL layout, A.x > B.x (A right of B) — this is now correctly reversed
+    assert!(a.x > b.x, "RL direction reverses x coordinates correctly");
 }
 
 #[test]
 fn test_falsify_cycle_produces_questionable_layout() {
-    // Cycle: A-->B-->A — no cycle detection
+    // Cycle: A-->B-->A — back-edge is detected and excluded from layering
     let ast = parse("graph TD\n  A-->B\n  B-->A").unwrap();
     let layout = compute_flowchart_layout(&ast).unwrap();
 
-    // With cycles, longest-path layering produces questionable results
-    // A and B may end up at the same layer or incorrect layers
-    // The important thing is it doesn't crash
+    // With cycle detection, the back-edge is skipped during layering.
+    // A is placed at layer 0, B at layer 1 (based on A-->B).
     assert_eq!(layout.positions.len(), 2);
+    let a = layout.positions.iter().find(|(id, _)| id == "A").unwrap().1;
+    let b = layout.positions.iter().find(|(id, _)| id == "B").unwrap().1;
+    assert!(a.y < b.y, "A should be above B (back-edge B-->A excluded from layering)");
 }
 
 #[test]

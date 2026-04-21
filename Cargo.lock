@@ -48,6 +48,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 
 [[package]]
+name = "console_error_panic_hook"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a06aeb73f470f66dcdbf7223caeebb85984942f22f1adb2a088cf9668146bbbc"
+dependencies = [
+ "cfg-if",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "find-msvc-tools"
 version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -384,16 +394,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "23cda5ecc67248c48d3e705d3e03e00af905769b78b9d2a1678b663b8b9d4472"
 
 [[package]]
-name = "web-sys"
-version = "0.3.95"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4f2dfbb17949fa2088e5d39408c48368947b86f7834484e87b73de55bc14d97d"
-dependencies = [
- "js-sys",
- "wasm-bindgen",
-]
-
-[[package]]
 name = "winapi-util"
 version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -440,12 +440,11 @@ dependencies = [
 name = "xmermaid-wasm"
 version = "0.1.0"
 dependencies = [
- "js-sys",
+ "console_error_panic_hook",
  "serde",
  "serde_json",
  "wasm-bindgen",
  "wasm-bindgen-test",
- "web-sys",
  "xmermaid-layout",
  "xmermaid-parser",
 ]

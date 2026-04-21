@@ -4,34 +4,31 @@ export type NodeShape =
   | 'rect'
   | 'rounded'
   | 'circle'
+  | 'double_circle'
   | 'diamond'
+  | 'hexagon'
   | 'stadium'
   | 'subroutine'
-  | 'hexagon'
   | 'parallelogram'
   | 'trapezoid'
-  | 'doubleCircle';
+  | 'asymmetric'
+  | 'cylinder';
 
 export type EdgeStyle = 'arrow' | 'line' | 'dotted' | 'thick' | 'invisible';
 
-export interface StyleDef {
-  key: string;
-  value: string;
-}
-
-export interface Node {
+export interface FlowchartNode {
   id: string;
-  label?: string;
+  label: string | null;
   shape: NodeShape;
   classes: string[];
-  styles: StyleDef[];
+  styles: string[];
 }
 
-export interface Edge {
+export interface FlowchartEdge {
   from: string;
   to: string;
   style: EdgeStyle;
-  label?: string;
+  label: string | null;
   min_length: number;
 }
 
@@ -42,16 +39,16 @@ export interface Subgraph {
 }
 
 export interface FlowchartAst {
+  type: 'flowchart';
   direction: FlowDirection;
-  nodes: Node[];
-  edges: Edge[];
+  nodes: FlowchartNode[];
+  edges: FlowchartEdge[];
   subgraphs: Subgraph[];
 }
 
 export interface SequenceAst {
+  type: 'sequence';
   participants: string[];
 }
 
-export type DiagramAst =
-  | ({ type: 'flowchart' } & FlowchartAst)
-  | ({ type: 'sequence' } & SequenceAst);
+export type DiagramAst = FlowchartAst | SequenceAst;

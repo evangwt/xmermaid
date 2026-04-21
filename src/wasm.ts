@@ -2,6 +2,7 @@ export interface WasmModule {
   parse_dsl(input: string): string;
   get_diagram_type(astJson: string): string;
   compute_layout(astJson: string): string;
+  render_pipeline(input: string): string;
 }
 
 let wasmModule: WasmModule | null = null;
@@ -11,8 +12,6 @@ export async function initWasm(): Promise<void> {
   if (wasmInitialized) return;
 
   try {
-    // Dynamic import - resolved at build time by bundler
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const mod = await import(/* @vite-ignore */ '../pkg/xmermaid_wasm.js');
     if (mod?.default) {
       await mod.default();
@@ -21,6 +20,7 @@ export async function initWasm(): Promise<void> {
       parse_dsl: mod.parse_dsl,
       get_diagram_type: mod.get_diagram_type,
       compute_layout: mod.compute_layout,
+      render_pipeline: mod.render_pipeline,
     };
     wasmInitialized = true;
   } catch {
