@@ -1,4 +1,13 @@
-export type { DiagramAst, FlowchartAst, SequenceAst, FlowDirection, NodeShape, EdgeStyle, FlowchartNode, FlowchartEdge, Subgraph } from './ast';
-export type { LayoutResult, Point, Dimensions } from './layout';
-export type { XMermaidOptions } from './options';
+export type {
+  DiagramAst,
+  FlowchartAst,
+  SequenceAst,
+  EdgeStyle,
+  FlowchartNode,
+  FlowchartEdge,
+  Subgraph,
+} from './ast';
 export { XMermaidError, type XMermaidErrorCode } from './error';
+export * from './layout';
+export * from './options';
+export * from './theme';

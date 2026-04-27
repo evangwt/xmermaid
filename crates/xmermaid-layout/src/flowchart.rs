@@ -515,3 +515,159 @@ pub fn layout(fc: &FlowchartAst, config: &LayoutConfig) -> LayoutResult {
         },
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use xmermaid_parser::parse;
+
+    fn layout_from_dsl(dsl: &str) -> LayoutResult {
+        let ast = parse(dsl).unwrap();
+        match &ast {
+            xmermaid_parser::ast::DiagramAst::Flowchart(fc) => {
+                let mut config = LayoutConfig::default();
+                config.direction = match fc.direction {
+                    xmermaid_parser::ast::FlowDirection::TD => FlowDirection::TB,
+                    xmermaid_parser::ast::FlowDirection::BT => FlowDirection::BT,
+                    xmermaid_parser::ast::FlowDirection::LR => FlowDirection::LR,
+                    xmermaid_parser::ast::FlowDirection::RL => FlowDirection::RL,
+                };
+                layout(fc, &config)
+            }
+            _ => panic!("Expected Flowchart"),
+        }
+    }
+
+    #[test]
+    fn test_single_node() {
+        let result = layout_from_dsl("graph TD\n  A");
+        assert_eq!(result.nodes.len(), 1);
+        assert_eq!(result.nodes[0].id, "A");
+        // Bare node IDs have no label in the parser, so layout uses empty string
+        assert_eq!(result.nodes[0].label, "");
+        assert!(result.dimensions.width > 0.0);
+        assert!(result.dimensions.height > 0.0);
+    }
+
+    #[test]
+    fn test_two_nodes_vertical() {
+        let result = layout_from_dsl("graph TD\n  A-->B");
+        assert_eq!(result.nodes.len(), 2);
+        let a = result.nodes.iter().find(|n| n.id == "A").unwrap();
+        let b = result.nodes.iter().find(|n| n.id == "B").unwrap();
+        assert!(a.center.y < b.center.y, "A should be above B in TD");
+    }
+
+    #[test]
+    fn test_two_nodes_horizontal() {
+        let result = layout_from_dsl("graph LR\n  A-->B");
+        assert_eq!(result.nodes.len(), 2);
+        let a = result.nodes.iter().find(|n| n.id == "A").unwrap();
+        let b = result.nodes.iter().find(|n| n.id == "B").unwrap();
+        assert!(a.center.x < b.center.x, "A should be left of B in LR");
+    }
+
+    #[test]
+    fn test_diamond_topology() {
+        let result = layout_from_dsl("graph TD\n  A-->B\n  A-->C\n  B-->D\n  C-->D");
+        assert_eq!(result.nodes.len(), 4);
+        assert_eq!(result.edges.len(), 4);
+        let a = result.nodes.iter().find(|n| n.id == "A").unwrap();
+        let d = result.nodes.iter().find(|n| n.id == "D").unwrap();
+        assert!(a.center.y < d.center.y, "A should be above D");
+    }
+
+    #[test]
+    fn test_self_loop_excluded() {
+        let result = layout_from_dsl("graph TD\n  A-->A\n  A-->B");
+        assert_eq!(result.nodes.len(), 2);
+        // Self-loop edge should still be in edges
+        assert_eq!(result.edges.len(), 2);
+    }
+
+    #[test]
+    fn test_node_bounds_contain_center() {
+        let result = layout_from_dsl("graph TD\n  A[Hello]-->B[World]");
+        for node in &result.nodes {
+            assert!(node.bounds.x <= node.center.x);
+            assert!(node.bounds.y <= node.center.y);
+            assert!(node.center.x <= node.bounds.x + node.bounds.width);
+            assert!(node.center.y <= node.bounds.y + node.bounds.height);
+        }
+    }
+
+    #[test]
+    fn test_no_negative_coordinates() {
+        let result = layout_from_dsl("graph TD\n  A-->B\n  B-->C\n  C-->D");
+        for node in &result.nodes {
+            assert!(node.center.x > 0.0, "Node {} has negative x", node.id);
+            assert!(node.center.y > 0.0, "Node {} has negative y", node.id);
+        }
+    }
+
+    #[test]
+    fn test_dimensions_encompass_all_nodes() {
+        let result = layout_from_dsl("graph TD\n  A-->B\n  B-->C");
+        for node in &result.nodes {
+            assert!(
+                node.center.x + node.bounds.width / 2.0 <= result.dimensions.width,
+                "Node {} right edge exceeds width",
+                node.id
+            );
+            assert!(
+                node.center.y + node.bounds.height / 2.0 <= result.dimensions.height,
+                "Node {} bottom edge exceeds height",
+                node.id
+            );
+        }
+    }
+
+    #[test]
+    fn test_edge_waypoints() {
+        let result = layout_from_dsl("graph TD\n  A-->B");
+        assert_eq!(result.edges.len(), 1);
+        let edge = &result.edges[0];
+        assert_eq!(edge.from, "A");
+        assert_eq!(edge.to, "B");
+        assert!(edge.waypoints.len() >= 2);
+    }
+
+    #[test]
+    fn test_cross_rank_edge_has_midpoint() {
+        let result = layout_from_dsl("graph TD\n  A-->B-->C\n  A-->C");
+        // A-->C is a cross-rank edge (skips B's layer)
+        let ac_edge = result.edges.iter().find(|e| e.from == "A" && e.to == "C").unwrap();
+        assert_eq!(ac_edge.waypoints.len(), 3, "Cross-rank edge should have midpoint");
+    }
+
+    #[test]
+    fn test_shape_mapping() {
+        let result = layout_from_dsl("graph TD\n  A[rect] B(rounded) C((circle))");
+        assert_eq!(result.nodes[0].shape, NodeShape::Rectangle);
+        assert_eq!(result.nodes[1].shape, NodeShape::RoundedRect);
+        assert_eq!(result.nodes[2].shape, NodeShape::Circle);
+    }
+
+    #[test]
+    fn test_empty_flowchart() {
+        let result = layout_from_dsl("graph TD");
+        assert_eq!(result.nodes.len(), 0);
+        assert_eq!(result.edges.len(), 0);
+    }
+
+    #[test]
+    fn test_bt_direction() {
+        let result = layout_from_dsl("graph BT\n  A-->B");
+        let a = result.nodes.iter().find(|n| n.id == "A").unwrap();
+        let b = result.nodes.iter().find(|n| n.id == "B").unwrap();
+        assert!(a.center.y > b.center.y, "A should be below B in BT");
+    }
+
+    #[test]
+    fn test_rl_direction() {
+        let result = layout_from_dsl("graph RL\n  A-->B");
+        let a = result.nodes.iter().find(|n| n.id == "A").unwrap();
+        let b = result.nodes.iter().find(|n| n.id == "B").unwrap();
+        assert!(a.center.x > b.center.x, "A should be right of B in RL");
+    }
+}

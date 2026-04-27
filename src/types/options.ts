@@ -1,11 +1,8 @@
+import type { LayoutConfig } from './layout';
+import type { RenderTheme } from './theme';
+
 export interface XMermaidOptions {
-  renderer?: 'svg';
-  theme?: 'default' | 'dark' | 'forest' | 'neutral';
-  themeConfig?: Record<string, unknown>;
-  securityLevel?: 'strict' | 'loose';
-  performance?: {
-    maxParseTime?: number;
-    maxLayoutTime?: number;
-    maxRenderTime?: number;
-  };
+  container: HTMLElement;
+  theme?: RenderTheme;
+  layoutConfig?: Partial<LayoutConfig>;
 }
