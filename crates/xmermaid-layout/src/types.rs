@@ -1,0 +1,129 @@
+use serde::{Deserialize, Serialize};
+
+/// Direction of flowchart layout
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FlowDirection {
+    TB,
+    BT,
+    LR,
+    RL,
+}
+
+/// Configuration for layout computation, replacing hardcoded constants
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LayoutConfig {
+    pub node_width: f64,
+    pub node_height: f64,
+    pub h_spacing: f64,
+    pub v_spacing: f64,
+    pub padding: f64,
+    pub direction: FlowDirection,
+}
+
+impl Default for LayoutConfig {
+    fn default() -> Self {
+        Self {
+            node_width: 120.0,
+            node_height: 40.0,
+            v_spacing: 60.0,
+            h_spacing: 60.0,
+            padding: 40.0,
+            direction: FlowDirection::TB,
+        }
+    }
+}
+
+/// A 2D point
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct Point {
+    pub x: f64,
+    pub y: f64,
+}
+
+/// Axis-aligned bounding box
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct Bounds {
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+}
+
+impl Bounds {
+    pub fn from_center(center: Point, width: f64, height: f64) -> Self {
+        Self {
+            x: center.x - width / 2.0,
+            y: center.y - height / 2.0,
+            width,
+            height,
+        }
+    }
+
+    pub fn center(&self) -> Point {
+        Point {
+            x: self.x + self.width / 2.0,
+            y: self.y + self.height / 2.0,
+        }
+    }
+
+    pub fn left(&self) -> f64 {
+        self.x
+    }
+    pub fn right(&self) -> f64 {
+        self.x + self.width
+    }
+    pub fn top(&self) -> f64 {
+        self.y
+    }
+    pub fn bottom(&self) -> f64 {
+        self.y + self.height
+    }
+}
+
+/// Shape of a node, forwarded from AST
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NodeShape {
+    Rectangle,
+    RoundedRect,
+    Stadium,
+    Diamond,
+    Circle,
+    Hexagon,
+    Parallelogram,
+    Trapezoid,
+}
+
+/// A positioned node in the layout result
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LayoutNode {
+    pub id: String,
+    pub center: Point,
+    pub bounds: Bounds,
+    pub shape: NodeShape,
+    pub label: String,
+}
+
+/// A positioned edge in the layout result
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LayoutEdge {
+    pub from: String,
+    pub to: String,
+    pub waypoints: Vec<Point>,
+    pub label: Option<String>,
+    pub label_position: Option<Point>,
+}
+
+/// Overall dimensions of the layout
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct Dimensions {
+    pub width: f64,
+    pub height: f64,
+}
+
+/// Complete layout result
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LayoutResult {
+    pub nodes: Vec<LayoutNode>,
+    pub edges: Vec<LayoutEdge>,
+    pub dimensions: Dimensions,
+}
