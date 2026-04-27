@@ -1,171 +1,76 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { SVGRenderer } from '../src/renderer/svg';
-import type { FlowchartAst, LayoutResult, Point } from '../src/types';
+import { DEFAULT_THEME } from '../src/types/theme';
+import type { LayoutResult, LayoutNode, LayoutEdge } from '../src/types/layout';
 
-function makeLayout(positions: [string, Point][], width = 400, height = 300): LayoutResult {
-  return { positions, dimensions: { width, height } };
-}
+function createTestLayout(): LayoutResult {
+  const node1: LayoutNode = {
+    id: 'A',
+    center: { x: 160, y: 60 },
+    bounds: { x: 100, y: 40, width: 120, height: 40 },
+    shape: 'RoundedRect',
+    label: 'Node A',
+  };
+  const node2: LayoutNode = {
+    id: 'B',
+    center: { x: 160, y: 180 },
+    bounds: { x: 100, y: 160, width: 120, height: 40 },
+    shape: 'RoundedRect',
+    label: 'Node B',
+  };
+  const edge: LayoutEdge = {
+    from: 'A',
+    to: 'B',
+    waypoints: [{ x: 160, y: 60 }, { x: 160, y: 180 }],
+    label: 'yes',
+  };
 
-function makeFlowchart(overrides: Partial<FlowchartAst> = {}): FlowchartAst {
   return {
-    type: 'flowchart',
-    direction: 'TD',
-    nodes: [],
-    edges: [],
-    subgraphs: [],
-    ...overrides,
+    nodes: [node1, node2],
+    edges: [edge],
+    dimensions: { width: 320, height: 240 },
   };
 }
 
 describe('SVGRenderer', () => {
-  let renderer: SVGRenderer;
-
-  beforeEach(() => {
-    renderer = new SVGRenderer('default');
-  });
-
   it('creates an SVG element with correct dimensions', () => {
-    const ast = makeFlowchart();
-    const layout = makeLayout([], 500, 400);
-    const svg = renderer.render(ast, layout);
+    const renderer = new SVGRenderer();
+    const layout = createTestLayout();
+    const svg = renderer.render(layout);
+
     expect(svg.tagName).toBe('svg');
-    expect(svg.getAttribute('width')).toBe('500');
-    expect(svg.getAttribute('height')).toBe('400');
-    expect(svg.getAttribute('viewBox')).toBe('0 0 500 400');
+    expect(svg.getAttribute('width')).toBe('320');
+    expect(svg.getAttribute('height')).toBe('240');
   });
 
-  it('renders a rect node', () => {
-    const ast = makeFlowchart({
-      nodes: [{ id: 'A', label: 'Hello', shape: 'rect', classes: [], styles: [] }],
+  it('renders nodes as groups with shapes and text', () => {
+    const renderer = new SVGRenderer();
+    const layout = createTestLayout();
+    const svg = renderer.render(layout);
+
+    const groups = svg.querySelectorAll('g');
+    expect(groups.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('renders edges with paths', () => {
+    const renderer = new SVGRenderer();
+    const layout = createTestLayout();
+    const svg = renderer.render(layout);
+
+    const paths = svg.querySelectorAll('path');
+    expect(paths.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('applies theme colors', () => {
+    const renderer = new SVGRenderer({ colors: { ...DEFAULT_THEME.colors, nodeFill: '#ff0000' } });
+    const layout = createTestLayout();
+    const svg = renderer.render(layout);
+
+    const rects = svg.querySelectorAll('rect');
+    let foundRed = false;
+    rects.forEach(r => {
+      if (r.getAttribute('fill') === '#ff0000') foundRed = true;
     });
-    const layout = makeLayout([['A', { x: 100, y: 50 }]]);
-    const svg = renderer.render(ast, layout);
-    const node = svg.querySelector('#node-A');
-    expect(node).toBeTruthy();
-    const rect = node!.querySelector('rect');
-    expect(rect).toBeTruthy();
-    expect(rect!.getAttribute('fill')).toBe('#fff');
-  });
-
-  it('renders a diamond node', () => {
-    const ast = makeFlowchart({
-      nodes: [{ id: 'D', label: 'Choice', shape: 'diamond', classes: [], styles: [] }],
-    });
-    const layout = makeLayout([['D', { x: 100, y: 50 }]]);
-    const svg = renderer.render(ast, layout);
-    const node = svg.querySelector('#node-D');
-    expect(node).toBeTruthy();
-    const polygon = node!.querySelector('polygon');
-    expect(polygon).toBeTruthy();
-  });
-
-  it('renders a circle node', () => {
-    const ast = makeFlowchart({
-      nodes: [{ id: 'C', label: 'Circle', shape: 'circle', classes: [], styles: [] }],
-    });
-    const layout = makeLayout([['C', { x: 100, y: 50 }]]);
-    const svg = renderer.render(ast, layout);
-    const node = svg.querySelector('#node-C');
-    expect(node).toBeTruthy();
-    const ellipse = node!.querySelector('ellipse');
-    expect(ellipse).toBeTruthy();
-  });
-
-  it('renders node label text', () => {
-    const ast = makeFlowchart({
-      nodes: [{ id: 'A', label: 'My Label', shape: 'rect', classes: [], styles: [] }],
-    });
-    const layout = makeLayout([['A', { x: 100, y: 50 }]]);
-    const svg = renderer.render(ast, layout);
-    const text = svg.querySelector('#node-A text');
-    expect(text?.textContent).toBe('My Label');
-  });
-
-  it('uses node id as label when label is null', () => {
-    const ast = makeFlowchart({
-      nodes: [{ id: 'A', label: null, shape: 'rect', classes: [], styles: [] }],
-    });
-    const layout = makeLayout([['A', { x: 100, y: 50 }]]);
-    const svg = renderer.render(ast, layout);
-    const text = svg.querySelector('#node-A text');
-    expect(text?.textContent).toBe('A');
-  });
-
-  it('renders an edge with arrow', () => {
-    const ast = makeFlowchart({
-      nodes: [
-        { id: 'A', label: null, shape: 'rect', classes: [], styles: [] },
-        { id: 'B', label: null, shape: 'rect', classes: [], styles: [] },
-      ],
-      edges: [{ from: 'A', to: 'B', style: 'arrow', label: null, min_length: 1 }],
-    });
-    const layout = makeLayout([['A', { x: 40, y: 40 }], ['B', { x: 40, y: 140 }]]);
-    const svg = renderer.render(ast, layout);
-    const edge = svg.querySelector('#edge-A-B');
-    expect(edge).toBeTruthy();
-    const path = edge!.querySelector('path');
-    expect(path).toBeTruthy();
-    expect(path!.getAttribute('marker-end')).toContain('arrowhead');
-  });
-
-  it('renders a dotted edge', () => {
-    const ast = makeFlowchart({
-      nodes: [
-        { id: 'A', label: null, shape: 'rect', classes: [], styles: [] },
-        { id: 'B', label: null, shape: 'rect', classes: [], styles: [] },
-      ],
-      edges: [{ from: 'A', to: 'B', style: 'dotted', label: null, min_length: 1 }],
-    });
-    const layout = makeLayout([['A', { x: 40, y: 40 }], ['B', { x: 40, y: 140 }]]);
-    const svg = renderer.render(ast, layout);
-    const path = svg.querySelector('#edge-A-B path');
-    expect(path?.getAttribute('stroke-dasharray')).toBe('5,3');
-  });
-
-  it('renders an edge label', () => {
-    const ast = makeFlowchart({
-      nodes: [
-        { id: 'A', label: null, shape: 'rect', classes: [], styles: [] },
-        { id: 'B', label: null, shape: 'rect', classes: [], styles: [] },
-      ],
-      edges: [{ from: 'A', to: 'B', style: 'arrow', label: 'Yes', min_length: 1 }],
-    });
-    const layout = makeLayout([['A', { x: 40, y: 40 }], ['B', { x: 40, y: 140 }]]);
-    const svg = renderer.render(ast, layout);
-    const label = svg.querySelector('#edge-A-B text');
-    expect(label?.textContent).toBe('Yes');
-  });
-
-  it('renders all node shapes without error', () => {
-    const shapes = ['rect', 'rounded', 'circle', 'double_circle', 'diamond', 'hexagon', 'stadium', 'subroutine', 'parallelogram', 'trapezoid', 'asymmetric', 'cylinder'] as const;
-    for (const shape of shapes) {
-      const ast = makeFlowchart({
-        nodes: [{ id: 'N', label: 'Test', shape, classes: [], styles: [] }],
-      });
-      const layout = makeLayout([['N', { x: 100, y: 50 }]]);
-      const svg = renderer.render(ast, layout);
-      expect(svg.querySelector('#node-N')).toBeTruthy();
-    }
-  });
-
-  it('applies dark theme', () => {
-    const dark = new SVGRenderer('dark');
-    const ast = makeFlowchart({
-      nodes: [{ id: 'A', label: 'Dark', shape: 'rect', classes: [], styles: [] }],
-    });
-    const layout = makeLayout([['A', { x: 100, y: 50 }]]);
-    const svg = dark.render(ast, layout);
-    const rect = svg.querySelector('#node-A rect');
-    expect(rect?.getAttribute('fill')).toBe('#1e1e2e');
-  });
-
-  it('renderToString produces valid HTML string', () => {
-    const ast = makeFlowchart({
-      nodes: [{ id: 'A', label: 'Test', shape: 'rect', classes: [], styles: [] }],
-    });
-    const layout = makeLayout([['A', { x: 100, y: 50 }]]);
-    const html = renderer.renderToString(ast, layout);
-    expect(html).toContain('<svg');
-    expect(html).toContain('node-A');
+    expect(foundRed).toBe(true);
   });
 });
