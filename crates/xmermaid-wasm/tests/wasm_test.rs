@@ -1,6 +1,7 @@
 //! WASM binding tests — test the underlying logic without wasm_bindgen
 //! (wasm_bindgen functions cannot be called on non-wasm32 targets)
 
+use xmermaid_layout::LayoutConfig;
 use xmermaid_parser::DiagramAst;
 
 #[test]
@@ -28,8 +29,9 @@ fn test_get_diagram_type_flowchart() {
 #[test]
 fn test_compute_layout() {
     let ast = xmermaid_parser::parse("graph TD\n  A-->B-->C").unwrap();
-    let layout = xmermaid_layout::compute_flowchart_layout(&ast).unwrap();
-    assert_eq!(layout.positions.len(), 3);
+    let config = LayoutConfig::default();
+    let layout = xmermaid_layout::compute_layout(&ast, &config);
+    assert_eq!(layout.nodes.len(), 3);
     assert!(layout.dimensions.width > 0.0);
     assert!(layout.dimensions.height > 0.0);
 }
@@ -39,14 +41,18 @@ fn test_compute_layout_non_flowchart() {
     let ast = DiagramAst::Sequence(xmermaid_parser::ast::SequenceAst {
         participants: vec!["A".to_string()],
     });
-    let result = xmermaid_layout::compute_flowchart_layout(&ast);
-    assert!(result.is_err());
+    let config = LayoutConfig::default();
+    let result = xmermaid_layout::compute_layout(&ast, &config);
+    // Non-flowchart returns empty LayoutResult
+    assert_eq!(result.nodes.len(), 0);
+    assert_eq!(result.edges.len(), 0);
 }
 
 #[test]
 fn test_render_pipeline() {
     let ast = xmermaid_parser::parse("graph TD\n  A[Start]-->B[End]").unwrap();
-    let layout = xmermaid_layout::compute_flowchart_layout(&ast).unwrap();
+    let config = LayoutConfig::default();
+    let layout = xmermaid_layout::compute_layout(&ast, &config);
 
     let result = serde_json::json!({
         "ast": ast,
@@ -68,7 +74,8 @@ fn test_render_pipeline_invalid() {
 #[test]
 fn test_render_pipeline_complex() {
     let ast = xmermaid_parser::parse("graph LR\n  A-->B\n  B-->C\n  A-->C").unwrap();
-    let layout = xmermaid_layout::compute_flowchart_layout(&ast).unwrap();
+    let config = LayoutConfig::default();
+    let layout = xmermaid_layout::compute_layout(&ast, &config);
 
     match &ast {
         DiagramAst::Flowchart(fc) => {
@@ -77,17 +84,18 @@ fn test_render_pipeline_complex() {
         }
         _ => panic!("Expected Flowchart"),
     }
-    assert_eq!(layout.positions.len(), 3);
+    assert_eq!(layout.nodes.len(), 3);
 }
 
 #[test]
 fn test_full_pipeline_with_shapes() {
     let ast = xmermaid_parser::parse("graph TD\n  A[Start]-->B{Decision}\n  B-->|Yes|C[Process]\n  B-->|No|D[End]").unwrap();
-    let layout = xmermaid_layout::compute_flowchart_layout(&ast).unwrap();
+    let config = LayoutConfig::default();
+    let layout = xmermaid_layout::compute_layout(&ast, &config);
 
-    assert_eq!(layout.positions.len(), 4);
+    assert_eq!(layout.nodes.len(), 4);
     // Verify JSON serialization works for the full pipeline
     let json = serde_json::to_string(&serde_json::json!({ "ast": ast, "layout": layout })).unwrap();
     assert!(json.contains("\"type\""));
-    assert!(json.contains("\"positions\""));
+    assert!(json.contains("\"nodes\""));
 }
