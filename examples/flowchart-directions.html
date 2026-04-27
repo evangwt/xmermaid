@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>xmermaid - Flowchart Directions</title>
+  <style>
+    body { font-family: sans-serif; margin: 20px; background: #f5f5f5; }
+    h1, h2 { color: #333; }
+    .diagram { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 20px; }
+  </style>
+</head>
+<body>
+  <h1>xmermaid - Flowchart Directions</h1>
+
+  <h2>Top to Bottom (TB)</h2>
+  <div id="tb" class="diagram"></div>
+
+  <h2>Left to Right (LR)</h2>
+  <div id="lr" class="diagram"></div>
+
+  <script type="module">
+    import { XMermaid } from '../dist/xmermaid.esm.js';
+
+    const diagram = `A[Start] --> B{Decision}
+    B -->|Yes| C[Action 1]
+    B -->|No| D[Action 2]
+    C --> E[End]
+    D --> E`;
+
+    const xmTB = new XMermaid({ container: document.getElementById('tb') });
+    await xmTB.render(`graph TB\n${diagram}`);
+
+    const xmLR = new XMermaid({ container: document.getElementById('lr') });
+    await xmLR.render(`graph LR\n${diagram}`);
+  </script>
+</body>
+</html>

@@ -520,3 +520,73 @@ pub fn parse_input(input: &str) -> Result<DiagramAst, ParseError> {
     let mut parser = Parser::new(input);
     parser.parse()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_simple_flowchart() {
+        let ast = parse("graph TD\n  A-->B").unwrap();
+        match ast {
+            DiagramAst::Flowchart(fc) => {
+                assert_eq!(fc.nodes.len(), 2);
+                assert_eq!(fc.edges.len(), 1);
+            }
+            _ => panic!("Expected Flowchart"),
+        }
+    }
+
+    #[test]
+    fn test_parse_node_shapes() {
+        let ast = parse("graph TD\n  A[Rect]-->B(Rounded)").unwrap();
+        match ast {
+            DiagramAst::Flowchart(fc) => {
+                assert_eq!(fc.nodes[0].shape, NodeShape::Rect);
+                assert_eq!(fc.nodes[1].shape, NodeShape::Rounded);
+            }
+            _ => panic!("Expected Flowchart"),
+        }
+    }
+
+    #[test]
+    fn test_parse_edge_with_label() {
+        let ast = parse("graph TD\n  A-->|yes|B").unwrap();
+        match ast {
+            DiagramAst::Flowchart(fc) => {
+                assert_eq!(fc.edges[0].label, Some("yes".to_string()));
+            }
+            _ => panic!("Expected Flowchart"),
+        }
+    }
+
+    #[test]
+    fn test_parse_invalid_syntax() {
+        assert!(parse("not a diagram").is_err());
+    }
+
+    #[test]
+    fn test_parse_empty_flowchart() {
+        let ast = parse("graph TD").unwrap();
+        match ast {
+            DiagramAst::Flowchart(fc) => {
+                assert!(fc.nodes.is_empty());
+                assert!(fc.edges.is_empty());
+            }
+            _ => panic!("Expected Flowchart"),
+        }
+    }
+
+    #[test]
+    fn test_parse_directions() {
+        let td = parse("graph TD\n  A-->B").unwrap();
+        let lr = parse("graph LR\n  A-->B").unwrap();
+        match (td, lr) {
+            (DiagramAst::Flowchart(fc_td), DiagramAst::Flowchart(fc_lr)) => {
+                assert_eq!(fc_td.direction, FlowDirection::TD);
+                assert_eq!(fc_lr.direction, FlowDirection::LR);
+            }
+            _ => panic!("Expected Flowchart"),
+        }
+    }
+}

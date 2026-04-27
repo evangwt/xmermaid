@@ -87,21 +87,22 @@ fn build_config(
     ast: &DiagramAst,
     config_json: Option<String>,
 ) -> Result<xmermaid_layout::LayoutConfig, JsValue> {
-    let mut config = match config_json {
+    let config: xmermaid_layout::LayoutConfig = match config_json {
         Some(json) => serde_json::from_str(&json)
             .map_err(|e| JsValue::from_str(&format!("Invalid config JSON: {}", e)))?,
-        None => xmermaid_layout::LayoutConfig::default(),
+        None => {
+            let mut c = xmermaid_layout::LayoutConfig::default();
+            if let DiagramAst::Flowchart(fc) = ast {
+                c.direction = match fc.direction {
+                    xmermaid_parser::ast::FlowDirection::TD => xmermaid_layout::FlowDirection::TB,
+                    xmermaid_parser::ast::FlowDirection::BT => xmermaid_layout::FlowDirection::BT,
+                    xmermaid_parser::ast::FlowDirection::LR => xmermaid_layout::FlowDirection::LR,
+                    xmermaid_parser::ast::FlowDirection::RL => xmermaid_layout::FlowDirection::RL,
+                };
+            }
+            return Ok(c);
+        }
     };
-
-    // Map direction from parser AST to layout config when no custom config provided
-    if let DiagramAst::Flowchart(fc) = ast {
-        config.direction = match fc.direction {
-            xmermaid_parser::ast::FlowDirection::TD => xmermaid_layout::FlowDirection::TB,
-            xmermaid_parser::ast::FlowDirection::BT => xmermaid_layout::FlowDirection::BT,
-            xmermaid_parser::ast::FlowDirection::LR => xmermaid_layout::FlowDirection::LR,
-            xmermaid_parser::ast::FlowDirection::RL => xmermaid_layout::FlowDirection::RL,
-        };
-    }
 
     Ok(config)
 }

@@ -45,8 +45,7 @@
       <select id="themeSelect">
         <option value="default">Default</option>
         <option value="dark">Dark</option>
-        <option value="forest">Forest</option>
-        <option value="neutral">Neutral</option>
+        <option value="minimal">Minimal</option>
       </select>
     </div>
     <div class="examples">
@@ -59,19 +58,19 @@
   </div>
 
   <script type="module">
-    import { XMermaid } from '../src/index.ts';
+    import { XMermaid, DEFAULT_THEME, DARK_THEME, MINIMAL_THEME } from '../dist/xmermaid.esm.js';
 
-    let xm = new XMermaid({ theme: 'default' });
+    const themes = { default: DEFAULT_THEME, dark: DARK_THEME, minimal: MINIMAL_THEME };
 
     document.getElementById('renderBtn').addEventListener('click', async () => {
       const input = document.getElementById('input').value;
-      const theme = document.getElementById('themeSelect').value;
+      const themeName = document.getElementById('themeSelect').value;
       const output = document.getElementById('output');
       output.innerHTML = '';
 
       try {
-        xm = new XMermaid({ theme });
-        await xm.render(input, output);
+        const xm = new XMermaid({ container: output, theme: themes[themeName] });
+        await xm.render(input);
       } catch (e) {
         output.innerHTML = `<div class="error">${e.message}</div>`;
       }

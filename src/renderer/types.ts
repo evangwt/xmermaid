@@ -1,12 +1,2 @@
-export interface RenderContext {
-  ast: unknown;
-  layout: unknown;
-  theme: string;
-  container?: HTMLElement;
-}
-
-export interface RenderOutput {
-  svg: SVGElement;
-  width: number;
-  height: number;
-}
+export type { RenderTheme, ThemeColors, ArrowStyle, CurveStyle } from '../types/theme';
+export type { LayoutNode, LayoutEdge, LayoutResult, Bounds, Point, NodeShape } from '../types/layout';

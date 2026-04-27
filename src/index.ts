@@ -1,19 +1,10 @@
 export { XMermaid } from './xmermaid';
-export { SVGRenderer } from './renderer';
+export { SVGRenderer } from './renderer/svg';
+export { computeEdgePath, computeBezierPath, computeStepPath, computeStraightPath, truncateAtBounds, computeArrowPoints } from './renderer/edge';
+export { DEFAULT_THEME, DARK_THEME, MINIMAL_THEME, createTheme } from './types/theme';
 export { initWasm, isWasmReady } from './wasm';
 export { XMermaidError } from './types/error';
-export type {
-  DiagramAst,
-  FlowchartAst,
-  SequenceAst,
-  FlowDirection,
-  NodeShape,
-  EdgeStyle,
-  FlowchartNode,
-  FlowchartEdge,
-  Subgraph,
-  LayoutResult,
-  Point,
-  Dimensions,
-  XMermaidOptions,
-} from './types';
+export type { RenderTheme, ThemeColors, ArrowStyle, CurveStyle } from './types/theme';
+export type { LayoutConfig, LayoutResult, LayoutNode, LayoutEdge, Bounds, Point, NodeShape, FlowDirection, Dimensions } from './types/layout';
+export type { XMermaidOptions } from './types/options';
+export type { DiagramAst, FlowchartAst, SequenceAst, EdgeStyle, FlowchartNode, FlowchartEdge, Subgraph } from './types/ast';

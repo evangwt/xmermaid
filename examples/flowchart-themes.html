@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>xmermaid - Theme Showcase</title>
+  <style>
+    body { font-family: sans-serif; margin: 20px; background: #f5f5f5; }
+    h1, h2 { color: #333; }
+    .diagram { padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 20px; }
+  </style>
+</head>
+<body>
+  <h1>xmermaid - Theme Showcase</h1>
+
+  <h2>Default Theme</h2>
+  <div id="default" class="diagram" style="background: white;"></div>
+
+  <h2>Dark Theme</h2>
+  <div id="dark" class="diagram" style="background: #1a1a2e;"></div>
+
+  <h2>Minimal Theme</h2>
+  <div id="minimal" class="diagram" style="background: white;"></div>
+
+  <script type="module">
+    import { XMermaid, DEFAULT_THEME, DARK_THEME, MINIMAL_THEME } from '../dist/xmermaid.esm.js';
+
+    const dsl = `graph TD
+    A[Start] --> B{Check}
+    B -->|Pass| C[Process]
+    B -->|Fail| D[Retry]
+    D --> B
+    C --> E[End]`;
+
+    const xm1 = new XMermaid({ container: document.getElementById('default'), theme: DEFAULT_THEME });
+    await xm1.render(dsl);
+
+    const xm2 = new XMermaid({ container: document.getElementById('dark'), theme: DARK_THEME });
+    await xm2.render(dsl);
+
+    const xm3 = new XMermaid({ container: document.getElementById('minimal'), theme: MINIMAL_THEME });
+    await xm3.render(dsl);
+  </script>
+</body>
+</html>
