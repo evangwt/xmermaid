@@ -39,8 +39,8 @@ pub fn compute_layout(ast_json: &str) -> Result<String, JsValue> {
     let ast: DiagramAst = serde_json::from_str(ast_json)
         .map_err(|e| JsValue::from_str(&format!("Invalid AST JSON: {}", e)))?;
 
-    let result = xmermaid_layout::compute_flowchart_layout(&ast)
-        .map_err(|e| JsValue::from_str(&format!("Layout error: {}", e)))?;
+    let config = xmermaid_layout::LayoutConfig::default();
+    let result = xmermaid_layout::compute_layout(&ast, &config);
 
     serde_json::to_string(&result)
         .map_err(|e| JsValue::from_str(&format!("Serialization error: {}", e)))
@@ -51,7 +51,7 @@ pub fn compute_layout(ast_json: &str) -> Result<String, JsValue> {
 /// ```json
 /// {
 ///   "ast": { ... },
-///   "layout": { "positions": [...], "dimensions": { "width": ..., "height": ... } }
+///   "layout": { "nodes": [...], "edges": [...], "dimensions": { "width": ..., "height": ... } }
 /// }
 /// ```
 #[wasm_bindgen]
@@ -59,8 +59,8 @@ pub fn render_pipeline(input: &str) -> Result<String, JsValue> {
     let ast = xmermaid_parser::parse(input)
         .map_err(|e| JsValue::from_str(&format!("Parse error: {}", e)))?;
 
-    let layout = xmermaid_layout::compute_flowchart_layout(&ast)
-        .map_err(|e| JsValue::from_str(&format!("Layout error: {}", e)))?;
+    let config = xmermaid_layout::LayoutConfig::default();
+    let layout = xmermaid_layout::compute_layout(&ast, &config);
 
     let result = serde_json::json!({
         "ast": ast,

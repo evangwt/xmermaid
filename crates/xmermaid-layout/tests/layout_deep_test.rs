@@ -1,7 +1,7 @@
 //! Deep layout tests with real-world diagram examples
 //! and falsification of known layout limitations.
 
-use xmermaid_layout::{compute_flowchart_layout, LayoutError};
+use xmermaid_layout::{compute_layout, LayoutConfig};
 use xmermaid_parser::{parse, DiagramAst};
 
 // ═══════════════════════════════════════════════════════════════════
@@ -11,22 +11,24 @@ use xmermaid_parser::{parse, DiagramAst};
 #[test]
 fn test_layout_ci_cd_pipeline_lr() {
     let ast = parse("graph LR\n  Code-->Build-->Test-->Deploy").unwrap();
-    let layout = compute_flowchart_layout(&ast).unwrap();
+    let config = LayoutConfig::default();
+    let layout = compute_layout(&ast, &config);
 
     let positions: Vec<_> = ["Code", "Build", "Test", "Deploy"]
         .iter()
-        .map(|id| layout.positions.iter().find(|(n, _)| n == id).unwrap().1)
+        .map(|id| pos(&layout, id))
         .collect();
 
     for i in 0..3 {
-        assert!(positions[i].x < positions[i + 1].x, "LR: nodes should increase in x");
+        assert!(positions[i].0 < positions[i + 1].0, "LR: nodes should increase in x");
     }
 }
 
 #[test]
 fn test_layout_decision_tree_td() {
     let ast = parse("graph TD\n  A-->B\n  A-->C\n  B-->D\n  C-->E").unwrap();
-    let layout = compute_flowchart_layout(&ast).unwrap();
+    let config = LayoutConfig::default();
+    let layout = compute_layout(&ast, &config);
 
     let a = pos(&layout, "A");
     let b = pos(&layout, "B");
@@ -41,7 +43,8 @@ fn test_layout_decision_tree_td() {
 #[test]
 fn test_layout_diamond_merge() {
     let ast = parse("graph TD\n  A-->B\n  A-->C\n  B-->D\n  C-->D").unwrap();
-    let layout = compute_flowchart_layout(&ast).unwrap();
+    let config = LayoutConfig::default();
+    let layout = compute_layout(&ast, &config);
 
     let a = pos(&layout, "A");
     let d = pos(&layout, "D");
@@ -57,9 +60,10 @@ fn test_layout_diamond_merge() {
 #[test]
 fn test_layout_wide_graph_10_nodes() {
     let ast = parse("graph LR\n  N1-->N2-->N3-->N4-->N5-->N6-->N7-->N8-->N9-->N10").unwrap();
-    let layout = compute_flowchart_layout(&ast).unwrap();
+    let config = LayoutConfig::default();
+    let layout = compute_layout(&ast, &config);
 
-    assert_eq!(layout.positions.len(), 10);
+    assert_eq!(layout.nodes.len(), 10);
     for i in 1..=9 {
         let prev = pos(&layout, &format!("N{}", i));
         let curr = pos(&layout, &format!("N{}", i + 1));
@@ -70,7 +74,8 @@ fn test_layout_wide_graph_10_nodes() {
 #[test]
 fn test_layout_star_topology() {
     let ast = parse("graph TD\n  Hub-->S1\n  Hub-->S2\n  Hub-->S3\n  Hub-->S4").unwrap();
-    let layout = compute_flowchart_layout(&ast).unwrap();
+    let config = LayoutConfig::default();
+    let layout = compute_layout(&ast, &config);
 
     let hub = pos(&layout, "Hub");
     for id in &["S1", "S2", "S3", "S4"] {
@@ -87,9 +92,10 @@ fn test_layout_star_topology() {
 fn test_falsify_state_machine_back_edge() {
     // Paused-->Running is a back-edge; cycle detection now handles it.
     let ast = parse("graph TD\n  Idle-->Running\n  Running-->Paused\n  Paused-->Running\n  Running-->Stopped").unwrap();
-    let layout = compute_flowchart_layout(&ast).unwrap();
+    let config = LayoutConfig::default();
+    let layout = compute_layout(&ast, &config);
 
-    assert_eq!(layout.positions.len(), 4);
+    assert_eq!(layout.nodes.len(), 4);
     let idle = pos(&layout, "Idle");
     let running = pos(&layout, "Running");
     let paused = pos(&layout, "Paused");
@@ -108,13 +114,14 @@ fn test_falsify_state_machine_back_edge() {
 #[test]
 fn test_layout_microservices() {
     let ast = parse("graph LR\n  GW-->Auth\n  GW-->Order\n  GW-->User\n  Order-->DB\n  User-->DB\n  Auth-->Cache").unwrap();
-    let layout = compute_flowchart_layout(&ast).unwrap();
+    let config = LayoutConfig::default();
+    let layout = compute_layout(&ast, &config);
 
-    assert_eq!(layout.positions.len(), 6);
-    for (_, p) in &layout.positions {
-        assert!(p.x >= 0.0 && p.y >= 0.0);
-        assert!(p.x < layout.dimensions.width);
-        assert!(p.y < layout.dimensions.height);
+    assert_eq!(layout.nodes.len(), 6);
+    for n in &layout.nodes {
+        assert!(n.center.x >= 0.0 && n.center.y >= 0.0);
+        assert!(n.center.x < layout.dimensions.width);
+        assert!(n.center.y < layout.dimensions.height);
     }
 }
 
@@ -125,47 +132,53 @@ fn test_layout_microservices() {
 #[test]
 fn test_layout_exact_td_chain() {
     let ast = parse("graph TD\n  A-->B-->C").unwrap();
-    let layout = compute_flowchart_layout(&ast).unwrap();
+    let config = LayoutConfig::default();
+    let layout = compute_layout(&ast, &config);
 
-    // Constants: PADDING=40, NODE_HEIGHT=40, V_SPACING=60
-    // A at layer 0: (40, 40)
-    // B at layer 1: (40, 40+40+60) = (40, 140)
-    // C at layer 2: (40, 140+40+60) = (40, 240)
-    assert_eq!(pos(&layout, "A"), (40.0, 40.0));
-    assert_eq!(pos(&layout, "B"), (40.0, 140.0));
-    assert_eq!(pos(&layout, "C"), (40.0, 240.0));
+    // With normalization ensuring node bounds start at padding:
+    // A at layer 0: center (100, 60) — padding(40) + half_width(60), padding(40) + half_height(20)
+    // B at layer 1: center (100, 160)
+    // C at layer 2: center (100, 260)
+    assert_eq!(pos(&layout, "A"), (100.0, 60.0));
+    assert_eq!(pos(&layout, "B"), (100.0, 160.0));
+    assert_eq!(pos(&layout, "C"), (100.0, 260.0));
 }
 
 #[test]
 fn test_layout_exact_lr_chain() {
     let ast = parse("graph LR\n  A-->B-->C").unwrap();
-    let layout = compute_flowchart_layout(&ast).unwrap();
+    let config = LayoutConfig::default();
+    let layout = compute_layout(&ast, &config);
 
-    // Constants: PADDING=40, NODE_WIDTH=120, H_SPACING=60
-    // A at layer 0: (40, 40)
-    // B at layer 1: (40+120+60, 40) = (220, 40)
-    // C at layer 2: (220+120+60, 40) = (400, 40)
-    assert_eq!(pos(&layout, "A"), (40.0, 40.0));
-    assert_eq!(pos(&layout, "B"), (220.0, 40.0));
-    assert_eq!(pos(&layout, "C"), (400.0, 40.0));
+    // LR direction: layers go horizontally
+    // A at layer 0: center (100, 60) — after normalization
+    // B at layer 1: center (280, 60) — 100 + 180 = 280
+    // C at layer 2: center (460, 60) — 280 + 180 = 460
+    assert_eq!(pos(&layout, "A"), (100.0, 60.0));
+    assert_eq!(pos(&layout, "B"), (280.0, 60.0));
+    assert_eq!(pos(&layout, "C"), (460.0, 60.0));
 }
 
 #[test]
 fn test_layout_exact_diamond_dimensions() {
     let ast = parse("graph TD\n  A-->B\n  A-->C\n  B-->D\n  C-->D").unwrap();
-    let layout = compute_flowchart_layout(&ast).unwrap();
+    let config = LayoutConfig::default();
+    let layout = compute_layout(&ast, &config);
 
-    // With centering: layer 1 (B,C) is widest at 300px, layers 0 and 2 shift right by 90px
+    // With centering and normalization:
+    // Layer 1 (B,C) is widest at 300px, layers 0 and 2 get centered
+    // After centering: A at (130, 40), B at (40, 140), C at (220, 140), D at (130, 240)
+    // After normalization (shift x+60, y+20): A at (190, 60), B at (100, 160), C at (280, 160), D at (190, 260)
     let a = pos(&layout, "A");
-    assert_eq!(a, (130.0, 40.0)); // centered: 40 + (300-120)/2 = 130
+    assert_eq!(a, (190.0, 60.0));
     let b = pos(&layout, "B");
     let c = pos(&layout, "C");
     assert_eq!(b.1, c.1);
-    assert_eq!(b.0, 40.0); // B at left of layer 1
-    assert_eq!(c.0, 220.0); // C at right of layer 1 (40 + 180)
+    assert_eq!(b.0, 100.0); // B at left of layer 1
+    assert_eq!(c.0, 280.0); // C at right of layer 1
     assert!(c.0 > b.0, "C should be right of B");
     let d = pos(&layout, "D");
-    assert_eq!(d.0, 130.0); // centered like A
+    assert_eq!(d.0, 190.0); // centered like A
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -175,11 +188,12 @@ fn test_layout_exact_diamond_dimensions() {
 #[test]
 fn test_layout_dimensions_encompass_all_nodes() {
     let ast = parse("graph TD\n  A-->B-->C-->D").unwrap();
-    let layout = compute_flowchart_layout(&ast).unwrap();
+    let config = LayoutConfig::default();
+    let layout = compute_layout(&ast, &config);
 
-    for (_, p) in &layout.positions {
-        assert!(p.x + 60.0 <= layout.dimensions.width, "x + half_width within bounds");
-        assert!(p.y + 20.0 <= layout.dimensions.height, "y + half_height within bounds");
+    for n in &layout.nodes {
+        assert!(n.center.x + 60.0 <= layout.dimensions.width, "x + half_width within bounds");
+        assert!(n.center.y + 20.0 <= layout.dimensions.height, "y + half_height within bounds");
     }
 }
 
@@ -187,8 +201,9 @@ fn test_layout_dimensions_encompass_all_nodes() {
 fn test_layout_dimensions_increase_with_nodes() {
     let ast2 = parse("graph TD\n  A-->B").unwrap();
     let ast4 = parse("graph TD\n  A-->B-->C-->D").unwrap();
-    let layout2 = compute_flowchart_layout(&ast2).unwrap();
-    let layout4 = compute_flowchart_layout(&ast4).unwrap();
+    let config = LayoutConfig::default();
+    let layout2 = compute_layout(&ast2, &config);
+    let layout4 = compute_layout(&ast4, &config);
 
     assert!(layout4.dimensions.height > layout2.dimensions.height, "More nodes = taller");
 }
@@ -201,7 +216,8 @@ fn test_layout_dimensions_increase_with_nodes() {
 fn test_falsify_bt_does_not_reverse_y() {
     // BT direction now correctly reverses y coordinates
     let ast = parse("graph BT\n  A-->B").unwrap();
-    let layout = compute_flowchart_layout(&ast).unwrap();
+    let config = LayoutConfig::default();
+    let layout = compute_layout(&ast, &config);
 
     let a = pos(&layout, "A");
     let b = pos(&layout, "B");
@@ -214,7 +230,8 @@ fn test_falsify_bt_does_not_reverse_y() {
 fn test_falsify_rl_does_not_reverse_x() {
     // RL direction now correctly reverses x coordinates
     let ast = parse("graph RL\n  A-->B").unwrap();
-    let layout = compute_flowchart_layout(&ast).unwrap();
+    let config = LayoutConfig::default();
+    let layout = compute_layout(&ast, &config);
 
     let a = pos(&layout, "A");
     let b = pos(&layout, "B");
@@ -227,9 +244,10 @@ fn test_falsify_rl_does_not_reverse_x() {
 fn test_falsify_cycle_no_detection() {
     // Cycle detection now excludes back-edges from layering
     let ast = parse("graph TD\n  A-->B\n  B-->A").unwrap();
-    let layout = compute_flowchart_layout(&ast).unwrap();
+    let config = LayoutConfig::default();
+    let layout = compute_layout(&ast, &config);
 
-    assert_eq!(layout.positions.len(), 2);
+    assert_eq!(layout.nodes.len(), 2);
     // Back-edge B-->A is detected and excluded; A is at layer 0, B at layer 1
     let a = pos(&layout, "A");
     let b = pos(&layout, "B");
@@ -240,8 +258,9 @@ fn test_falsify_cycle_no_detection() {
 fn test_falsify_long_cycle_no_stack_overflow() {
     // Longer cycle: A-->B-->C-->A — back-edge C-->A detected and excluded
     let ast = parse("graph TD\n  A-->B\n  B-->C\n  C-->A").unwrap();
-    let layout = compute_flowchart_layout(&ast).unwrap();
-    assert_eq!(layout.positions.len(), 3);
+    let config = LayoutConfig::default();
+    let layout = compute_layout(&ast, &config);
+    assert_eq!(layout.nodes.len(), 3);
     // A at layer 0, B at layer 1, C at layer 2 (C-->A back-edge excluded)
     let a = pos(&layout, "A");
     let b = pos(&layout, "B");
@@ -253,8 +272,9 @@ fn test_falsify_long_cycle_no_stack_overflow() {
 #[test]
 fn test_falsify_self_loop_layout() {
     let ast = parse("graph TD\n  A-->A").unwrap();
-    let layout = compute_flowchart_layout(&ast).unwrap();
-    assert_eq!(layout.positions.len(), 1);
+    let config = LayoutConfig::default();
+    let layout = compute_layout(&ast, &config);
+    assert_eq!(layout.nodes.len(), 1);
 }
 
 #[test]
@@ -262,8 +282,11 @@ fn test_falsify_non_flowchart_rejected() {
     let ast = DiagramAst::Sequence(xmermaid_parser::ast::SequenceAst {
         participants: vec!["A".to_string()],
     });
-    let result = compute_flowchart_layout(&ast);
-    assert!(matches!(result.unwrap_err(), LayoutError::UnsupportedDiagramType));
+    let config = LayoutConfig::default();
+    let result = compute_layout(&ast, &config);
+    // Unsupported types return empty LayoutResult
+    assert_eq!(result.nodes.len(), 0);
+    assert_eq!(result.edges.len(), 0);
 }
 
 #[test]
@@ -273,7 +296,8 @@ fn test_falsify_no_crossing_minimization() {
     // barycenter sorting should place A left of B and D left of C
     // (or equivalently, reduce crossings).
     let ast = parse("graph TD\n  A-->D\n  B-->C").unwrap();
-    let layout = compute_flowchart_layout(&ast).unwrap();
+    let config = LayoutConfig::default();
+    let layout = compute_layout(&ast, &config);
 
     let a = pos(&layout, "A");
     let b = pos(&layout, "B");
@@ -288,7 +312,8 @@ fn test_falsify_no_crossing_minimization() {
 fn test_falsify_no_rank_balancing() {
     // Rank balancing now compacts layers so there are no gaps.
     let ast = parse("graph TD\n  A-->B-->D\n  C-->D").unwrap();
-    let layout = compute_flowchart_layout(&ast).unwrap();
+    let config = LayoutConfig::default();
+    let layout = compute_layout(&ast, &config);
 
     let a = pos(&layout, "A");
     let b = pos(&layout, "B");
@@ -308,8 +333,9 @@ fn test_falsify_no_rank_balancing() {
 #[test]
 fn test_layout_empty_graph() {
     let ast = parse("graph TD").unwrap();
-    let layout = compute_flowchart_layout(&ast).unwrap();
-    assert_eq!(layout.positions.len(), 0);
+    let config = LayoutConfig::default();
+    let layout = compute_layout(&ast, &config);
+    assert_eq!(layout.nodes.len(), 0);
     assert_eq!(layout.dimensions.width, 80.0);
     assert_eq!(layout.dimensions.height, 80.0);
 }
@@ -317,16 +343,18 @@ fn test_layout_empty_graph() {
 #[test]
 fn test_layout_single_isolated_node() {
     let ast = parse("graph TD\n  A").unwrap();
-    let layout = compute_flowchart_layout(&ast).unwrap();
-    assert_eq!(layout.positions.len(), 1);
-    assert_eq!(pos(&layout, "A"), (40.0, 40.0));
+    let config = LayoutConfig::default();
+    let layout = compute_layout(&ast, &config);
+    assert_eq!(layout.nodes.len(), 1);
+    assert_eq!(pos(&layout, "A"), (100.0, 60.0));
 }
 
 #[test]
 fn test_layout_many_isolated_nodes() {
     let ast = parse("graph TD\n  A B C D E").unwrap();
-    let layout = compute_flowchart_layout(&ast).unwrap();
-    assert_eq!(layout.positions.len(), 5);
+    let config = LayoutConfig::default();
+    let layout = compute_layout(&ast, &config);
+    assert_eq!(layout.nodes.len(), 5);
     let y = pos(&layout, "A").1;
     for id in &["B", "C", "D", "E"] {
         assert_eq!(pos(&layout, id).1, y, "{} at same layer as A", id);
@@ -336,15 +364,17 @@ fn test_layout_many_isolated_nodes() {
 #[test]
 fn test_layout_multiple_edges_same_pair() {
     let ast = parse("graph TD\n  A-->B\n  A-->B").unwrap();
-    let layout = compute_flowchart_layout(&ast).unwrap();
-    assert_eq!(layout.positions.len(), 2);
+    let config = LayoutConfig::default();
+    let layout = compute_layout(&ast, &config);
+    assert_eq!(layout.nodes.len(), 2);
 }
 
 #[test]
 fn test_layout_disconnected_subgraphs() {
     let ast = parse("graph TD\n  A-->B\n  C-->D").unwrap();
-    let layout = compute_flowchart_layout(&ast).unwrap();
-    assert_eq!(layout.positions.len(), 4);
+    let config = LayoutConfig::default();
+    let layout = compute_layout(&ast, &config);
+    assert_eq!(layout.nodes.len(), 4);
     assert_eq!(pos(&layout, "A").1, pos(&layout, "C").1);
     assert_eq!(pos(&layout, "B").1, pos(&layout, "D").1);
 }
@@ -354,6 +384,6 @@ fn test_layout_disconnected_subgraphs() {
 // ═══════════════════════════════════════════════════════════════════
 
 fn pos(layout: &xmermaid_layout::LayoutResult, id: &str) -> (f64, f64) {
-    let p = layout.positions.iter().find(|(n, _)| n == id).unwrap().1;
-    (p.x, p.y)
+    let node = layout.nodes.iter().find(|n| n.id == id).unwrap();
+    (node.center.x, node.center.y)
 }
