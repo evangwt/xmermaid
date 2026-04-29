@@ -336,11 +336,12 @@ function truncateAtStadium(
     const t1 = (-b - sqrtD) / (2 * a);
     const t2 = (-b + sqrtD) / (2 * a);
 
-    let t = Infinity;
+    // We want the exit point (largest positive t) since 'to' is typically inside the shape
+    let t = -1;
     if (t1 > 0) t = t1;
-    if (t2 > 0 && t2 < t) t = t2;
+    if (t2 > 0 && t2 > t) t = t2;
 
-    if (t === Infinity) return { x: to.x, y: to.y };
+    if (t <= 0) return { x: to.x, y: to.y };
 
     const hitX = to.x + t * dx;
     const hitY = to.y + t * dy;
