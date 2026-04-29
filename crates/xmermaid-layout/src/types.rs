@@ -103,6 +103,43 @@ pub struct LayoutNode {
     pub label: String,
 }
 
+/// Style of an edge, forwarded from AST
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", into = "String", try_from = "String")]
+pub enum EdgeStyle {
+    Arrow,
+    Line,
+    Dotted,
+    Thick,
+    Invisible,
+}
+
+impl From<EdgeStyle> for String {
+    fn from(style: EdgeStyle) -> Self {
+        match style {
+            EdgeStyle::Arrow => "arrow".to_string(),
+            EdgeStyle::Line => "line".to_string(),
+            EdgeStyle::Dotted => "dotted".to_string(),
+            EdgeStyle::Thick => "thick".to_string(),
+            EdgeStyle::Invisible => "invisible".to_string(),
+        }
+    }
+}
+
+impl TryFrom<String> for EdgeStyle {
+    type Error = String;
+    fn try_from(s: String) -> Result<Self, Self::Error> {
+        match s.as_str() {
+            "arrow" => Ok(EdgeStyle::Arrow),
+            "line" => Ok(EdgeStyle::Line),
+            "dotted" => Ok(EdgeStyle::Dotted),
+            "thick" => Ok(EdgeStyle::Thick),
+            "invisible" => Ok(EdgeStyle::Invisible),
+            _ => Err(format!("Unknown EdgeStyle: {}", s)),
+        }
+    }
+}
+
 /// A positioned edge in the layout result
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LayoutEdge {
@@ -111,6 +148,7 @@ pub struct LayoutEdge {
     pub waypoints: Vec<Point>,
     pub label: Option<String>,
     pub label_position: Option<Point>,
+    pub style: EdgeStyle,
 }
 
 /// Overall dimensions of the layout

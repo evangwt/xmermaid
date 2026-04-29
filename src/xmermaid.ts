@@ -2,7 +2,7 @@ import type { XMermaidOptions, LayoutConfig, RenderTheme } from './types';
 import { DEFAULT_THEME } from './types/theme';
 import { SVGRenderer } from './renderer/svg';
 import { initWasm, getWasm } from './wasm';
-import type { LayoutResult } from './types/layout';
+import type { LayoutResult, EdgeStyle, NodeShape } from './types/layout';
 
 export class XMermaid {
   private container: HTMLElement;
@@ -19,7 +19,7 @@ export class XMermaid {
     await initWasm();
     const wasm = getWasm();
 
-    let layout: LayoutResult;
+    let layout: any;
     if (this.layoutConfig) {
       const defaultConfig = JSON.parse(wasm.default_config());
       const merged = { ...defaultConfig, ...this.layoutConfig };
@@ -29,7 +29,25 @@ export class XMermaid {
       layout = wasm.render(input);
     }
 
-    const svg = this.renderer.render(layout);
+    // serde_wasm_bindgen may serialize enums as Map objects; convert to strings
+    for (const edge of layout.edges) {
+      const style = edge.style;
+      if (style instanceof Map) {
+        edge.style = [...style.keys()][0] as EdgeStyle;
+      } else if (typeof style === 'object' && style !== null) {
+        edge.style = Object.keys(style)[0] as EdgeStyle;
+      }
+    }
+    for (const node of layout.nodes) {
+      const shape = node.shape;
+      if (shape instanceof Map) {
+        node.shape = [...shape.keys()][0] as NodeShape;
+      } else if (typeof shape === 'object' && shape !== null) {
+        node.shape = Object.keys(shape)[0] as NodeShape;
+      }
+    }
+
+    const svg = this.renderer.render(layout as LayoutResult);
     this.container.innerHTML = '';
     this.container.appendChild(svg);
   }

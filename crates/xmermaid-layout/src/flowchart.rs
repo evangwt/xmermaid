@@ -13,7 +13,7 @@ use crate::types::{
     Bounds, Dimensions, FlowDirection, LayoutConfig, LayoutEdge, LayoutNode, LayoutResult,
     NodeShape, Point,
 };
-use xmermaid_parser::ast::{FlowchartAst, NodeShape as ParserNodeShape};
+use xmermaid_parser::ast::{EdgeStyle as ParserEdgeStyle, FlowchartAst, NodeShape as ParserNodeShape};
 
 /// Map parser NodeShape to layout NodeShape.
 /// Some shapes are simplified for layout purposes.
@@ -31,6 +31,16 @@ fn map_shape(parser_shape: &ParserNodeShape) -> NodeShape {
         ParserNodeShape::Trapezoid => NodeShape::Trapezoid,
         ParserNodeShape::Asymmetric => NodeShape::Rectangle,     // simplify
         ParserNodeShape::Cylinder => NodeShape::Rectangle,       // simplify
+    }
+}
+
+fn map_edge_style(style: &ParserEdgeStyle) -> crate::types::EdgeStyle {
+    match style {
+        ParserEdgeStyle::Arrow => crate::types::EdgeStyle::Arrow,
+        ParserEdgeStyle::Line => crate::types::EdgeStyle::Line,
+        ParserEdgeStyle::Dotted => crate::types::EdgeStyle::Dotted,
+        ParserEdgeStyle::Thick => crate::types::EdgeStyle::Thick,
+        ParserEdgeStyle::Invisible => crate::types::EdgeStyle::Invisible,
     }
 }
 
@@ -540,6 +550,7 @@ pub fn layout(fc: &FlowchartAst, config: &LayoutConfig) -> LayoutResult {
                 waypoints,
                 label: edge.label.clone(),
                 label_position,
+                style: map_edge_style(&edge.style),
             }
         })
         .collect();
