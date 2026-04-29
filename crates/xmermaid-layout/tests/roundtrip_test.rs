@@ -132,6 +132,20 @@ fn test_json_roundtrip_all_edge_styles() {
     }
 }
 
+#[test]
+fn test_layout_preserves_edge_styles() {
+    let ast = parse("graph TD\n  A-->B\n  A---C\n  A-.->D\n  A==>E").unwrap();
+    let config = LayoutConfig::default();
+    let layout = compute_layout(&ast, &config);
+
+    use xmermaid_layout::types::EdgeStyle;
+    let styles: Vec<_> = layout.edges.iter().map(|e| e.style).collect();
+    assert!(styles.contains(&EdgeStyle::Arrow), "Should have Arrow style");
+    assert!(styles.contains(&EdgeStyle::Line), "Should have Line style");
+    assert!(styles.contains(&EdgeStyle::Dotted), "Should have Dotted style");
+    assert!(styles.contains(&EdgeStyle::Thick), "Should have Thick style");
+}
+
 // ─── Layout JSON serialization round-trips ───────────────────────
 
 #[test]

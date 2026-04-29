@@ -322,7 +322,7 @@ function truncateAtStadium(
 
   if (isHorizontal) {
     // Approach from left or right: use circle intersection at the appropriate semicircle center
-    const circleCx = dx > 0 ? x + r : x + width - r;
+    const circleCx = dx > 0 ? x + width - r : x + r;
     const ox = to.x - circleCx;
     const oy = to.y - cy;
     const a = dx * dx + dy * dy;
