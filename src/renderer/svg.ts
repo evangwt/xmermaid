@@ -183,37 +183,55 @@ export class SVGRenderer {
     pathEl.setAttribute('d', edgeResult.path);
     pathEl.setAttribute('fill', 'none');
     pathEl.setAttribute('stroke', this.theme.colors.edgeStroke);
-    pathEl.setAttribute('stroke-width', '1.5');
+
+    // Apply edge style
+    switch (edge.style) {
+      case 'dotted':
+        pathEl.setAttribute('stroke-dasharray', '5,5');
+        pathEl.setAttribute('stroke-width', '1.5');
+        break;
+      case 'thick':
+        pathEl.setAttribute('stroke-width', '3');
+        break;
+      case 'invisible':
+        pathEl.setAttribute('stroke', 'none');
+        break;
+      default:
+        pathEl.setAttribute('stroke-width', '1.5');
+    }
     g.appendChild(pathEl);
 
-    // Draw arrowhead
-    const arrowPoints = computeArrowPoints(
-      edgeResult.arrowTip,
-      edgeResult.arrowAngle,
-      this.theme.arrowSize,
-      this.theme.arrowStyle,
-    );
+    // Draw arrowhead (skip for 'line' and 'invisible' styles)
+    if (edge.style !== 'line' && edge.style !== 'invisible') {
+      const arrowPoints = computeArrowPoints(
+        edgeResult.arrowTip,
+        edgeResult.arrowAngle,
+        this.theme.arrowSize,
+        this.theme.arrowStyle,
+      );
 
-    const arrowEl = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-    arrowEl.setAttribute('points', arrowPoints);
-    if (this.theme.arrowStyle === 'filled') {
-      arrowEl.setAttribute('fill', this.theme.colors.arrowFill);
-      arrowEl.setAttribute('stroke', this.theme.colors.edgeStroke);
-      arrowEl.setAttribute('stroke-width', '1');
-    } else if (this.theme.arrowStyle === 'open') {
-      arrowEl.setAttribute('fill', 'none');
-      arrowEl.setAttribute('stroke', this.theme.colors.edgeStroke);
-      arrowEl.setAttribute('stroke-width', '1.5');
-    } else {
-      arrowEl.setAttribute('fill', this.theme.colors.arrowFill);
-      arrowEl.setAttribute('stroke', this.theme.colors.edgeStroke);
-      arrowEl.setAttribute('stroke-width', '1');
+      const arrowEl = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+      arrowEl.setAttribute('points', arrowPoints);
+      if (this.theme.arrowStyle === 'filled') {
+        arrowEl.setAttribute('fill', this.theme.colors.arrowFill);
+        arrowEl.setAttribute('stroke', this.theme.colors.edgeStroke);
+        arrowEl.setAttribute('stroke-width', '1');
+      } else if (this.theme.arrowStyle === 'open') {
+        arrowEl.setAttribute('fill', 'none');
+        arrowEl.setAttribute('stroke', this.theme.colors.edgeStroke);
+        arrowEl.setAttribute('stroke-width', '1.5');
+      } else {
+        arrowEl.setAttribute('fill', this.theme.colors.arrowFill);
+        arrowEl.setAttribute('stroke', this.theme.colors.edgeStroke);
+        arrowEl.setAttribute('stroke-width', '1');
+      }
+      g.appendChild(arrowEl);
     }
-    g.appendChild(arrowEl);
 
     // Draw edge label if present
     if (edge.label) {
       const labelPos = edge.label_position ?? this.computeLabelPosition(edge.waypoints);
+      const fontSize = this.theme.fontSize - 2;
       const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       text.setAttribute('x', String(labelPos.x));
       text.setAttribute('y', String(labelPos.y));
@@ -221,14 +239,17 @@ export class SVGRenderer {
       text.setAttribute('dominant-baseline', 'central');
       text.setAttribute('fill', this.theme.colors.edgeLabel);
       text.setAttribute('font-family', this.theme.fontFamily);
-      text.setAttribute('font-size', String(this.theme.fontSize - 2));
+      text.setAttribute('font-size', String(fontSize));
 
-      // Background for readability
+      // Background for readability — measure actual text width
+      const textWidth = this.measureText(edge.label, fontSize);
+      const padX = 4;
+      const padY = 3;
       const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-      bg.setAttribute('x', String(labelPos.x - edge.label.length * 3.5));
-      bg.setAttribute('y', String(labelPos.y - 8));
-      bg.setAttribute('width', String(edge.label.length * 7));
-      bg.setAttribute('height', '16');
+      bg.setAttribute('x', String(labelPos.x - textWidth / 2 - padX));
+      bg.setAttribute('y', String(labelPos.y - fontSize / 2 - padY));
+      bg.setAttribute('width', String(textWidth + padX * 2));
+      bg.setAttribute('height', String(fontSize + padY * 2));
       bg.setAttribute('fill', this.theme.colors.background);
       bg.setAttribute('rx', '2');
       g.appendChild(bg);
@@ -249,4 +270,13 @@ export class SVGRenderer {
       y: (waypoints[mid - 1].y + waypoints[mid].y) / 2,
     };
   }
+
+  private measureText(text: string, fontSize: number): number {
+    const ctx = SVGRenderer._canvas.getContext('2d');
+    if (!ctx) return text.length * fontSize * 0.6;
+    ctx.font = `${fontSize}px ${this.theme.fontFamily}`;
+    return ctx.measureText(text).width;
+  }
+
+  private static _canvas: HTMLCanvasElement = document.createElement('canvas');
 }
