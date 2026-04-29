@@ -1,29 +1,49 @@
-import type { Point, Bounds, CurveStyle, ArrowStyle } from '../types';
+import type { Point, Bounds, CurveStyle, ArrowStyle, NodeShape } from '../types';
 
 export interface EdgePathResult {
-  path: string; // SVG path d attribute
-  arrowTip: Point; // Where the arrow tip points (on the target node boundary)
-  arrowAngle: number; // Angle in radians for arrow rotation
-  labelPosition?: Point;
+  path: string; // SVG path d attribute — ends at arrow base (pathEnd)
+  arrowTip: Point; // Where the arrow tip points (at node boundary + gap)
+  arrowAngle: number; // Angle in radians from path tangent at endpoint
+  pathEnd?: Point; // Where the path line ends (arrow base = arrowTip - arrowSize along tangent)
 }
 
 /**
  * Given a line from `from` to `to`, find the point on the boundary of `bounds`
- * (inset by `gap`) closest to `from`. This is where the edge should start/end
+ * offset outward by `gap`. This is where the edge should start/end
  * to avoid overlapping the node.
  *
  * Uses ray-box intersection: the ray goes from `to` toward `from`.
+ * First finds the exit point on the original bounds, then pushes it
+ * outward by `gap` along the ray direction.
  */
 export function truncateAtBounds(
   from: Point,
   to: Point,
   bounds: Bounds,
   gap: number,
+  shape?: NodeShape,
 ): Point {
-  const left = bounds.x + gap;
-  const right = bounds.x + bounds.width - gap;
-  const top = bounds.y + gap;
-  const bottom = bounds.y + bounds.height - gap;
+  switch (shape) {
+    case 'Diamond':
+      return truncateAtDiamond(from, to, bounds, gap);
+    case 'Circle':
+      return truncateAtCircle(from, to, bounds, gap);
+    case 'Hexagon':
+      return truncateAtHexagon(from, to, bounds, gap);
+    case 'Parallelogram':
+      return truncateAtParallelogram(from, to, bounds, gap);
+    case 'Trapezoid':
+      return truncateAtTrapezoid(from, to, bounds, gap);
+    case 'Stadium':
+      return truncateAtStadium(from, to, bounds, gap);
+    default:
+      break;
+  }
+
+  const left = bounds.x;
+  const right = bounds.x + bounds.width;
+  const top = bounds.y;
+  const bottom = bounds.y + bounds.height;
 
   const dx = from.x - to.x;
   const dy = from.y - to.y;
@@ -33,68 +53,376 @@ export function truncateAtBounds(
     return { x: to.x, y: to.y };
   }
 
-  let tMin = Infinity;
+  let tMax = -1;
 
-  // Check all four sides
-  // Left side: x = left, t = (left - to.x) / dx
+  // Check all four sides of the ORIGINAL bounds — find exit point (farthest t)
   if (dx !== 0) {
     const t = (left - to.x) / dx;
     if (t > 0) {
       const y = to.y + t * dy;
-      if (y >= top && y <= bottom && t < tMin) {
-        tMin = t;
+      if (y >= top && y <= bottom && t > tMax) {
+        tMax = t;
       }
     }
 
-    // Right side: x = right
     const tRight = (right - to.x) / dx;
     if (tRight > 0) {
       const y = to.y + tRight * dy;
-      if (y >= top && y <= bottom && tRight < tMin) {
-        tMin = tRight;
+      if (y >= top && y <= bottom && tRight > tMax) {
+        tMax = tRight;
       }
     }
   }
 
   if (dy !== 0) {
-    // Top side: y = top, t = (top - to.y) / dy
     const t = (top - to.y) / dy;
     if (t > 0) {
       const x = to.x + t * dx;
-      if (x >= left && x <= right && t < tMin) {
-        tMin = t;
+      if (x >= left && x <= right && t > tMax) {
+        tMax = t;
       }
     }
 
-    // Bottom side: y = bottom
     const tBottom = (bottom - to.y) / dy;
     if (tBottom > 0) {
       const x = to.x + tBottom * dx;
-      if (x >= left && x <= right && tBottom < tMin) {
-        tMin = tBottom;
+      if (x >= left && x <= right && tBottom > tMax) {
+        tMax = tBottom;
       }
     }
   }
 
   // If no valid intersection found, return to (fallback)
-  if (tMin === Infinity) {
+  if (tMax <= 0) {
     return { x: to.x, y: to.y };
   }
 
+  // Find intersection on original bounds
+  const hitX = to.x + tMax * dx;
+  const hitY = to.y + tMax * dy;
+
+  // Push outward by gap along the ray direction (from to -> from)
+  const len = Math.sqrt(dx * dx + dy * dy);
   return {
-    x: to.x + tMin * dx,
-    y: to.y + tMin * dy,
+    x: hitX + (dx / len) * gap,
+    y: hitY + (dy / len) * gap,
   };
 }
 
 /**
+ * Generic ray-polygon edge intersection.
+ * Given a ray from `to` toward `from`, find the exit intersection
+ * (farthest positive t) with the edges of a convex polygon defined by `vertices`,
+ * then push outward by `gap` along the ray direction.
+ */
+function truncateAtPolygon(
+  from: Point,
+  to: Point,
+  vertices: Point[],
+  gap: number,
+): Point {
+  const dx = from.x - to.x;
+  const dy = from.y - to.y;
+
+  if (dx === 0 && dy === 0) return { x: to.x, y: to.y };
+
+  let tMax = -1;
+
+  for (let i = 0; i < vertices.length; i++) {
+    const p1 = vertices[i];
+    const p2 = vertices[(i + 1) % vertices.length];
+
+    const segDx = p2.x - p1.x;
+    const segDy = p2.y - p1.y;
+
+    const denom = dx * segDy - dy * segDx;
+    if (Math.abs(denom) < 1e-10) continue;
+
+    const t = ((p1.x - to.x) * segDy - (p1.y - to.y) * segDx) / denom;
+    const s = ((p1.x - to.x) * dy - (p1.y - to.y) * dx) / denom;
+
+    if (t > 0 && s >= 0 && s <= 1 && t > tMax) {
+      tMax = t;
+    }
+  }
+
+  if (tMax <= 0) return { x: to.x, y: to.y };
+
+  const hitX = to.x + tMax * dx;
+  const hitY = to.y + tMax * dy;
+
+  const len = Math.sqrt(dx * dx + dy * dy);
+  return {
+    x: hitX + (dx / len) * gap,
+    y: hitY + (dy / len) * gap,
+  };
+}
+
+/**
+ * Truncate at a diamond boundary (rotated square).
+ * The diamond has vertices at: top, right, bottom, left of the bounds.
+ */
+function truncateAtDiamond(
+  from: Point,
+  to: Point,
+  bounds: Bounds,
+  gap: number,
+): Point {
+  const cx = bounds.x + bounds.width / 2;
+  const cy = bounds.y + bounds.height / 2;
+  const vertices: Point[] = [
+    { x: cx, y: bounds.y },
+    { x: bounds.x + bounds.width, y: cy },
+    { x: cx, y: bounds.y + bounds.height },
+    { x: bounds.x, y: cy },
+  ];
+  return truncateAtPolygon(from, to, vertices, gap);
+}
+
+/**
+ * Truncate at a circle boundary.
+ */
+function truncateAtCircle(
+  from: Point,
+  to: Point,
+  bounds: Bounds,
+  gap: number,
+): Point {
+  const cx = bounds.x + bounds.width / 2;
+  const cy = bounds.y + bounds.height / 2;
+  const r = Math.min(bounds.width, bounds.height) / 2;
+
+  const dx = from.x - to.x;
+  const dy = from.y - to.y;
+
+  if (dx === 0 && dy === 0) return { x: to.x, y: to.y };
+
+  // Ray: to + t*(from-to), Circle: (x-cx)^2 + (y-cy)^2 = r^2
+  const ox = to.x - cx;
+  const oy = to.y - cy;
+  const a = dx * dx + dy * dy;
+  const b = 2 * (ox * dx + oy * dy);
+  const c = ox * ox + oy * oy - r * r;
+
+  const discriminant = b * b - 4 * a * c;
+  if (discriminant < 0) return { x: to.x, y: to.y };
+
+  const sqrtD = Math.sqrt(discriminant);
+  const t1 = (-b - sqrtD) / (2 * a);
+  const t2 = (-b + sqrtD) / (2 * a);
+
+  // We want the exit point (largest positive t) since 'to' is typically inside the shape
+  let t = -1;
+  if (t1 > 0) t = t1;
+  if (t2 > 0 && t2 > t) t = t2;
+
+  if (t <= 0) return { x: to.x, y: to.y };
+
+  const hitX = to.x + t * dx;
+  const hitY = to.y + t * dy;
+
+  const len = Math.sqrt(dx * dx + dy * dy);
+  return {
+    x: hitX + (dx / len) * gap,
+    y: hitY + (dy / len) * gap,
+  };
+}
+
+/**
+ * Truncate at a hexagon boundary.
+ * Vertices: (x+offset, y), (x+w-offset, y), (x+w, cy), (x+w-offset, y+h), (x+offset, y+h), (x, cy)
+ * where offset = width * 0.25
+ */
+function truncateAtHexagon(
+  from: Point,
+  to: Point,
+  bounds: Bounds,
+  gap: number,
+): Point {
+  const { x, y, width, height } = bounds;
+  const cy = y + height / 2;
+  const offset = width * 0.25;
+  const vertices: Point[] = [
+    { x: x + offset, y },
+    { x: x + width - offset, y },
+    { x: x + width, y: cy },
+    { x: x + width - offset, y: y + height },
+    { x: x + offset, y: y + height },
+    { x, y: cy },
+  ];
+  return truncateAtPolygon(from, to, vertices, gap);
+}
+
+/**
+ * Truncate at a parallelogram boundary.
+ * Vertices: (x+offset, y), (x+w, y), (x+w-offset, y+h), (x, y+h)
+ * where offset = width * 0.15
+ */
+function truncateAtParallelogram(
+  from: Point,
+  to: Point,
+  bounds: Bounds,
+  gap: number,
+): Point {
+  const { x, y, width, height } = bounds;
+  const offset = width * 0.15;
+  const vertices: Point[] = [
+    { x: x + offset, y },
+    { x: x + width, y },
+    { x: x + width - offset, y: y + height },
+    { x, y: y + height },
+  ];
+  return truncateAtPolygon(from, to, vertices, gap);
+}
+
+/**
+ * Truncate at a trapezoid boundary.
+ * Vertices: (x+offset, y), (x+w-offset, y), (x+w, y+h), (x, y+h)
+ * where offset = width * 0.15
+ */
+function truncateAtTrapezoid(
+  from: Point,
+  to: Point,
+  bounds: Bounds,
+  gap: number,
+): Point {
+  const { x, y, width, height } = bounds;
+  const offset = width * 0.15;
+  const vertices: Point[] = [
+    { x: x + offset, y },
+    { x: x + width - offset, y },
+    { x: x + width, y: y + height },
+    { x, y: y + height },
+  ];
+  return truncateAtPolygon(from, to, vertices, gap);
+}
+
+/**
+ * Truncate at a stadium (pill) boundary.
+ * The shape is a rectangle with semicircular left/right caps.
+ * For horizontal approach: intersect with the left or right semicircle.
+ * For vertical approach: intersect with the top or bottom straight edge (rectangle).
+ */
+function truncateAtStadium(
+  from: Point,
+  to: Point,
+  bounds: Bounds,
+  gap: number,
+): Point {
+  const { x, y, width, height } = bounds;
+  const cy = y + height / 2;
+  const r = height / 2;
+
+  const dx = from.x - to.x;
+  const dy = from.y - to.y;
+
+  if (dx === 0 && dy === 0) return { x: to.x, y: to.y };
+
+  const isHorizontal = Math.abs(dx) >= Math.abs(dy);
+
+  if (isHorizontal) {
+    // Approach from left or right: use circle intersection at the appropriate semicircle center
+    const circleCx = dx > 0 ? x + r : x + width - r;
+    const ox = to.x - circleCx;
+    const oy = to.y - cy;
+    const a = dx * dx + dy * dy;
+    const b = 2 * (ox * dx + oy * dy);
+    const c = ox * ox + oy * oy - r * r;
+
+    const discriminant = b * b - 4 * a * c;
+    if (discriminant < 0) return { x: to.x, y: to.y };
+
+    const sqrtD = Math.sqrt(discriminant);
+    const t1 = (-b - sqrtD) / (2 * a);
+    const t2 = (-b + sqrtD) / (2 * a);
+
+    let t = Infinity;
+    if (t1 > 0) t = t1;
+    if (t2 > 0 && t2 < t) t = t2;
+
+    if (t === Infinity) return { x: to.x, y: to.y };
+
+    const hitX = to.x + t * dx;
+    const hitY = to.y + t * dy;
+
+    const len = Math.sqrt(dx * dx + dy * dy);
+    return {
+      x: hitX + (dx / len) * gap,
+      y: hitY + (dy / len) * gap,
+    };
+  } else {
+    // Approach from top or bottom: use rectangle intersection (same as default case)
+    const left = x;
+    const right = x + width;
+    const top = y;
+    const bottom = y + height;
+
+    let tMax = -1;
+
+    if (dx !== 0) {
+      const t = (left - to.x) / dx;
+      if (t > 0) {
+        const yHit = to.y + t * dy;
+        if (yHit >= top && yHit <= bottom && t > tMax) {
+          tMax = t;
+        }
+      }
+      const tRight = (right - to.x) / dx;
+      if (tRight > 0) {
+        const yHit = to.y + tRight * dy;
+        if (yHit >= top && yHit <= bottom && tRight > tMax) {
+          tMax = tRight;
+        }
+      }
+    }
+
+    if (dy !== 0) {
+      const t = (top - to.y) / dy;
+      if (t > 0) {
+        const xHit = to.x + t * dx;
+        if (xHit >= left && xHit <= right && t > tMax) {
+          tMax = t;
+        }
+      }
+      const tBottom = (bottom - to.y) / dy;
+      if (tBottom > 0) {
+        const xHit = to.x + tBottom * dx;
+        if (xHit >= left && xHit <= right && tBottom > tMax) {
+          tMax = tBottom;
+        }
+      }
+    }
+
+    if (tMax <= 0) return { x: to.x, y: to.y };
+
+    const hitX = to.x + tMax * dx;
+    const hitY = to.y + tMax * dy;
+
+    const len = Math.sqrt(dx * dx + dy * dy);
+    return {
+      x: hitX + (dx / len) * gap,
+      y: hitY + (dy / len) * gap,
+    };
+  }
+}
+
+/**
  * Compute a smooth bezier curve through waypoints with gap truncation.
+ *
+ * Key improvements over previous implementation:
+ * - 2-waypoint edges use cubic bezier with gentle S-curve (not degenerate quadratic)
+ * - Multi-waypoint edges use Catmull-Rom spline conversion (no cusps)
+ * - Arrow angle computed from bezier tangent at endpoint (not center-to-center)
+ * - Path shortened by arrowSize so line ends at arrow base
  */
 export function computeBezierPath(
   waypoints: Point[],
   fromBounds: Bounds,
   toBounds: Bounds,
   gap: number,
+  arrowSize: number,
+  fromShape?: NodeShape,
+  toShape?: NodeShape,
 ): EdgePathResult {
   if (waypoints.length < 2) {
     throw new Error('At least 2 waypoints are required');
@@ -103,77 +431,129 @@ export function computeBezierPath(
   const first = waypoints[0];
   const last = waypoints[waypoints.length - 1];
 
-  // Start point: truncate from first waypoint toward second (or toward toCenter)
-  const second = waypoints[1];
-  const toCenter: Point = {
-    x: toBounds.x + toBounds.width / 2,
-    y: toBounds.y + toBounds.height / 2,
-  };
-  const towardFrom = second || toCenter;
-  const start = truncateAtBounds(towardFrom, first, fromBounds, gap);
+  // Compute approach directions for truncation
+  // For source: ray from first toward second (exits source node)
+  // For target: ray from last toward secondLast (enters target node)
+  const sourceApproach: Point = waypoints.length >= 2 ? waypoints[1] : last;
+  const targetApproach: Point = waypoints.length >= 2 ? waypoints[waypoints.length - 2] : first;
 
-  // End point: truncate from last waypoint toward second-to-last (or toward start)
-  const secondLast = waypoints[waypoints.length - 2];
-  const towardEnd: Point = secondLast || start;
-  const end = truncateAtBounds(towardEnd, last, toBounds, gap);
+  const start = truncateAtBounds(sourceApproach, first, fromBounds, gap, fromShape);
+  const end = truncateAtBounds(targetApproach, last, toBounds, gap, toShape);
 
-  // Compute arrow angle from secondLast waypoint to end
-  const arrowAngle = Math.atan2(
-    last.y - secondLast.y,
-    last.x - secondLast.x,
-  );
-
-  // Build path
   let path: string;
+  let arrowAngle: number;
+  let lastCp2: Point;
 
   if (waypoints.length === 2) {
-    // Simple quadratic bezier with control point at midpoint
-    const midX = (start.x + end.x) / 2;
-    const midY = (start.y + end.y) / 2;
-    path = `M ${start.x} ${start.y} Q ${midX} ${midY} ${end.x} ${end.y}`;
-  } else {
-    // Cubic bezier segments through midpoints between consecutive waypoints
-    // Replace first and last waypoints with truncated start/end
-    const points: Point[] = [start, ...waypoints.slice(1, -1), end];
+    // Cubic bezier with control points offset along primary axis
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const tension = Math.min(dist * 0.4, 50);
+    const isVertical = Math.abs(dy) >= Math.abs(dx);
 
-    if (points.length === 2) {
-      path = `M ${points[0].x} ${points[0].y} L ${points[1].x} ${points[1].y}`;
+    let cp1x: number, cp1y: number, cp2x: number, cp2y: number;
+    if (isVertical) {
+      cp1x = start.x;
+      cp1y = start.y + tension * (dy >= 0 ? 1 : -1);
+      cp2x = end.x;
+      cp2y = end.y - tension * (dy >= 0 ? 1 : -1);
     } else {
-      // "Curve through points" technique:
-      // For each pair of midpoints between consecutive waypoints, use the waypoint as a control point
-      const segments: string[] = [`M ${points[0].x} ${points[0].y}`];
-
-      // Compute midpoints between consecutive points
-      for (let i = 1; i < points.length - 1; i++) {
-        const prev = points[i - 1];
-        const curr = points[i];
-        const next = points[i + 1];
-
-        if (i === 1) {
-          // First segment: from start to midpoint between point[1] and point[2]
-          const midX = (curr.x + next.x) / 2;
-          const midY = (curr.y + next.y) / 2;
-          segments.push(`C ${curr.x} ${curr.y} ${curr.x} ${curr.y} ${midX} ${midY}`);
-        } else if (i === points.length - 2) {
-          // Last segment: from previous midpoint to end, using current as control
-          segments.push(`C ${curr.x} ${curr.y} ${curr.x} ${curr.y} ${points[points.length - 1].x} ${points[points.length - 1].y}`);
-        } else {
-          // Middle segment: from midpoint to midpoint, using current as control
-          const midX = (curr.x + next.x) / 2;
-          const midY = (curr.y + next.y) / 2;
-          segments.push(`C ${curr.x} ${curr.y} ${curr.x} ${curr.y} ${midX} ${midY}`);
-        }
-      }
-
-      path = segments.join(' ');
+      cp1x = start.x + tension * (dx >= 0 ? 1 : -1);
+      cp1y = start.y;
+      cp2x = end.x - tension * (dx >= 0 ? 1 : -1);
+      cp2y = end.y;
     }
+
+    lastCp2 = { x: cp2x, y: cp2y };
+    path = `M ${start.x} ${start.y} C ${cp1x} ${cp1y} ${cp2x} ${cp2y} ${end.x} ${end.y}`;
+  } else {
+    // Multi-waypoint: Catmull-Rom to cubic bezier conversion
+    const points: Point[] = [start, ...waypoints.slice(1, -1), end];
+    const segments = catmullRomToBezierSegments(points);
+    path = segments.join(' ');
+
+    // Extract last cp2 from the final C command for arrow angle
+    lastCp2 = extractLastCp2(path, end);
   }
+
+  // Arrow angle from bezier tangent at endpoint: direction from cp2 to end
+  arrowAngle = Math.atan2(end.y - lastCp2.y, end.x - lastCp2.x);
+
+  // Shorten path by arrowSize: path ends at arrow base, arrow tip at boundary
+  const arrowBase: Point = {
+    x: end.x - Math.cos(arrowAngle) * arrowSize,
+    y: end.y - Math.sin(arrowAngle) * arrowSize,
+  };
+
+  // Replace the final endpoint in the path string with arrowBase
+  path = replacePathEndpoint(path, end, arrowBase);
 
   return {
     path,
     arrowTip: end,
     arrowAngle,
+    pathEnd: arrowBase,
   };
+}
+
+/**
+ * Convert waypoints to smooth cubic bezier segments using Catmull-Rom spline.
+ * Guarantees C1 continuity (smooth tangent) at every waypoint — no cusps.
+ */
+function catmullRomToBezierSegments(points: Point[], tension: number = 1.0): string[] {
+  const n = points.length;
+  if (n < 2) return [];
+
+  const segments: string[] = [`M ${points[0].x} ${points[0].y}`];
+  const alpha = tension / 3.0;
+
+  // Pad with virtual endpoints for natural end conditions
+  const padded: Point[] = [points[0], ...points, points[n - 1]];
+
+  for (let i = 1; i <= n - 1; i++) {
+    const p0 = padded[i - 1];
+    const p1 = padded[i];
+    const p2 = padded[i + 1];
+    const p3 = padded[i + 2];
+
+    const cp1x = p1.x + (p2.x - p0.x) * alpha;
+    const cp1y = p1.y + (p2.y - p0.y) * alpha;
+    const cp2x = p2.x - (p3.x - p1.x) * alpha;
+    const cp2y = p2.y - (p3.y - p1.y) * alpha;
+
+    segments.push(`C ${cp1x} ${cp1y} ${cp2x} ${cp2y} ${p2.x} ${p2.y}`);
+  }
+
+  return segments;
+}
+
+/**
+ * Extract the second control point (cp2) from the last C command in a path string.
+ */
+function extractLastCp2(path: string, fallbackEnd: Point): Point {
+  // Find the last 'C' command and parse its 6 numbers
+  const lastCIndex = path.lastIndexOf('C');
+  if (lastCIndex === -1) return fallbackEnd;
+
+  const afterC = path.substring(lastCIndex + 1).trim();
+  const nums = afterC.split(/[\s,]+/).map(Number);
+  if (nums.length >= 6) {
+    return { x: nums[2], y: nums[3] }; // cp2 is the 3rd and 4th numbers
+  }
+  return fallbackEnd;
+}
+
+/**
+ * Replace the last coordinate pair in an SVG path string.
+ */
+function replacePathEndpoint(path: string, oldEnd: Point, newEnd: Point): string {
+  // Find and replace the last occurrence of the endpoint coordinates
+  const oldStr = `${oldEnd.x} ${oldEnd.y}`;
+  const newStr = `${newEnd.x} ${newEnd.y}`;
+  const lastIdx = path.lastIndexOf(oldStr);
+  if (lastIdx === -1) return path;
+  return path.substring(0, lastIdx) + newStr + path.substring(lastIdx + oldStr.length);
 }
 
 /**
@@ -184,6 +564,9 @@ export function computeStepPath(
   fromBounds: Bounds,
   toBounds: Bounds,
   gap: number,
+  arrowSize: number,
+  fromShape?: NodeShape,
+  toShape?: NodeShape,
 ): EdgePathResult {
   if (waypoints.length < 2) {
     throw new Error('At least 2 waypoints are required');
@@ -192,17 +575,12 @@ export function computeStepPath(
   const first = waypoints[0];
   const last = waypoints[waypoints.length - 1];
 
-  const second = waypoints[1];
-  const toCenter: Point = {
-    x: toBounds.x + toBounds.width / 2,
-    y: toBounds.y + toBounds.height / 2,
-  };
-  const towardFrom = second || toCenter;
-  const start = truncateAtBounds(towardFrom, first, fromBounds, gap);
+  // Approach direction for truncation: from waypoint toward next waypoint
+  const sourceApproach: Point = waypoints.length >= 2 ? waypoints[1] : last;
+  const targetApproach: Point = waypoints.length >= 2 ? waypoints[waypoints.length - 2] : first;
 
-  const secondLast = waypoints[waypoints.length - 2];
-  const towardEnd: Point = secondLast || start;
-  const end = truncateAtBounds(towardEnd, last, toBounds, gap);
+  const start = truncateAtBounds(sourceApproach, first, fromBounds, gap, fromShape);
+  const end = truncateAtBounds(targetApproach, last, toBounds, gap, toShape);
 
   let path: string;
 
@@ -232,16 +610,25 @@ export function computeStepPath(
     path = parts.join(' ');
   }
 
-  // Arrow angle based on the last segment direction
+  // Arrow angle from last segment direction (from secondLast toward last)
   const arrowAngle = Math.atan2(
-    last.y - secondLast.y,
-    last.x - secondLast.x,
+    last.y - targetApproach.y,
+    last.x - targetApproach.x,
   );
+
+  // Shorten path by arrowSize: path ends at arrow base
+  const arrowBase: Point = {
+    x: end.x - Math.cos(arrowAngle) * arrowSize,
+    y: end.y - Math.sin(arrowAngle) * arrowSize,
+  };
+
+  path = replacePathEndpoint(path, end, arrowBase);
 
   return {
     path,
     arrowTip: end,
     arrowAngle,
+    pathEnd: arrowBase,
   };
 }
 
@@ -253,6 +640,9 @@ export function computeStraightPath(
   fromBounds: Bounds,
   toBounds: Bounds,
   gap: number,
+  arrowSize: number,
+  fromShape?: NodeShape,
+  toShape?: NodeShape,
 ): EdgePathResult {
   if (waypoints.length < 2) {
     throw new Error('At least 2 waypoints are required');
@@ -261,17 +651,12 @@ export function computeStraightPath(
   const first = waypoints[0];
   const last = waypoints[waypoints.length - 1];
 
-  const second = waypoints[1];
-  const toCenter: Point = {
-    x: toBounds.x + toBounds.width / 2,
-    y: toBounds.y + toBounds.height / 2,
-  };
-  const towardFrom = second || toCenter;
-  const start = truncateAtBounds(towardFrom, first, fromBounds, gap);
+  // Approach direction for truncation: from waypoint toward next waypoint
+  const sourceApproach: Point = waypoints.length >= 2 ? waypoints[1] : last;
+  const targetApproach: Point = waypoints.length >= 2 ? waypoints[waypoints.length - 2] : first;
 
-  const secondLast = waypoints[waypoints.length - 2];
-  const towardEnd: Point = secondLast || start;
-  const end = truncateAtBounds(towardEnd, last, toBounds, gap);
+  const start = truncateAtBounds(sourceApproach, first, fromBounds, gap, fromShape);
+  const end = truncateAtBounds(targetApproach, last, toBounds, gap, toShape);
 
   // Build path with intermediate waypoints
   const parts: string[] = [`M ${start.x} ${start.y}`];
@@ -283,14 +668,27 @@ export function computeStraightPath(
 
   parts.push(`L ${end.x} ${end.y}`);
 
-  const path = parts.join(' ');
+  let path = parts.join(' ');
 
-  const arrowAngle = Math.atan2(end.y - start.y, end.x - start.x);
+  // Arrow angle from last segment direction (from secondLast toward last)
+  const arrowAngle = Math.atan2(
+    last.y - targetApproach.y,
+    last.x - targetApproach.x,
+  );
+
+  // Shorten path by arrowSize: path ends at arrow base
+  const arrowBase: Point = {
+    x: end.x - Math.cos(arrowAngle) * arrowSize,
+    y: end.y - Math.sin(arrowAngle) * arrowSize,
+  };
+
+  path = replacePathEndpoint(path, end, arrowBase);
 
   return {
     path,
     arrowTip: end,
     arrowAngle,
+    pathEnd: arrowBase,
   };
 }
 
@@ -303,16 +701,19 @@ export function computeEdgePath(
   toBounds: Bounds,
   curveStyle: CurveStyle,
   gap: number,
+  arrowSize: number,
+  fromShape?: NodeShape,
+  toShape?: NodeShape,
 ): EdgePathResult {
   switch (curveStyle) {
     case 'bezier':
-      return computeBezierPath(waypoints, fromBounds, toBounds, gap);
+      return computeBezierPath(waypoints, fromBounds, toBounds, gap, arrowSize, fromShape, toShape);
     case 'step':
-      return computeStepPath(waypoints, fromBounds, toBounds, gap);
+      return computeStepPath(waypoints, fromBounds, toBounds, gap, arrowSize, fromShape, toShape);
     case 'straight':
-      return computeStraightPath(waypoints, fromBounds, toBounds, gap);
+      return computeStraightPath(waypoints, fromBounds, toBounds, gap, arrowSize, fromShape, toShape);
     default:
-      return computeBezierPath(waypoints, fromBounds, toBounds, gap);
+      return computeBezierPath(waypoints, fromBounds, toBounds, gap, arrowSize, fromShape, toShape);
   }
 }
 
