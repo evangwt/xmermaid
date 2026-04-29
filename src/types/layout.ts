@@ -39,12 +39,15 @@ export interface LayoutNode {
   label: string;
 }
 
+export type EdgeStyle = 'arrow' | 'line' | 'dotted' | 'thick' | 'invisible';
+
 export interface LayoutEdge {
   from: string;
   to: string;
   waypoints: Point[];
   label?: string;
   label_position?: Point;
+  style: EdgeStyle;
 }
 
 export interface Dimensions {
