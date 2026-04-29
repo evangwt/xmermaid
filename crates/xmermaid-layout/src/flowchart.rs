@@ -443,45 +443,93 @@ pub fn layout(fc: &FlowchartAst, config: &LayoutConfig) -> LayoutResult {
         })
         .collect();
 
+    // ── Compute bounding extremes before edge routing ─────────────────
+    let max_x = centers
+        .iter()
+        .map(|p| p.x + node_width / 2.0)
+        .fold(0.0_f64, f64::max);
+    let max_y = centers
+        .iter()
+        .map(|p| p.y + node_height / 2.0)
+        .fold(0.0_f64, f64::max);
+    let min_y = centers
+        .iter()
+        .map(|p| p.y - node_height / 2.0)
+        .fold(f64::MAX, f64::min);
+
+    // Route offset for back-edges: beyond the diagram boundary.
+    // Only computed/used when back-edges exist.
+    let has_back_edges = !back_edge_set.is_empty();
+    let route_x = max_x + h_spacing * 0.75;
+    let route_y = min_y - v_spacing * 0.75;
+
     // ── Build LayoutEdges ────────────────────────────────────────────
     let edges: Vec<LayoutEdge> = fc
         .edges
         .iter()
         .map(|edge| {
-            let from_center = node_index
-                .get(edge.from.as_str())
-                .map(|&idx| centers[idx]);
-            let to_center = node_index
-                .get(edge.to.as_str())
-                .map(|&idx| centers[idx]);
+            let from_idx_opt = node_index.get(edge.from.as_str()).copied();
+            let to_idx_opt = node_index.get(edge.to.as_str()).copied();
+            let from_center = from_idx_opt.map(|idx| centers[idx]);
+            let to_center = to_idx_opt.map(|idx| centers[idx]);
 
-            let waypoints = match (from_center, to_center) {
-                (Some(from), Some(to)) => {
-                    // For edges that cross layers, add a midpoint
-                    let from_idx = node_index[edge.from.as_str()];
-                    let to_idx = node_index[edge.to.as_str()];
-                    let from_layer = layers[from_idx];
-                    let to_layer = layers[to_idx];
+            let waypoints = match (from_center, to_center, from_idx_opt, to_idx_opt) {
+                (Some(from), Some(to), Some(from_idx), Some(to_idx)) => {
+                    let is_back = back_edge_set.contains(&(from_idx, to_idx));
 
-                    if (to_layer as isize - from_layer as isize).abs() > 1 {
-                        // Cross-rank edge: insert midpoint
-                        let mid = Point {
-                            x: (from.x + to.x) / 2.0,
-                            y: (from.y + to.y) / 2.0,
-                        };
-                        vec![from, mid, to]
+                    if is_back {
+                        // Back-edge: route around the side of the diagram
+                        if is_horizontal {
+                            // LR/RL: route above the diagram
+                            vec![
+                                from,
+                                Point { x: from.x, y: route_y },
+                                Point { x: to.x, y: route_y },
+                                to,
+                            ]
+                        } else {
+                            // TB/BT: route to the right side
+                            vec![
+                                from,
+                                Point { x: route_x, y: from.y },
+                                Point { x: route_x, y: to.y },
+                                to,
+                            ]
+                        }
                     } else {
-                        vec![from, to]
+                        let from_layer = layers[from_idx];
+                        let to_layer = layers[to_idx];
+
+                        if (to_layer as isize - from_layer as isize).abs() > 1 {
+                            // Cross-rank edge: insert midpoint
+                            let mid = Point {
+                                x: (from.x + to.x) / 2.0,
+                                y: (from.y + to.y) / 2.0,
+                            };
+                            vec![from, mid, to]
+                        } else {
+                            vec![from, to]
+                        }
                     }
                 }
                 _ => vec![],
             };
 
             let label_position = if let (Some(from), Some(to)) = (from_center, to_center) {
-                Some(Point {
-                    x: (from.x + to.x) / 2.0,
-                    y: (from.y + to.y) / 2.0,
-                })
+                if waypoints.len() > 2 {
+                    // For back-edges or multi-waypoint edges, place label at the
+                    // midpoint of the routing segment (the outer segment)
+                    let mid_idx = waypoints.len() / 2;
+                    Some(Point {
+                        x: (waypoints[mid_idx - 1].x + waypoints[mid_idx].x) / 2.0,
+                        y: (waypoints[mid_idx - 1].y + waypoints[mid_idx].y) / 2.0,
+                    })
+                } else {
+                    Some(Point {
+                        x: (from.x + to.x) / 2.0,
+                        y: (from.y + to.y) / 2.0,
+                    })
+                }
             } else {
                 None
             };
@@ -497,21 +545,56 @@ pub fn layout(fc: &FlowchartAst, config: &LayoutConfig) -> LayoutResult {
         .collect();
 
     // ── Compute final dimensions ─────────────────────────────────────
-    let max_x = centers
-        .iter()
-        .map(|p| p.x + node_width / 2.0)
-        .fold(0.0_f64, f64::max);
-    let max_y = centers
-        .iter()
-        .map(|p| p.y + node_height / 2.0)
-        .fold(0.0_f64, f64::max);
+    // Expand dimensions and shift coordinates to accommodate back-edge routing.
+    // Only applies when back-edges exist; otherwise, dimensions remain unchanged.
+    let (final_nodes, final_edges, final_width, final_height) = if has_back_edges {
+        // For LR/RL, route_y goes above the topmost node. Since coordinates
+        // must stay positive, shift everything down if route_y < padding.
+        let y_shift = if is_horizontal && route_y < padding {
+            padding - route_y
+        } else {
+            0.0
+        };
+
+        let mut shifted_nodes = nodes;
+        let mut shifted_edges = edges;
+
+        if y_shift > 0.0 {
+            for node in &mut shifted_nodes {
+                node.center.y += y_shift;
+                node.bounds.y += y_shift;
+            }
+            for edge in &mut shifted_edges {
+                for wp in &mut edge.waypoints {
+                    wp.y += y_shift;
+                }
+                if let Some(ref mut lp) = edge.label_position {
+                    lp.y += y_shift;
+                }
+            }
+        }
+
+        let width = if !is_horizontal {
+            // TB/BT: route_x extends to the right
+            (max_x + padding).max(route_x + h_spacing * 0.25 + padding)
+        } else {
+            max_x + padding
+        };
+        let height = max_y + y_shift + padding;
+
+        (shifted_nodes, shifted_edges, width, height)
+    } else {
+        let width = max_x + padding;
+        let height = max_y + padding;
+        (nodes, edges, width, height)
+    };
 
     LayoutResult {
-        nodes,
-        edges,
+        nodes: final_nodes,
+        edges: final_edges,
         dimensions: Dimensions {
-            width: max_x + padding,
-            height: max_y + padding,
+            width: final_width,
+            height: final_height,
         },
     }
 }
@@ -669,5 +752,86 @@ mod tests {
         let a = result.nodes.iter().find(|n| n.id == "A").unwrap();
         let b = result.nodes.iter().find(|n| n.id == "B").unwrap();
         assert!(a.center.x > b.center.x, "A should be right of B in RL");
+    }
+
+    #[test]
+    fn test_back_edge_routes_around_right_side_tb() {
+        // A-->B-->C-->A creates a back-edge from C to A
+        let result = layout_from_dsl("graph TD\n  A-->B\n  B-->C\n  C-->A");
+        let back_edge = result.edges.iter().find(|e| e.from == "C" && e.to == "A").unwrap();
+        // Back-edge should have 4 waypoints: from, right-side point at from.y,
+        // right-side point at to.y, to
+        assert_eq!(back_edge.waypoints.len(), 4, "Back-edge should have 4 waypoints");
+
+        let from = back_edge.waypoints[0];
+        let wp1 = back_edge.waypoints[1];
+        let wp2 = back_edge.waypoints[2];
+        let to = back_edge.waypoints[3];
+
+        // The routing waypoints should be to the right of all nodes
+        let max_node_x = result.nodes.iter().map(|n| n.center.x).fold(f64::MIN, f64::max);
+        assert!(wp1.x > max_node_x, "Route waypoint x should be beyond rightmost node");
+        assert!(wp2.x > max_node_x, "Route waypoint x should be beyond rightmost node");
+
+        // The routing waypoints should preserve from.y and to.y respectively
+        assert_eq!(wp1.y, from.y, "First route point should be at from.y");
+        assert_eq!(wp2.y, to.y, "Second route point should be at to.y");
+    }
+
+    #[test]
+    fn test_back_edge_routes_above_lr() {
+        // A-->B-->C-->A creates a back-edge from C to A
+        let result = layout_from_dsl("graph LR\n  A-->B\n  B-->C\n  C-->A");
+        let back_edge = result.edges.iter().find(|e| e.from == "C" && e.to == "A").unwrap();
+        assert_eq!(back_edge.waypoints.len(), 4, "Back-edge should have 4 waypoints");
+
+        let from = back_edge.waypoints[0];
+        let wp1 = back_edge.waypoints[1];
+        let wp2 = back_edge.waypoints[2];
+        let to = back_edge.waypoints[3];
+
+        // The routing waypoints should be above all nodes
+        let min_node_y = result.nodes.iter().map(|n| n.center.y).fold(f64::MAX, f64::min);
+        assert!(wp1.y < min_node_y, "Route waypoint y should be above topmost node");
+        assert!(wp2.y < min_node_y, "Route waypoint y should be above topmost node");
+
+        // The routing waypoints should preserve from.x and to.x respectively
+        assert_eq!(wp1.x, from.x, "First route point should be at from.x");
+        assert_eq!(wp2.x, to.x, "Second route point should be at to.x");
+    }
+
+    #[test]
+    fn test_forward_edge_not_routed_as_back_edge() {
+        // A-->B is a normal forward edge, should have 2 waypoints
+        let result = layout_from_dsl("graph TD\n  A-->B\n  B-->C\n  C-->A");
+        let forward_edge = result.edges.iter().find(|e| e.from == "A" && e.to == "B").unwrap();
+        assert!(forward_edge.waypoints.len() <= 3, "Forward edge should not be routed as back-edge");
+    }
+
+    #[test]
+    fn test_back_edge_dimensions_expand_tb() {
+        let result = layout_from_dsl("graph TD\n  A-->B\n  B-->C\n  C-->A");
+        // All waypoints should fit within the diagram dimensions
+        for edge in &result.edges {
+            for wp in &edge.waypoints {
+                assert!(
+                    wp.x <= result.dimensions.width,
+                    "Waypoint x={} exceeds width={}",
+                    wp.x,
+                    result.dimensions.width
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_back_edge_no_negative_coordinates() {
+        let result = layout_from_dsl("graph TD\n  A-->B\n  B-->C\n  C-->A");
+        for edge in &result.edges {
+            for wp in &edge.waypoints {
+                assert!(wp.x > 0.0, "Waypoint has negative x");
+                assert!(wp.y > 0.0, "Waypoint has negative y");
+            }
+        }
     }
 }

@@ -173,9 +173,12 @@ export class SVGRenderer {
       targetNode.bounds,
       this.theme.curveStyle,
       this.theme.edgeGap,
+      this.theme.arrowSize,
+      sourceNode.shape,
+      targetNode.shape,
     );
 
-    // Draw the edge path
+    // Draw the edge path (ends at arrow base, not arrow tip)
     const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     pathEl.setAttribute('d', edgeResult.path);
     pathEl.setAttribute('fill', 'none');
