@@ -132,7 +132,7 @@ describe('computeBezierPath', () => {
     expect(result.path.startsWith('M')).toBe(true);
   });
 
-  it('arrow tip is pushed outward from target node boundary', () => {
+  it('arrow tip touches the target node boundary', () => {
     const result = computeBezierPath(
       [{ x: 50, y: 25 }, { x: 50, y: 225 }],
       fromBounds,
@@ -140,8 +140,7 @@ describe('computeBezierPath', () => {
       gap,
       arrowSize,
     );
-    // Arrow tip should be at toBounds top edge (y=200) pushed outward by gap → y=195
-    expect(result.arrowTip.y).toBeCloseTo(200 - gap, 1);
+    expect(result.arrowTip.y).toBeCloseTo(200, 1);
   });
 
   it('arrow angle points downward for vertical edge', () => {
@@ -155,7 +154,7 @@ describe('computeBezierPath', () => {
     expect(result.arrowAngle).toBeCloseTo(Math.PI / 2, 1);
   });
 
-  it('path ends at arrow base (arrowTip - arrowSize along tangent)', () => {
+  it('path ends before the arrow tail with edge gap and arrow size', () => {
     const result = computeBezierPath(
       [{ x: 50, y: 25 }, { x: 50, y: 225 }],
       fromBounds,
@@ -164,8 +163,8 @@ describe('computeBezierPath', () => {
       arrowSize,
     );
     expect(result.pathEnd).toBeDefined();
-    // For vertical downward edge, pathEnd should be arrowSize above arrowTip
-    expect(result.pathEnd!.y).toBeCloseTo(result.arrowTip.y - arrowSize, 1);
+    expect(result.pathEnd!.y).toBeCloseTo(result.arrowTip.y - gap - arrowSize, 1);
+    expect(result.path).toContain(`${result.pathEnd!.x} ${result.pathEnd!.y}`);
   });
 
   it('arrow angle matches bezier tangent at endpoint', () => {
@@ -206,7 +205,7 @@ describe('computeBezierPath', () => {
     );
     // Arrow tip should be at top edge of toBounds (approach from above)
     // not at some other edge
-    expect(result.arrowTip.y).toBeCloseTo(195, 1);
+    expect(result.arrowTip.y).toBeCloseTo(200, 1);
     expect(result.arrowTip.x).toBeCloseTo(50, 1);
   });
 });
@@ -252,7 +251,7 @@ describe('computeStepPath', () => {
     expect(result.arrowAngle).toBeCloseTo(Math.PI / 2, 1);
   });
 
-  it('path shortened by arrowSize', () => {
+  it('path is shortened in the SVG command output by edge gap and arrow size', () => {
     const result = computeStepPath(
       [{ x: 50, y: 25 }, { x: 50, y: 225 }],
       fromBounds,
@@ -261,7 +260,10 @@ describe('computeStepPath', () => {
       arrowSize,
     );
     expect(result.pathEnd).toBeDefined();
-    expect(result.pathEnd!.y).toBeCloseTo(result.arrowTip.y - arrowSize, 1);
+    expect(result.arrowTip.y).toBeCloseTo(200, 1);
+    expect(result.pathEnd!.y).toBeCloseTo(result.arrowTip.y - gap - arrowSize, 1);
+    expect(result.path).toContain(`${result.pathEnd!.x} ${result.pathEnd!.y}`);
+    expect(result.path.trim()).not.toMatch(/H 50$/);
   });
 });
 
@@ -294,7 +296,7 @@ describe('computeStraightPath', () => {
     expect(result.arrowAngle).toBeCloseTo(Math.PI / 2, 1);
   });
 
-  it('path shortened by arrowSize', () => {
+  it('path shortened by edge gap and arrow size', () => {
     const result = computeStraightPath(
       [{ x: 50, y: 25 }, { x: 50, y: 225 }],
       fromBounds,
@@ -303,7 +305,9 @@ describe('computeStraightPath', () => {
       arrowSize,
     );
     expect(result.pathEnd).toBeDefined();
-    expect(result.pathEnd!.y).toBeCloseTo(result.arrowTip.y - arrowSize, 1);
+    expect(result.arrowTip.y).toBeCloseTo(200, 1);
+    expect(result.pathEnd!.y).toBeCloseTo(result.arrowTip.y - gap - arrowSize, 1);
+    expect(result.path).toContain(`${result.pathEnd!.x} ${result.pathEnd!.y}`);
   });
 
   it('multi-waypoint straight path includes intermediate points', () => {

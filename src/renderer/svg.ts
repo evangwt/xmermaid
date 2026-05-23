@@ -1,7 +1,7 @@
-import type { LayoutResult, LayoutNode, LayoutEdge, Bounds, Point, NodeShape } from '../types/layout';
-import type { RenderTheme } from '../types/theme';
+import type { LayoutResult, LayoutNode, LayoutEdge, Point } from '../types/layout';
+import type { ArrowStyle, RenderTheme } from '../types/theme';
 import { DEFAULT_THEME } from '../types/theme';
-import { computeEdgePath, computeArrowPoints } from './edge';
+import { computeEdgePath, computeArrowPoints, type EdgePathResult } from './edge';
 
 export class SVGRenderer {
   private theme: RenderTheme;
@@ -203,34 +203,14 @@ export class SVGRenderer {
 
     // Draw arrowhead (skip for 'line' and 'invisible' styles)
     if (edge.style !== 'line' && edge.style !== 'invisible') {
-      const arrowPoints = computeArrowPoints(
-        edgeResult.arrowTip,
-        edgeResult.arrowAngle,
-        this.theme.arrowSize,
-        this.theme.arrowStyle,
-      );
-
-      const arrowEl = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-      arrowEl.setAttribute('points', arrowPoints);
-      if (this.theme.arrowStyle === 'filled') {
-        arrowEl.setAttribute('fill', this.theme.colors.arrowFill);
-        arrowEl.setAttribute('stroke', this.theme.colors.edgeStroke);
-        arrowEl.setAttribute('stroke-width', '1');
-      } else if (this.theme.arrowStyle === 'open') {
-        arrowEl.setAttribute('fill', 'none');
-        arrowEl.setAttribute('stroke', this.theme.colors.edgeStroke);
-        arrowEl.setAttribute('stroke-width', '1.5');
-      } else {
-        arrowEl.setAttribute('fill', this.theme.colors.arrowFill);
-        arrowEl.setAttribute('stroke', this.theme.colors.edgeStroke);
-        arrowEl.setAttribute('stroke-width', '1');
+      for (const arrowEl of this.createArrowElements(this.theme.arrowStyle, edgeResult)) {
+        g.appendChild(arrowEl);
       }
-      g.appendChild(arrowEl);
     }
 
     // Draw edge label if present
     if (edge.label) {
-      const labelPos = edge.label_position ?? this.computeLabelPosition(edge.waypoints);
+      const labelPos = edge.label_position ?? this.computeLabelPosition(edgeResult);
       const fontSize = this.theme.fontSize - 2;
       const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       text.setAttribute('x', String(labelPos.x));
@@ -261,21 +241,108 @@ export class SVGRenderer {
     return g;
   }
 
-  private computeLabelPosition(waypoints: Point[]): Point {
-    if (waypoints.length === 0) return { x: 0, y: 0 };
-    if (waypoints.length === 1) return waypoints[0];
-    const mid = Math.floor(waypoints.length / 2);
+  private createArrowElements(style: ArrowStyle, edgeResult: EdgePathResult): SVGElement[] {
+    switch (style) {
+      case 'open': {
+        const arrowPoints = this.computeArrowPoints(style, edgeResult);
+        const polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+        polyline.setAttribute('points', arrowPoints);
+        polyline.setAttribute('fill', 'none');
+        polyline.setAttribute('stroke', this.theme.colors.edgeStroke);
+        polyline.setAttribute('stroke-width', '1.5');
+        return [polyline];
+      }
+      case 'circle': {
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('cx', String(edgeResult.arrowTip.x));
+        circle.setAttribute('cy', String(edgeResult.arrowTip.y));
+        circle.setAttribute('r', String(this.theme.arrowSize / 2));
+        circle.setAttribute('fill', this.theme.colors.arrowFill);
+        circle.setAttribute('stroke', this.theme.colors.edgeStroke);
+        circle.setAttribute('stroke-width', '1');
+        return [circle];
+      }
+      case 'cross': {
+        const points = this.parsePoints(this.computeArrowPoints(style, edgeResult));
+        if (points.length < 3) return [];
+        const crossA = this.createArrowLine(points[0], points[2]);
+        const crossB = this.createArrowLine(edgeResult.arrowTip, edgeResult.pathEnd ?? points[1]);
+        return [crossA, crossB];
+      }
+      case 'filled':
+      case 'triangle':
+      default: {
+        const arrowPoints = this.computeArrowPoints(style, edgeResult);
+        const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+        polygon.setAttribute('points', arrowPoints);
+        polygon.setAttribute('fill', this.theme.colors.arrowFill);
+        polygon.setAttribute('stroke', this.theme.colors.edgeStroke);
+        polygon.setAttribute('stroke-width', '1');
+        return [polygon];
+      }
+    }
+  }
+
+  private computeArrowPoints(style: ArrowStyle, edgeResult: EdgePathResult): string {
+    return computeArrowPoints(
+      edgeResult.arrowTip,
+      edgeResult.arrowAngle,
+      this.theme.arrowSize,
+      style,
+    );
+  }
+
+  private createArrowLine(from: Point, to: Point): SVGLineElement {
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.classList.add('arrow-cross');
+    line.setAttribute('x1', String(from.x));
+    line.setAttribute('y1', String(from.y));
+    line.setAttribute('x2', String(to.x));
+    line.setAttribute('y2', String(to.y));
+    line.setAttribute('stroke', this.theme.colors.edgeStroke);
+    line.setAttribute('stroke-width', '1.5');
+    line.setAttribute('stroke-linecap', 'round');
+    return line;
+  }
+
+  private parsePoints(points: string): Point[] {
+    return points.split(' ').map(point => {
+      const [x, y] = point.split(',').map(Number);
+      return { x, y };
+    }).filter(point => Number.isFinite(point.x) && Number.isFinite(point.y));
+  }
+
+  private computeLabelPosition(edgeResult: EdgePathResult): Point {
+    const pathStart = this.parsePathStart(edgeResult.path);
+    if (pathStart && edgeResult.pathEnd) {
+      return {
+        x: (pathStart.x + edgeResult.pathEnd.x) / 2,
+        y: (pathStart.y + edgeResult.pathEnd.y) / 2,
+      };
+    }
+    return edgeResult.pathEnd ?? edgeResult.arrowTip;
+  }
+
+  private parsePathStart(path: string): Point | undefined {
+    const match = /^M\s+(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)/.exec(path.trim());
+    if (!match) return undefined;
     return {
-      x: (waypoints[mid - 1].x + waypoints[mid].x) / 2,
-      y: (waypoints[mid - 1].y + waypoints[mid].y) / 2,
+      x: Number(match[1]),
+      y: Number(match[2]),
     };
   }
 
   private measureText(text: string, fontSize: number): number {
-    const ctx = SVGRenderer._canvas.getContext('2d');
-    if (!ctx) return text.length * fontSize * 0.6;
-    ctx.font = `${fontSize}px ${this.theme.fontFamily}`;
-    return ctx.measureText(text).width;
+    const fallbackWidth = text.length * fontSize * 0.6;
+
+    try {
+      const ctx = SVGRenderer._canvas.getContext('2d');
+      if (!ctx) return fallbackWidth;
+      ctx.font = `${fontSize}px ${this.theme.fontFamily}`;
+      return ctx.measureText(text).width;
+    } catch {
+      return fallbackWidth;
+    }
   }
 
   private static _canvas: HTMLCanvasElement = document.createElement('canvas');

@@ -523,6 +523,7 @@ pub fn parse_input(input: &str) -> Result<DiagramAst, ParseError> {
 
 #[cfg(test)]
 mod tests {
+    use crate::parse;
     use super::*;
 
     #[test]
