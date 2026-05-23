@@ -2,9 +2,9 @@ import type { Point, Bounds, CurveStyle, ArrowStyle, NodeShape } from '../types'
 
 export interface EdgePathResult {
   path: string; // SVG path d attribute — ends at arrow base (pathEnd)
-  arrowTip: Point; // Where the arrow tip points (at node boundary + gap)
+  arrowTip: Point; // Where the arrow tip points, on the target node boundary
   arrowAngle: number; // Angle in radians from path tangent at endpoint
-  pathEnd?: Point; // Where the path line ends (arrow base = arrowTip - arrowSize along tangent)
+  pathEnd?: Point; // Where the path line ends before the arrow tail
 }
 
 /**
@@ -414,7 +414,7 @@ function truncateAtStadium(
  * - 2-waypoint edges use cubic bezier with gentle S-curve (not degenerate quadratic)
  * - Multi-waypoint edges use Catmull-Rom spline conversion (no cusps)
  * - Arrow angle computed from bezier tangent at endpoint (not center-to-center)
- * - Path shortened by arrowSize so line ends at arrow base
+ * - Path shortened by edgeGap + arrowSize so line ends before the arrow tail
  */
 export function computeBezierPath(
   waypoints: Point[],
@@ -439,7 +439,7 @@ export function computeBezierPath(
   const targetApproach: Point = waypoints.length >= 2 ? waypoints[waypoints.length - 2] : first;
 
   const start = truncateAtBounds(sourceApproach, first, fromBounds, gap, fromShape);
-  const end = truncateAtBounds(targetApproach, last, toBounds, gap, toShape);
+  const arrowTip = truncateAtBounds(targetApproach, last, toBounds, 0, toShape);
 
   let path: string;
   let arrowAngle: number;
@@ -447,8 +447,8 @@ export function computeBezierPath(
 
   if (waypoints.length === 2) {
     // Cubic bezier with control points offset along primary axis
-    const dx = end.x - start.x;
-    const dy = end.y - start.y;
+    const dx = arrowTip.x - start.x;
+    const dy = arrowTip.y - start.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
     const tension = Math.min(dist * 0.4, 50);
     const isVertical = Math.abs(dy) >= Math.abs(dx);
@@ -457,42 +457,43 @@ export function computeBezierPath(
     if (isVertical) {
       cp1x = start.x;
       cp1y = start.y + tension * (dy >= 0 ? 1 : -1);
-      cp2x = end.x;
-      cp2y = end.y - tension * (dy >= 0 ? 1 : -1);
+      cp2x = arrowTip.x;
+      cp2y = arrowTip.y - tension * (dy >= 0 ? 1 : -1);
     } else {
       cp1x = start.x + tension * (dx >= 0 ? 1 : -1);
       cp1y = start.y;
-      cp2x = end.x - tension * (dx >= 0 ? 1 : -1);
-      cp2y = end.y;
+      cp2x = arrowTip.x - tension * (dx >= 0 ? 1 : -1);
+      cp2y = arrowTip.y;
     }
 
     lastCp2 = { x: cp2x, y: cp2y };
-    path = `M ${start.x} ${start.y} C ${cp1x} ${cp1y} ${cp2x} ${cp2y} ${end.x} ${end.y}`;
+    path = `M ${start.x} ${start.y} C ${cp1x} ${cp1y} ${cp2x} ${cp2y} ${arrowTip.x} ${arrowTip.y}`;
   } else {
     // Multi-waypoint: Catmull-Rom to cubic bezier conversion
-    const points: Point[] = [start, ...waypoints.slice(1, -1), end];
+    const points: Point[] = [start, ...waypoints.slice(1, -1), arrowTip];
     const segments = catmullRomToBezierSegments(points);
     path = segments.join(' ');
 
     // Extract last cp2 from the final C command for arrow angle
-    lastCp2 = extractLastCp2(path, end);
+    lastCp2 = extractLastCp2(path, arrowTip);
   }
 
   // Arrow angle from bezier tangent at endpoint: direction from cp2 to end
-  arrowAngle = Math.atan2(end.y - lastCp2.y, end.x - lastCp2.x);
+  arrowAngle = Math.atan2(arrowTip.y - lastCp2.y, arrowTip.x - lastCp2.x);
 
-  // Shorten path by arrowSize: path ends at arrow base, arrow tip at boundary
+  // Shorten path by gap + arrowSize so the stroke stops before the arrow tail
+  // while the arrow tip itself remains on the target boundary.
   const arrowBase: Point = {
-    x: end.x - Math.cos(arrowAngle) * arrowSize,
-    y: end.y - Math.sin(arrowAngle) * arrowSize,
+    x: arrowTip.x - Math.cos(arrowAngle) * (gap + arrowSize),
+    y: arrowTip.y - Math.sin(arrowAngle) * (gap + arrowSize),
   };
 
   // Replace the final endpoint in the path string with arrowBase
-  path = replacePathEndpoint(path, end, arrowBase);
+  path = replacePathEndpoint(path, arrowTip, arrowBase);
 
   return {
     path,
-    arrowTip: end,
+    arrowTip,
     arrowAngle,
     pathEnd: arrowBase,
   };
@@ -581,22 +582,34 @@ export function computeStepPath(
   const targetApproach: Point = waypoints.length >= 2 ? waypoints[waypoints.length - 2] : first;
 
   const start = truncateAtBounds(sourceApproach, first, fromBounds, gap, fromShape);
-  const end = truncateAtBounds(targetApproach, last, toBounds, gap, toShape);
+  const arrowTip = truncateAtBounds(targetApproach, last, toBounds, 0, toShape);
+
+  // Arrow angle from last segment direction (from secondLast toward last)
+  const arrowAngle = Math.atan2(
+    last.y - targetApproach.y,
+    last.x - targetApproach.x,
+  );
+
+  // Shorten path by gap + arrowSize so the visible stroke stops before the arrow tail.
+  const arrowBase: Point = {
+    x: arrowTip.x - Math.cos(arrowAngle) * (gap + arrowSize),
+    y: arrowTip.y - Math.sin(arrowAngle) * (gap + arrowSize),
+  };
 
   let path: string;
 
   if (waypoints.length === 2) {
     // H-V-H pattern: go horizontal to midpoint.x, then vertical, then horizontal
-    const midX = (start.x + end.x) / 2;
+    const midX = (start.x + arrowBase.x) / 2;
     path = [
       `M ${start.x} ${start.y}`,
       `H ${midX}`,
-      `V ${end.y}`,
-      `H ${end.x}`,
+      `V ${arrowBase.y}`,
+      `L ${arrowBase.x} ${arrowBase.y}`,
     ].join(' ');
   } else {
     // Between each pair of consecutive waypoints, use H-V-H stepping
-    const points: Point[] = [start, ...waypoints.slice(1, -1), end];
+    const points: Point[] = [start, ...waypoints.slice(1, -1), arrowBase];
     const parts: string[] = [`M ${points[0].x} ${points[0].y}`];
 
     for (let i = 1; i < points.length; i++) {
@@ -605,29 +618,15 @@ export function computeStepPath(
       const midX = (prev.x + curr.x) / 2;
       parts.push(`H ${midX}`);
       parts.push(`V ${curr.y}`);
-      parts.push(`H ${curr.x}`);
+      parts.push(`L ${curr.x} ${curr.y}`);
     }
 
     path = parts.join(' ');
   }
 
-  // Arrow angle from last segment direction (from secondLast toward last)
-  const arrowAngle = Math.atan2(
-    last.y - targetApproach.y,
-    last.x - targetApproach.x,
-  );
-
-  // Shorten path by arrowSize: path ends at arrow base
-  const arrowBase: Point = {
-    x: end.x - Math.cos(arrowAngle) * arrowSize,
-    y: end.y - Math.sin(arrowAngle) * arrowSize,
-  };
-
-  path = replacePathEndpoint(path, end, arrowBase);
-
   return {
     path,
-    arrowTip: end,
+    arrowTip,
     arrowAngle,
     pathEnd: arrowBase,
   };
@@ -657,7 +656,19 @@ export function computeStraightPath(
   const targetApproach: Point = waypoints.length >= 2 ? waypoints[waypoints.length - 2] : first;
 
   const start = truncateAtBounds(sourceApproach, first, fromBounds, gap, fromShape);
-  const end = truncateAtBounds(targetApproach, last, toBounds, gap, toShape);
+  const arrowTip = truncateAtBounds(targetApproach, last, toBounds, 0, toShape);
+
+  // Arrow angle from last segment direction (from secondLast toward last)
+  const arrowAngle = Math.atan2(
+    last.y - targetApproach.y,
+    last.x - targetApproach.x,
+  );
+
+  // Shorten path by gap + arrowSize so the visible stroke stops before the arrow tail.
+  const arrowBase: Point = {
+    x: arrowTip.x - Math.cos(arrowAngle) * (gap + arrowSize),
+    y: arrowTip.y - Math.sin(arrowAngle) * (gap + arrowSize),
+  };
 
   // Build path with intermediate waypoints
   const parts: string[] = [`M ${start.x} ${start.y}`];
@@ -667,27 +678,11 @@ export function computeStraightPath(
     parts.push(`L ${waypoints[i].x} ${waypoints[i].y}`);
   }
 
-  parts.push(`L ${end.x} ${end.y}`);
-
-  let path = parts.join(' ');
-
-  // Arrow angle from last segment direction (from secondLast toward last)
-  const arrowAngle = Math.atan2(
-    last.y - targetApproach.y,
-    last.x - targetApproach.x,
-  );
-
-  // Shorten path by arrowSize: path ends at arrow base
-  const arrowBase: Point = {
-    x: end.x - Math.cos(arrowAngle) * arrowSize,
-    y: end.y - Math.sin(arrowAngle) * arrowSize,
-  };
-
-  path = replacePathEndpoint(path, end, arrowBase);
+  parts.push(`L ${arrowBase.x} ${arrowBase.y}`);
 
   return {
-    path,
-    arrowTip: end,
+    path: parts.join(' '),
+    arrowTip,
     arrowAngle,
     pathEnd: arrowBase,
   };

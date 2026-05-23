@@ -1,7 +1,14 @@
-import { describe, it, expect } from 'vitest';
+import { beforeAll, describe, it, expect } from 'vitest';
 import { SVGRenderer } from '../src/renderer/svg';
 import { DEFAULT_THEME } from '../src/types/theme';
 import type { LayoutResult, LayoutNode, LayoutEdge } from '../src/types/layout';
+
+beforeAll(() => {
+  Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
+    configurable: true,
+    value: () => null,
+  });
+});
 
 function createTestLayout(): LayoutResult {
   const node1: LayoutNode = {
@@ -23,6 +30,7 @@ function createTestLayout(): LayoutResult {
     to: 'B',
     waypoints: [{ x: 160, y: 60 }, { x: 160, y: 180 }],
     label: 'yes',
+    style: 'arrow',
   };
 
   return {
@@ -30,6 +38,11 @@ function createTestLayout(): LayoutResult {
     edges: [edge],
     dimensions: { width: 320, height: 240 },
   };
+}
+
+function renderArrow(arrowStyle: 'filled' | 'triangle' | 'open' | 'circle' | 'cross'): SVGSVGElement {
+  const renderer = new SVGRenderer({ arrowStyle });
+  return renderer.render(createTestLayout());
 }
 
 describe('SVGRenderer', () => {
@@ -72,5 +85,56 @@ describe('SVGRenderer', () => {
       if (r.getAttribute('fill') === '#ff0000') foundRed = true;
     });
     expect(foundRed).toBe(true);
+  });
+
+  it('renders filled arrows as polygons', () => {
+    const svg = renderArrow('filled');
+
+    expect(svg.querySelectorAll('g.edge polygon').length).toBe(1);
+  });
+
+  it('renders open arrows as an unclosed polyline', () => {
+    const svg = renderArrow('open');
+
+    expect(svg.querySelectorAll('g.edge polygon').length).toBe(0);
+    const arrow = svg.querySelector('g.edge polyline');
+    expect(arrow).not.toBeNull();
+    expect(arrow?.getAttribute('fill')).toBe('none');
+  });
+
+  it('renders circle arrows as circles', () => {
+    const svg = renderArrow('circle');
+
+    expect(svg.querySelectorAll('g.edge polygon').length).toBe(0);
+    const arrow = svg.querySelector('g.edge circle');
+    expect(arrow).not.toBeNull();
+    expect(arrow?.getAttribute('r')).toBe(String(DEFAULT_THEME.arrowSize / 2));
+  });
+
+  it('renders cross arrows as two crossing line elements', () => {
+    const svg = renderArrow('cross');
+
+    expect(svg.querySelectorAll('g.edge polygon').length).toBe(0);
+    expect(svg.querySelectorAll('g.edge line.arrow-cross').length).toBe(2);
+  });
+
+  it('does not render arrowheads for line edges', () => {
+    const layout = createTestLayout();
+    layout.edges[0].style = 'line';
+    const svg = new SVGRenderer().render(layout);
+
+    expect(svg.querySelector('g.edge polygon, g.edge polyline, g.edge circle, g.edge line.arrow-cross')).toBeNull();
+  });
+
+  it('uses final path geometry for fallback label position', () => {
+    const layout = createTestLayout();
+    layout.edges[0].label_position = undefined;
+    const svg = new SVGRenderer({ curveStyle: 'straight', edgeGap: 8, arrowSize: 10 }).render(layout);
+
+    const label = Array.from(svg.querySelectorAll('g.edge text'))
+      .find(el => el.textContent === 'yes');
+
+    expect(label).toBeDefined();
+    expect(Number(label?.getAttribute('y'))).toBeCloseTo(115, 1);
   });
 });
