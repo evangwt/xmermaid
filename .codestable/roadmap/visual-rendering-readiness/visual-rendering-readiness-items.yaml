@@ -1,0 +1,43 @@
+roadmap: visual-rendering-readiness
+created: 2026-05-25
+
+items:
+  - slug: build-toolchain-gate
+    description: 修复或文档化 WASM 构建工具链，使 npm run build 成为可执行发布门禁
+    depends_on: []
+    status: done
+    feature: 2026-05-25-build-toolchain-gate
+    minimal_loop: true
+    notes: 已通过 scripts/build-wasm.cjs 优先使用 rustup bin，普通 npm run build 现已通过
+
+  - slug: release-verification-contract
+    description: 建立统一 verification matrix 和 result record，确保 build/test/typecheck/cargo 都被验收覆盖
+    depends_on: [build-toolchain-gate]
+    status: done
+    feature: 2026-05-25-release-verification-contract
+    minimal_loop: false
+    notes: 已新增 npm run verify:release，默认矩阵覆盖 build、JS tests、typecheck、cargo test 和 diff check
+
+  - slug: codestable-evidence-governance
+    description: 分类并治理 .codestable、.omx、screenshots、cdp 脚本和 .codegraph 的提交或忽略策略
+    depends_on: []
+    status: done
+    feature: 2026-05-25-codestable-evidence-governance
+    minimal_loop: false
+    notes: 已新增 docs/evidence-governance.md 与 tests/evidence-governance.test.ts；.gitignore 排除 .omx、.codegraph、screenshots 和根目录 cdp-* 临时脚本
+
+  - slug: edge-geometry-boundary-contract
+    description: 定义 layout 到 renderer 的显式 edge geometry 契约，减少 renderer 端路径和 label 推断
+    depends_on: [release-verification-contract]
+    status: done
+    feature: 2026-05-25-edge-geometry-boundary-contract
+    minimal_loop: false
+    notes: Rust/TS LayoutEdge 已新增 geometry v1 字段，renderer 在完整字段存在时优先消费 explicit geometry 并保留旧 fallback
+
+  - slug: svg-geometry-regression-suite
+    description: 补强 SVG 几何和视觉回归测试，覆盖复杂路径、label fallback、shape boundary 和箭头样式
+    depends_on: [release-verification-contract, codestable-evidence-governance]
+    status: done
+    feature: 2026-05-25-svg-geometry-regression-suite
+    minimal_loop: false
+    notes: 已新增 tests/svg-geometry-regression.test.ts，用 DOM 断言覆盖 complex path、label fallback、shape boundary 和 arrow styles；未提交截图资产

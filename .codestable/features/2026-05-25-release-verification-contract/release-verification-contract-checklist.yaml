@@ -1,0 +1,72 @@
+feature: 2026-05-25-release-verification-contract
+created: 2026-05-25
+
+steps:
+  - action: "脚本骨架：新增默认矩阵、CLI 参数解析和 summary 输出"
+    exit_signal: "node scripts/verify-release.cjs --matrix-file <fake> 能读取矩阵并输出 run record"
+    status: done
+
+  - action: "命令执行与结果 schema：顺序运行矩阵并生成 VerificationResultRecord"
+    exit_signal: "单测验证成功/失败命令都被记录，失败项 blocking_reason 非空"
+    status: done
+
+  - action: "npm 挂载：新增 verify:release 脚本入口"
+    exit_signal: "npm run verify:release 调用 scripts/verify-release.cjs 默认矩阵"
+    status: done
+
+  - action: "验证覆盖：跑 release gate 与现有测试"
+    exit_signal: "npm run verify:release、npm test、git diff --check 和 YAML 校验通过"
+    status: done
+
+checks:
+  - item: "VerificationCommand 默认矩阵包含 js-unit、ts-typecheck、rust-workspace、wasm-js-build、diff-whitespace"
+    source: 名词契约
+    status: passed
+
+  - item: "VerificationResultRecord 包含 checked_at、git_commit、command_id、command、exit_code、passed、summary、blocking_reason"
+    source: 名词契约
+    status: passed
+
+  - item: "npm run build 是默认矩阵第一条"
+    source: 编排骨架
+    status: passed
+
+  - item: "脚本运行所有矩阵命令，不在首个失败时提前停止"
+    source: 流程级约束
+    status: passed
+
+  - item: "失败结果 blocking_reason 必填"
+    source: 流程级约束
+    status: passed
+
+  - item: "package.json scripts 和 scripts/verify-release.cjs 是本 feature 唯一挂载点"
+    source: 挂载点
+    status: passed
+
+  - item: "不新增 npm dependency"
+    source: 范围守护
+    status: passed
+
+  - item: "不修改 Rust 源码"
+    source: 范围守护
+    status: passed
+
+  - item: "不默认写验证结果到仓库路径"
+    source: 范围守护
+    status: passed
+
+  - item: "S1 fake matrix 一成一败时 exit 1 且 JSON 记录两条结果"
+    source: 验收场景
+    status: passed
+
+  - item: "S2 npm run verify:release 默认矩阵通过时 exit 0"
+    source: 验收场景
+    status: passed
+
+  - item: "S3 npm test 全量通过且包含 verify-release 测试"
+    source: 验收场景
+    status: passed
+
+  - item: "S4 git diff --check 无 whitespace error"
+    source: 验收场景
+    status: passed

@@ -1,0 +1,76 @@
+feature: 2026-05-25-codestable-evidence-governance
+created: 2026-05-25
+
+steps:
+  - action: "策略测试红灯：新增 evidence-governance 测试，先验证当前缺少政策/ignore 规则时失败"
+    exit_signal: "npm test -- tests/evidence-governance.test.ts 因缺少政策或 ignore 规则失败"
+    status: done
+
+  - action: "政策文档：新增 docs/evidence-governance.md，覆盖五类 EvidenceAssetClass"
+    exit_signal: "测试不再因政策文档缺失失败"
+    status: done
+
+  - action: "ignore 边界：更新 .gitignore，忽略 runtime/private/generated 资产但不忽略 .codestable/"
+    exit_signal: "测试通过，git status --short 不再列出 .omx/、.codegraph/、screenshots 或 cdp-*"
+    status: done
+
+  - action: "验证覆盖：运行治理测试、全量 JS 测试、release gate、YAML 校验和 whitespace check"
+    exit_signal: "相关命令通过，roadmap/checklist 可进入 acceptance"
+    status: done
+
+checks:
+  - item: "Evidence policy 覆盖 repo-spec、diagnostic-tool、runtime-cache、visual-evidence、private-log"
+    source: 名词契约
+    status: passed
+
+  - item: ".codestable/roadmap、features、audits 默认属于 repo-spec"
+    source: 名词契约
+    status: passed
+
+  - item: ".omx/ 属于 private-log 且被 ignore"
+    source: 编排骨架
+    status: passed
+
+  - item: ".codegraph/ 属于 runtime-cache 且被 ignore"
+    source: 编排骨架
+    status: passed
+
+  - item: "screenshots/ 默认忽略，只有明确 baseline/fixture 路径才提交"
+    source: 流程级约束
+    status: passed
+
+  - item: "根目录 cdp-*.cjs|mjs 默认忽略，不作为正式 scripts 提交"
+    source: 流程级约束
+    status: passed
+
+  - item: ".gitignore、docs/evidence-governance.md、tests/evidence-governance.test.ts 是本 feature 唯一非 CodeStable 挂载点"
+    source: 挂载点
+    status: passed
+
+  - item: "不提交 .omx/、.codegraph/、screenshots/、dist/、pkg/"
+    source: 范围守护
+    status: passed
+
+  - item: "不修改 parser/layout/renderer/runtime 源码"
+    source: 范围守护
+    status: passed
+
+  - item: "不新增 npm dependency"
+    source: 范围守护
+    status: passed
+
+  - item: "S1 npm test -- tests/evidence-governance.test.ts 通过"
+    source: 验收场景
+    status: passed
+
+  - item: "S2 git status --short 不列出 .omx/、.codegraph/、screenshots/、根目录 cdp-*"
+    source: 验收场景
+    status: passed
+
+  - item: "S3 npm test、npm run verify:release、git diff --check -- HEAD 通过"
+    source: 验收场景
+    status: passed
+
+  - item: "S4 checklist 和 roadmap items YAML 校验通过"
+    source: 验收场景
+    status: passed
