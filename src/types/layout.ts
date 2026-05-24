@@ -48,6 +48,12 @@ export interface LayoutEdge {
   label?: string;
   label_position?: Point;
   style: EdgeStyle;
+  source_boundary?: Point;
+  target_boundary?: Point;
+  path_end?: Point;
+  final_tangent_angle?: number;
+  label_anchor?: Point;
+  geometry_version?: 1;
 }
 
 export interface Dimensions {

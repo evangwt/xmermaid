@@ -167,6 +167,39 @@ fn test_layout_json_roundtrip() {
     }
 }
 
+#[test]
+fn test_layout_edge_geometry_contract_roundtrip() {
+    let ast = parse("graph TD\n  A-->B").unwrap();
+    let config = LayoutConfig::default();
+    let layout = compute_layout(&ast, &config);
+    let edge = layout.edges.first().expect("expected one edge");
+
+    assert_eq!(edge.geometry_version, 1);
+    assert!(edge.source_boundary.is_some(), "source boundary should be explicit");
+    assert!(edge.target_boundary.is_some(), "target boundary should be explicit");
+    assert!(edge.path_end.is_some(), "path end should be explicit");
+    assert!(edge.final_tangent_angle.is_some(), "final tangent angle should be explicit");
+    assert_eq!(edge.label_anchor, edge.label_position);
+
+    let json = serde_json::to_value(&layout).unwrap();
+    let json_edge = &json["edges"][0];
+    assert_eq!(json_edge["geometry_version"], 1);
+    assert!(json_edge["source_boundary"].is_object());
+    assert!(json_edge["target_boundary"].is_object());
+    assert!(json_edge["path_end"].is_object());
+    assert!(json_edge["final_tangent_angle"].is_number());
+    assert!(json_edge["label_anchor"].is_object());
+
+    let back: xmermaid_layout::LayoutResult = serde_json::from_value(json).unwrap();
+    let back_edge = back.edges.first().expect("expected one round-tripped edge");
+    assert_eq!(back_edge.geometry_version, 1);
+    assert_eq!(back_edge.source_boundary, edge.source_boundary);
+    assert_eq!(back_edge.target_boundary, edge.target_boundary);
+    assert_eq!(back_edge.path_end, edge.path_end);
+    assert_eq!(back_edge.final_tangent_angle, edge.final_tangent_angle);
+    assert_eq!(back_edge.label_anchor, edge.label_anchor);
+}
+
 // ─── Full pipeline: DSL → AST → Layout → verify ─────────────────
 
 #[test]
