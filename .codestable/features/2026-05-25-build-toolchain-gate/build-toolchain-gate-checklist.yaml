@@ -1,0 +1,64 @@
+feature: 2026-05-25-build-toolchain-gate
+created: 2026-05-25
+
+steps:
+  - action: "构建脚本骨架：新增 Node build-wasm 入口并接入 npm build:wasm"
+    exit_signal: "npm run build:wasm 能执行到 wasm-pack，且参数仍指向 crates/xmermaid-wasm 与 ../../pkg"
+    status: done
+
+  - action: "toolchain PATH gate：优先把 rustup bin 目录放入 wasm-pack 子进程 PATH"
+    exit_signal: "普通 npm run build 不再因 Homebrew rustc sysroot 缺 wasm target 失败"
+    status: done
+
+  - action: "失败诊断：补充稳定 diagnostic，缺 wasm-pack/rustup target 时能指向前置条件"
+    exit_signal: "脚本失败时保留原始 exit code，并打印 xmermaid build-wasm diagnostic"
+    status: done
+
+  - action: "验证覆盖：运行发布构建与现有测试矩阵"
+    exit_signal: "npm run build、npm test、npm run typecheck、cargo test、git diff --check 均通过"
+    status: done
+
+checks:
+  - item: "build:wasm 的对外结果仍是生成 pkg/xmermaid_wasm.js 和 pkg/xmermaid_wasm_bg.wasm"
+    source: 名词契约
+    status: passed
+
+  - item: "npm run build 的流程仍是 build:wasm 后接 build:js"
+    source: 编排骨架
+    status: passed
+
+  - item: "构建脚本只修改子进程 PATH，不修改用户 shell 或 Rust 源码"
+    source: 流程级约束
+    status: passed
+
+  - item: "package.json scripts 和 scripts/build-wasm.cjs 是本 feature 唯一挂载点"
+    source: 挂载点
+    status: passed
+
+  - item: "不修改 crates/xmermaid-* 源码"
+    source: 范围守护
+    status: passed
+
+  - item: "不修改 src/wasm.ts 的 import 路径"
+    source: 范围守护
+    status: passed
+
+  - item: "不提交 dist/ 或 pkg 构建产物"
+    source: 范围守护
+    status: passed
+
+  - item: "S1 普通 npm run build exit 0"
+    source: 验收场景
+    status: passed
+
+  - item: "S2 npm run build:wasm 生成 pkg 产物且 exit 0"
+    source: 验收场景
+    status: passed
+
+  - item: "S3 npm test、npm run typecheck、cargo test 通过"
+    source: 验收场景
+    status: passed
+
+  - item: "S4 dist 和 pkg 不作为 tracked 改动出现"
+    source: 验收场景
+    status: passed
