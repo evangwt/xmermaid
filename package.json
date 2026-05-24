@@ -18,9 +18,10 @@
     "pkg"
   ],
   "scripts": {
-    "build:wasm": "wasm-pack build crates/xmermaid-wasm --out-dir ../../pkg --target web",
+    "build:wasm": "node scripts/build-wasm.cjs",
     "build:js": "rollup -c",
     "build": "npm run build:wasm && npm run build:js",
+    "verify:release": "node scripts/verify-release.cjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
