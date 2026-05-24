@@ -149,6 +149,17 @@ pub struct LayoutEdge {
     pub label: Option<String>,
     pub label_position: Option<Point>,
     pub style: EdgeStyle,
+    pub source_boundary: Option<Point>,
+    pub target_boundary: Option<Point>,
+    pub path_end: Option<Point>,
+    pub final_tangent_angle: Option<f64>,
+    pub label_anchor: Option<Point>,
+    #[serde(default = "default_geometry_version")]
+    pub geometry_version: u8,
+}
+
+fn default_geometry_version() -> u8 {
+    1
 }
 
 /// Overall dimensions of the layout

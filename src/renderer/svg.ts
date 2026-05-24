@@ -166,17 +166,7 @@ export class SVGRenderer {
 
     if (!sourceNode || !targetNode) return g;
 
-    // Use edge path computation with gap truncation
-    const edgeResult = computeEdgePath(
-      edge.waypoints,
-      sourceNode.bounds,
-      targetNode.bounds,
-      this.theme.curveStyle,
-      this.theme.edgeGap,
-      this.theme.arrowSize,
-      sourceNode.shape,
-      targetNode.shape,
-    );
+    const edgeResult = this.resolveEdgePath(edge, sourceNode, targetNode);
 
     // Draw the edge path (ends at arrow base, not arrow tip)
     const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
@@ -210,7 +200,7 @@ export class SVGRenderer {
 
     // Draw edge label if present
     if (edge.label) {
-      const labelPos = edge.label_position ?? this.computeLabelPosition(edgeResult);
+      const labelPos = edge.label_anchor ?? edge.label_position ?? this.computeLabelPosition(edgeResult);
       const fontSize = this.theme.fontSize - 2;
       const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       text.setAttribute('x', String(labelPos.x));
@@ -239,6 +229,108 @@ export class SVGRenderer {
     }
 
     return g;
+  }
+
+  private resolveEdgePath(edge: LayoutEdge, sourceNode: LayoutNode, targetNode: LayoutNode): EdgePathResult {
+    const explicit = this.computeExplicitEdgePath(edge);
+    if (explicit) return explicit;
+
+    return computeEdgePath(
+      edge.waypoints,
+      sourceNode.bounds,
+      targetNode.bounds,
+      this.theme.curveStyle,
+      this.theme.edgeGap,
+      this.theme.arrowSize,
+      sourceNode.shape,
+      targetNode.shape,
+    );
+  }
+
+  private computeExplicitEdgePath(edge: LayoutEdge): EdgePathResult | undefined {
+    if (
+      edge.geometry_version !== 1 ||
+      !edge.source_boundary ||
+      !edge.target_boundary ||
+      !edge.path_end ||
+      edge.final_tangent_angle === undefined ||
+      !Number.isFinite(edge.final_tangent_angle)
+    ) {
+      return undefined;
+    }
+
+    return {
+      path: this.buildExplicitPath(edge),
+      arrowTip: edge.target_boundary,
+      arrowAngle: edge.final_tangent_angle,
+      pathEnd: edge.path_end,
+    };
+  }
+
+  private buildExplicitPath(edge: LayoutEdge): string {
+    const points = [
+      edge.source_boundary!,
+      ...edge.waypoints.slice(1, -1),
+      edge.path_end!,
+    ];
+
+    if (this.theme.curveStyle === 'step') {
+      return this.buildStepPath(points);
+    }
+
+    if (this.theme.curveStyle === 'bezier' && points.length === 2) {
+      return this.buildSimpleBezierPath(points[0], points[1]);
+    }
+
+    return this.buildStraightPath(points);
+  }
+
+  private buildStraightPath(points: Point[]): string {
+    const [start, ...rest] = points;
+    return [
+      `M ${start.x} ${start.y}`,
+      ...rest.map(point => `L ${point.x} ${point.y}`),
+    ].join(' ');
+  }
+
+  private buildStepPath(points: Point[]): string {
+    const [start, ...rest] = points;
+    const parts = [`M ${start.x} ${start.y}`];
+
+    for (const point of rest) {
+      const prev = this.parsePathEnd(parts[parts.length - 1]) ?? start;
+      const midX = (prev.x + point.x) / 2;
+      parts.push(`H ${midX}`);
+      parts.push(`V ${point.y}`);
+      parts.push(`L ${point.x} ${point.y}`);
+    }
+
+    return parts.join(' ');
+  }
+
+  private buildSimpleBezierPath(start: Point, end: Point): string {
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const tension = Math.min(dist * 0.4, 50);
+    const isVertical = Math.abs(dy) >= Math.abs(dx);
+
+    if (isVertical) {
+      const sign = dy >= 0 ? 1 : -1;
+      return `M ${start.x} ${start.y} C ${start.x} ${start.y + tension * sign} ${end.x} ${end.y - tension * sign} ${end.x} ${end.y}`;
+    }
+
+    const sign = dx >= 0 ? 1 : -1;
+    return `M ${start.x} ${start.y} C ${start.x + tension * sign} ${start.y} ${end.x - tension * sign} ${end.y} ${end.x} ${end.y}`;
+  }
+
+  private parsePathEnd(pathPart: string): Point | undefined {
+    const nums = pathPart.match(/-?\d+(?:\.\d+)?/g)?.map(Number);
+    if (!nums || nums.length < 2) return undefined;
+    return {
+      x: nums[nums.length - 2],
+      y: nums[nums.length - 1],
+    };
   }
 
   private createArrowElements(style: ArrowStyle, edgeResult: EdgePathResult): SVGElement[] {

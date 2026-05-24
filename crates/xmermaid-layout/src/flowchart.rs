@@ -15,6 +15,10 @@ use crate::types::{
 };
 use xmermaid_parser::ast::{EdgeStyle as ParserEdgeStyle, FlowchartAst, NodeShape as ParserNodeShape};
 
+const GEOMETRY_VERSION: u8 = 1;
+const DEFAULT_EDGE_GAP: f64 = 8.0;
+const DEFAULT_ARROW_SIZE: f64 = 10.0;
+
 /// Map parser NodeShape to layout NodeShape.
 /// Some shapes are simplified for layout purposes.
 fn map_shape(parser_shape: &ParserNodeShape) -> NodeShape {
@@ -42,6 +46,79 @@ fn map_edge_style(style: &ParserEdgeStyle) -> crate::types::EdgeStyle {
         ParserEdgeStyle::Thick => crate::types::EdgeStyle::Thick,
         ParserEdgeStyle::Invisible => crate::types::EdgeStyle::Invisible,
     }
+}
+
+fn boundary_point(center: Point, toward: Point, bounds: Bounds) -> Point {
+    let dx = toward.x - center.x;
+    let dy = toward.y - center.y;
+
+    if dx == 0.0 && dy == 0.0 {
+        return center;
+    }
+
+    let mut t_min = f64::MAX;
+
+    if dx > 0.0 {
+        t_min = t_min.min((bounds.right() - center.x) / dx);
+    } else if dx < 0.0 {
+        t_min = t_min.min((bounds.left() - center.x) / dx);
+    }
+
+    if dy > 0.0 {
+        t_min = t_min.min((bounds.bottom() - center.y) / dy);
+    } else if dy < 0.0 {
+        t_min = t_min.min((bounds.top() - center.y) / dy);
+    }
+
+    if !t_min.is_finite() || t_min < 0.0 {
+        return center;
+    }
+
+    Point {
+        x: center.x + dx * t_min,
+        y: center.y + dy * t_min,
+    }
+}
+
+fn edge_has_arrow(style: &crate::types::EdgeStyle) -> bool {
+    !matches!(
+        style,
+        crate::types::EdgeStyle::Line | crate::types::EdgeStyle::Invisible
+    )
+}
+
+fn compute_edge_geometry(
+    waypoints: &[Point],
+    from_bounds: Option<Bounds>,
+    to_bounds: Option<Bounds>,
+    style: &crate::types::EdgeStyle,
+) -> (Option<Point>, Option<Point>, Option<Point>, Option<f64>) {
+    if waypoints.len() < 2 {
+        return (None, None, None, None);
+    }
+
+    let first = waypoints[0];
+    let last = waypoints[waypoints.len() - 1];
+    let source_approach = waypoints[1];
+    let target_approach = waypoints[waypoints.len() - 2];
+
+    let source_boundary = from_bounds.map(|bounds| boundary_point(first, source_approach, bounds));
+    let target_boundary = to_bounds.map(|bounds| boundary_point(last, target_approach, bounds));
+    let angle = Some((last.y - target_approach.y).atan2(last.x - target_approach.x));
+
+    let path_end = match (target_boundary, angle) {
+        (Some(target), Some(final_angle)) if edge_has_arrow(style) => {
+            let distance = DEFAULT_EDGE_GAP + DEFAULT_ARROW_SIZE;
+            Some(Point {
+                x: target.x - final_angle.cos() * distance,
+                y: target.y - final_angle.sin() * distance,
+            })
+        }
+        (Some(target), _) => Some(target),
+        _ => None,
+    };
+
+    (source_boundary, target_boundary, path_end, angle)
 }
 
 /// Compute layout for a flowchart diagram.
@@ -544,13 +621,25 @@ pub fn layout(fc: &FlowchartAst, config: &LayoutConfig) -> LayoutResult {
                 None
             };
 
+            let style = map_edge_style(&edge.style);
+            let from_bounds = from_idx_opt.map(|idx| nodes[idx].bounds);
+            let to_bounds = to_idx_opt.map(|idx| nodes[idx].bounds);
+            let (source_boundary, target_boundary, path_end, final_tangent_angle) =
+                compute_edge_geometry(&waypoints, from_bounds, to_bounds, &style);
+
             LayoutEdge {
                 from: edge.from.clone(),
                 to: edge.to.clone(),
                 waypoints,
                 label: edge.label.clone(),
                 label_position,
-                style: map_edge_style(&edge.style),
+                style,
+                source_boundary,
+                target_boundary,
+                path_end,
+                final_tangent_angle,
+                label_anchor: label_position,
+                geometry_version: GEOMETRY_VERSION,
             }
         })
         .collect();
@@ -581,6 +670,18 @@ pub fn layout(fc: &FlowchartAst, config: &LayoutConfig) -> LayoutResult {
                 }
                 if let Some(ref mut lp) = edge.label_position {
                     lp.y += y_shift;
+                }
+                if let Some(ref mut point) = edge.source_boundary {
+                    point.y += y_shift;
+                }
+                if let Some(ref mut point) = edge.target_boundary {
+                    point.y += y_shift;
+                }
+                if let Some(ref mut point) = edge.path_end {
+                    point.y += y_shift;
+                }
+                if let Some(ref mut point) = edge.label_anchor {
+                    point.y += y_shift;
                 }
             }
         }
