@@ -1,0 +1,2366 @@
+# Phase 1 MVP Implementation Plan
+
+> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+
+**Goal:** Build minimal working xmermaid that renders flowchart diagrams to SVG via WASM.
+
+**Architecture:** Rust WASM for parsing/layout, JS for SVG rendering. Three-layer pipeline: DSL → AST → Layout → SVG.
+
+**Tech Stack:** Rust 1.70+, wasm-bindgen, wasm-pack, serde, nom (parser), TypeScript, Vitest
+
+---
+
+## Project Structure
+
+```
+xmermaid/
+├── Cargo.toml                 # Rust workspace root
+├── crates/
+│   ├── xmermaid-parser/       # 解析层 - DSL → AST
+│   │   ├── Cargo.toml
+│   │   ├── src/
+│   │   │   ├── lib.rs
+│   │   │   ├── lexer.rs
+│   │   │   ├── parser.rs
+│   │   │   ├── ast.rs
+│   │   │   └── error.rs
+│   │   └── tests/
+│   ├── xmermaid-layout/       # 布局层 - AST → Positions
+│   │   ├── Cargo.toml
+│   │   ├── src/
+│   │   │   ├── lib.rs
+│   │   │   ├── graph.rs
+│   │   │   ├── engine.rs
+│   │   │   └── coordinate.rs
+│   │   └── tests/
+│   └── xmermaid-wasm/         # WASM 绑定层
+│   │   ├── Cargo.toml
+│   │   ├── src/
+│   │   │   ├── lib.rs
+│   │   │   └── bindings.rs
+│   ├── package.json           # JS SDK
+│   ├── tsconfig.json
+│   ├── src/
+│   │   ├── index.ts           # 主入口
+│   │   ├── xmermaid.ts        # XMermaid 类
+│   │   ├── renderer/
+│   │   │   ├── svg.ts         # SVG 渲染器
+│   │   │   ├── types.ts       # 渲染类型定义
+│   │   ├── types/
+│   │   │   ├── ast.ts         # AST 类型（TS 版本）
+│   │   │   ├── layout.ts      # Layout 类型
+│   │   │   ├── options.ts     # 配置选项
+│   │   │   ├── error.ts       # 错误类型
+│   ├── tests/
+│   │   ├── parser.test.ts
+│   │   ├── layout.test.ts
+│   │   ├── renderer.test.ts
+│   │   ├── integration.test.ts
+│   ├── vite.config.ts
+│   ├── vitest.config.ts
+│   ├── rollup.config.ts
+```
+
+---
+
+## Task 1: Rust Workspace Setup
+
+**Files:**
+- Create: `Cargo.toml`
+- Create: `crates/xmermaid-parser/Cargo.toml`
+- Create: `crates/xmermaid-layout/Cargo.toml`
+- Create: `crates/xmermaid-wasm/Cargo.toml`
+
+**Step 1: Create root Cargo.toml (workspace)**
+
+```toml
+[workspace]
+resolver = "2"
+members = [
+    "crates/xmermaid-parser",
+    "crates/xmermaid-layout",
+    "crates/xmermaid-wasm",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["xmermaid contributors"]
+license = "MIT"
+repository = "https://github.com/your-org/xmermaid"
+
+[workspace.dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+```
+
+**Step 2: Create parser crate Cargo.toml**
+
+Create: `crates/xmermaid-parser/Cargo.toml`
+
+```toml
+[package]
+name = "xmermaid-parser"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+nom = "7.1"
+
+[dev-dependencies]
+```
+
+**Step 3: Create layout crate Cargo.toml**
+
+Create: `crates/xmermaid-layout/Cargo.toml`
+
+```toml
+[package]
+name = "xmermaid-layout"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+petgraph = "0.6"
+
+[dev-dependencies]
+```
+
+**Step 4: Create WASM crate Cargo.toml**
+
+Create: `crates/xmermaid-wasm/Cargo.toml`
+
+```toml
+[package]
+name = "xmermaid-wasm"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+xmermaid-parser = { path = "../xmermaid-parser" }
+xmermaid-layout = { path = "../xmermaid-layout" }
+wasm-bindgen = "0.2"
+serde.workspace = true
+serde_json.workspace = true
+js-sys = "0.3"
+web-sys = { version = "0.3", features = ["console"] }
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
+```
+
+**Step 5: Create placeholder lib.rs files**
+
+Create: `crates/xmermaid-parser/src/lib.rs`
+
+```rust
+//! xmermaid-parser: Mermaid DSL parser
+//!
+//! Converts Mermaid DSL text to structured AST.
+
+pub mod ast;
+pub mod error;
+
+/// Parse Mermaid DSL text into AST
+pub fn parse(input: &str) -> Result<ast::DiagramAst, error::ParseError> {
+    // Placeholder - will implement in Task 2
+    Err(error::ParseError::UnsupportedDiagramType("placeholder".to_string()))
+}
+```
+
+Create: `crates/xmermaid-layout/src/lib.rs`
+
+```rust
+//! xmermaid-layout: Diagram layout engine
+//!
+//! Computes positions for diagram elements.
+
+pub mod coordinate;
+
+/// Layout result containing positions
+pub struct LayoutResult {
+    /// Node positions (id -> (x, y))
+    pub positions: std::collections::HashMap<String, coordinate::Point>,
+    /// Diagram dimensions
+    pub dimensions: coordinate::Dimensions,
+}
+
+/// Compute layout for a diagram
+pub fn layout() -> Result<LayoutResult, error::LayoutError> {
+    // Placeholder - will implement in Task 3
+    Ok(LayoutResult {
+        positions: std::collections::HashMap::new(),
+        dimensions: coordinate::Dimensions::default(),
+    })
+}
+```
+
+Create: `crates/xmermaid-wasm/src/lib.rs`
+
+```rust
+//! xmermaid-wasm: WASM bindings for xmermaid
+
+use wasm_bindgen::prelude::*;
+
+/// Parse DSL and return JSON AST
+#[wasm_bindgen]
+pub fn parse_dsl(input: &str) -> Result<String, JsValue> {
+    let ast = xmermaid_parser::parse(input)
+        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+    serde_json::to_string(&ast)
+        .map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+/// Compute layout and return JSON result
+#[wasm_bindgen]
+pub fn compute_layout() -> Result<String, JsValue> {
+    let result = xmermaid_layout::layout()
+        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+    serde_json::to_string(&result)
+        .map_err(|e| JsValue::from_str(&e.to_string()))
+}
+```
+
+**Step 6: Create error modules**
+
+Create: `crates/xmermaid-parser/src/error.rs`
+
+```rust
+use thiserror::Error;
+
+#[derive(Error, Debug, serde::Serialize)]
+pub enum ParseError {
+    #[error("Syntax error at line {line}, column {column}: {message}")]
+    SyntaxError { line: usize, column: usize, message: String },
+
+    #[error("Unsupported diagram type: {0}")]
+    UnsupportedDiagramType(String),
+
+    #[error("Unexpected token: {0}")]
+    UnexpectedToken(String),
+}
+```
+
+Create: `crates/xmermaid-layout/src/error.rs`
+
+```rust
+use thiserror::Error;
+
+#[derive(Error, Debug, serde::Serialize)]
+pub enum LayoutError {
+    #[error("Layout computation failed: {0}")]
+    ComputationFailed(String),
+}
+```
+
+Create: `crates/xmermaid-layout/src/coordinate.rs`
+
+```rust
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Point {
+    pub x: f64,
+    pub y: f64,
+}
+
+impl Point {
+    pub fn new(x: f64, y: f64) -> Self {
+        Self { x, y }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct Dimensions {
+    pub width: f64,
+    pub height: f64,
+}
+
+impl Dimensions {
+    pub fn new(width: f64, height: f64) -> Self {
+        Self { width, height }
+    }
+}
+```
+
+**Step 7: Verify Rust workspace builds**
+
+Run: `cargo build`
+
+Expected: Build succeeds with placeholder modules
+
+**Step 8: Commit workspace setup**
+
+```bash
+git add Cargo.toml crates/
+git commit -m "feat: initialize Rust workspace with parser, layout, wasm crates"
+```
+
+---
+
+## Task 2: AST Definitions
+
+**Files:**
+- Create: `crates/xmermaid-parser/src/ast.rs`
+- Modify: `crates/xmermaid-parser/src/lib.rs`
+
+**Step 1: Define AST structures**
+
+Create: `crates/xmermaid-parser/src/ast.rs`
+
+```rust
+use serde::{Deserialize, Serialize};
+
+/// Root AST node for any diagram type
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum DiagramAst {
+    Flowchart(FlowchartAst),
+    Sequence(SequenceAst),
+    // Will add more types in Phase 2
+}
+
+/// Flowchart/graph diagram AST
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FlowchartAst {
+    /// Direction: TB, TD, BT, LR, RL
+    pub direction: FlowDirection,
+    /// All nodes in the diagram
+    pub nodes: Vec<Node>,
+    /// All edges/connections
+    pub edges: Vec<Edge>,
+    /// Subgraphs (nested diagrams)
+    pub subgraphs: Vec<Subgraph>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum FlowDirection {
+    TB,
+    TD,
+    BT,
+    LR,
+    RL,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Node {
+    /// Unique identifier
+    pub id: String,
+    /// Display label (defaults to id if empty)
+    pub label: Option<String>,
+    /// Node shape: rect, rounded, circle, diamond, etc.
+    pub shape: NodeShape,
+    /// CSS class references
+    pub classes: Vec<String>,
+    /// Custom styles
+    pub styles: Vec<StyleDef>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum NodeShape {
+    Rect,
+    Rounded,
+    Circle,
+    Diamond,
+    Stadium,
+    Subroutine,
+    Hexagon,
+    Parallelogram,
+    Trapezoid,
+    DoubleCircle,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Edge {
+    /// Source node id
+    pub from: String,
+    /// Target node id
+    pub to: String,
+    /// Edge style
+    pub style: EdgeStyle,
+    /// Label on the edge
+    pub label: Option<String>,
+    /// Minimum length (for layered layout)
+    pub min_length: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum EdgeStyle {
+    /// Solid line with arrow: -->
+    Arrow,
+    /// Solid line without arrow: ---
+    Line,
+    /// Dotted line: -.->
+    Dotted,
+    /// Thick line: ==>
+    Thick,
+    /// Invisible: ~~~
+    Invisible,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StyleDef {
+    pub key: String,
+    pub value: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Subgraph {
+    /// Subgraph title
+    pub title: String,
+    /// Nodes belonging to this subgraph
+    pub nodes: Vec<String>,
+    /// Nested subgraphs
+    pub subgraphs: Vec<Subgraph>,
+}
+
+// Placeholder for sequence diagram (Phase 2)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SequenceAst {
+    pub participants: Vec<String>,
+}
+```
+
+**Step 2: Update lib.rs to export ast**
+
+Modify: `crates/xmermaid-parser/src/lib.rs`
+
+```rust
+//! xmermaid-parser: Mermaid DSL parser
+//!
+//! Converts Mermaid DSL text to structured AST.
+
+pub mod ast;
+pub mod error;
+
+/// Parse Mermaid DSL text into AST
+pub fn parse(input: &str) -> Result<ast::DiagramAst, error::ParseError> {
+    // Placeholder - will implement in Task 3
+    Err(error::ParseError::UnsupportedDiagramType("placeholder".to_string()))
+}
+
+// Re-export main types for convenience
+pub use ast::{DiagramAst, FlowchartAst, Node, Edge, FlowDirection, NodeShape, EdgeStyle};
+pub use error::ParseError;
+```
+
+**Step 3: Verify AST module compiles**
+
+Run: `cargo build -p xmermaid-parser`
+
+Expected: Compiles without errors
+
+**Step 4: Commit AST definitions**
+
+```bash
+git add crates/xmermaid-parser/src/ast.rs crates/xmermaid-parser/src/lib.rs
+git commit -m "feat(parser): define AST structures for flowchart diagrams"
+```
+
+---
+
+## Task 3: Lexer Implementation
+
+**Files:**
+- Create: `crates/xmermaid-parser/src/lexer.rs`
+- Create: `crates/xmermaid-parser/tests/lexer_test.rs`
+- Modify: `crates/xmermaid-parser/src/lib.rs`
+
+**Step 1: Write failing lexer test**
+
+Create: `crates/xmermaid-parser/tests/lexer_test.rs`
+
+```rust
+use xmermaid_parser::lexer::{Lexer, Token, TokenType};
+
+#[test]
+fn test_lexer_identifies_keywords() {
+    let input = "graph TD";
+    let lexer = Lexer::new(input);
+    let tokens: Vec<Token> = lexer.collect();
+
+    assert_eq!(tokens.len(), 3);
+    assert_eq!(tokens[0].ty, TokenType::Keyword);
+    assert_eq!(tokens[0].value, "graph");
+    assert_eq!(tokens[1].ty, TokenType::Direction);
+    assert_eq!(tokens[1].value, "TD");
+    assert_eq!(tokens[2].ty, TokenType::Eof);
+}
+
+#[test]
+fn test_lexer_identifies_node_ids() {
+    let input = "A B1 node2";
+    let lexer = Lexer::new(input);
+    let tokens: Vec<Token> = lexer.collect();
+
+    assert_eq!(tokens.len(), 4);
+    assert_eq!(tokens[0].ty, TokenType::NodeId);
+    assert_eq!(tokens[0].value, "A");
+    assert_eq!(tokens[1].ty, TokenType::NodeId);
+    assert_eq!(tokens[1].value, "B1");
+    assert_eq!(tokens[2].ty, TokenType::NodeId);
+    assert_eq!(tokens[2].value, "node2");
+}
+
+#[test]
+fn test_lexer_identifies_arrows() {
+    let input = "A-->B A---C A-.-D A==>E";
+    let lexer = Lexer::new(input);
+    let tokens: Vec<Token> = lexer.collect();
+
+    assert_eq!(tokens[1].ty, TokenType::Arrow);
+    assert_eq!(tokens[1].value, "-->");
+    assert_eq!(tokens[4].ty, TokenType::Arrow);
+    assert_eq!(tokens[4].value, "---");
+    assert_eq!(tokens[7].ty, TokenType::Arrow);
+    assert_eq!(tokens[7].value, "-.-");
+    assert_eq!(tokens[10].ty, TokenType::Arrow);
+    assert_eq!(tokens[10].value, "==>");
+}
+
+#[test]
+fn test_lexer_handles_labels() {
+    let input = "A[Label Text] B(Another)";
+    let lexer = Lexer::new(input);
+    let tokens: Vec<Token> = lexer.collect();
+
+    assert_eq!(tokens[1].ty, TokenType::BracketOpen);
+    assert_eq!(tokens[2].ty, TokenType::Label);
+    assert_eq!(tokens[2].value, "Label Text");
+    assert_eq!(tokens[3].ty, TokenType::BracketClose);
+}
+```
+
+**Step 2: Run test to verify it fails**
+
+Run: `cargo test -p xmermaid-parser lexer_test`
+
+Expected: FAIL - lexer module not found
+
+**Step 3: Implement Lexer**
+
+Create: `crates/xmermaid-parser/src/lexer.rs`
+
+```rust
+use std::iter::Peekable;
+use std::str::Chars;
+
+/// Token produced by lexer
+#[derive(Debug, Clone, PartialEq)]
+pub struct Token {
+    pub ty: TokenType,
+    pub value: String,
+    pub line: usize,
+    pub column: usize,
+}
+
+/// Token types
+#[derive(Debug, Clone, PartialEq)]
+pub enum TokenType {
+    /// Keywords: graph, flowchart, subgraph
+    Keyword,
+    /// Direction: TD, TB, BT, LR, RL
+    Direction,
+    /// Node identifier
+    NodeId,
+    /// Arrow/connection: -->, ---, -.-, ==>
+    Arrow,
+    /// Label text within brackets
+    Label,
+    /// Bracket open: [ or (
+    BracketOpen,
+    /// Bracket close: ] or )
+    BracketClose,
+    /// Newline
+    Newline,
+    /// End of input
+    Eof,
+    /// Unrecognized
+    Unknown,
+}
+
+/// Lexer for Mermaid DSL
+pub struct Lexer<'a> {
+    input: Peekable<Chars<'a>>,
+    line: usize,
+    column: usize,
+}
+
+impl<'a> Lexer<'a> {
+    pub fn new(input: &'a str) -> Self {
+        Self {
+            input: input.chars().peekable(),
+            line: 1,
+            column: 1,
+        }
+    }
+
+    fn peek(&mut self) -> Option<&char> {
+        self.input.peek()
+    }
+
+    fn advance(&mut self) -> Option<char> {
+        let c = self.input.next();
+        if let Some('\n') = c {
+            self.line += 1;
+            self.column = 1;
+        } else {
+            self.column += 1;
+        }
+        c
+    }
+
+    fn skip_whitespace(&mut self) {
+        while let Some(&c) = self.peek() {
+            if c == ' ' || c == '\t' {
+                self.advance();
+            } else {
+                break;
+            }
+        }
+    }
+
+    fn read_word(&mut self) -> String {
+        let mut word = String::new();
+        while let Some(&c) = self.peek() {
+            if c.is_alphanumeric() || c == '_' || c == '-' {
+                word.push(self.advance().unwrap());
+            } else {
+                break;
+            }
+        }
+        word
+    }
+
+    fn read_arrow(&mut self) -> String {
+        let mut arrow = String::new();
+        // Read arrow pattern: -->, ---, -.-, ==> etc.
+        while let Some(&c) = self.peek() {
+            if c == '-' || c == '.' || c == '=' || c == '>' || c == '~' {
+                arrow.push(self.advance().unwrap());
+            } else {
+                break;
+            }
+        }
+        arrow
+    }
+
+    fn read_label(&mut self, open: char) -> (String, char) {
+        let close = if open == '[' { ']' } else { ')' };
+        let mut label = String::new();
+        while let Some(&c) = self.peek() {
+            if c == close {
+                break;
+            }
+            label.push(self.advance().unwrap());
+        }
+        // Consume closing bracket
+        self.advance();
+        (label.trim().to_string(), close)
+    }
+}
+
+impl<'a> Iterator for Lexer<'a> {
+    type Item = Token;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.skip_whitespace();
+
+        let line = self.line;
+        let column = self.column;
+
+        match self.peek() {
+            None => Some(Token { ty: TokenType::Eof, value: "", line, column }),
+            Some(&'\n') => {
+                self.advance();
+                Some(Token { ty: TokenType::Newline, value: "\n", line, column })
+            }
+            Some(&c) if c == '[' || c == '(' => {
+                self.advance();
+                Some(Token { ty: TokenType::BracketOpen, value: c.to_string(), line, column })
+            }
+            Some(&c) if c == ']' || c == ')' => {
+                self.advance();
+                Some(Token { ty: TokenType::BracketClose, value: c.to_string(), line, column })
+            }
+            Some(&'-') | Some(&'=') | Some(&'~') => {
+                let arrow = self.read_arrow();
+                let ty = if arrow.contains('>') || arrow == "---" || arrow == "~~~" {
+                    TokenType::Arrow
+                } else {
+                    TokenType::Unknown
+                };
+                Some(Token { ty, value: arrow, line, column })
+            }
+            Some(&c) if c.is_alphanumeric() || c == '_' => {
+                let word = self.read_word();
+                let ty = match word.as_str() {
+                    "graph" | "flowchart" | "subgraph" => TokenType::Keyword,
+                    "TD" | "TB" | "BT" | "LR" | "RL" => TokenType::Direction,
+                    _ => TokenType::NodeId,
+                };
+                Some(Token { ty, value: word, line, column })
+            }
+            Some(_) => {
+                self.advance();
+                Some(Token { ty: TokenType::Unknown, value: "".to_string(), line, column })
+            }
+        }
+    }
+}
+```
+
+**Step 4: Update lib.rs to export lexer**
+
+Modify: `crates/xmermaid-parser/src/lib.rs`
+
+Add at top after `pub mod ast;`:
+
+```rust
+pub mod lexer;
+```
+
+**Step 5: Run test to verify it passes**
+
+Run: `cargo test -p xmermaid-parser lexer_test`
+
+Expected: PASS - all 4 tests pass
+
+**Step 6: Commit Lexer**
+
+```bash
+git add crates/xmermaid-parser/src/lexer.rs crates/xmermaid-parser/src/lib.rs crates/xmermaid-parser/tests/
+git commit -m "feat(parser): implement lexer for mermaid DSL tokenization"
+```
+
+---
+
+## Task 4: Flowchart Parser Implementation
+
+**Files:**
+- Create: `crates/xmermaid-parser/src/parser.rs`
+- Create: `crates/xmermaid-parser/tests/parser_test.rs`
+- Modify: `crates/xmermaid-parser/src/lib.rs`
+- Modify: `crates/xmermaid-parser/src/error.rs`
+
+**Step 1: Write failing parser test**
+
+Create: `crates/xmermaid-parser/tests/parser_test.rs`
+
+```rust
+use xmermaid_parser::{parse, DiagramAst, FlowchartAst, FlowDirection, NodeShape, EdgeStyle};
+
+#[test]
+fn test_parse_simple_flowchart() {
+    let input = "graph TD\n  A-->B";
+    let result = parse(input);
+
+    assert!(result.is_ok());
+    let ast = result.unwrap();
+
+    match ast {
+        DiagramAst::Flowchart(fc) => {
+            assert_eq!(fc.direction, FlowDirection::TD);
+            assert_eq!(fc.nodes.len(), 2);
+            assert_eq!(fc.edges.len(), 1);
+
+            assert_eq!(fc.nodes[0].id, "A");
+            assert_eq!(fc.nodes[1].id, "B");
+
+            assert_eq!(fc.edges[0].from, "A");
+            assert_eq!(fc.edges[0].to, "B");
+            assert_eq!(fc.edges[0].style, EdgeStyle::Arrow);
+        }
+        _ => panic!("Expected Flowchart AST"),
+    }
+}
+
+#[test]
+fn test_parse_flowchart_with_labels() {
+    let input = "graph LR\n  A[Start]-->B[End]";
+    let result = parse(input);
+
+    assert!(result.is_ok());
+    let ast = result.unwrap();
+
+    match ast {
+        DiagramAst::Flowchart(fc) => {
+            assert_eq!(fc.direction, FlowDirection::LR);
+            assert_eq!(fc.nodes[0].label, Some("Start".to_string()));
+            assert_eq!(fc.nodes[1].label, Some("End".to_string()));
+        }
+        _ => panic!("Expected Flowchart AST"),
+    }
+}
+
+#[test]
+fn test_parse_flowchart_with_edge_label() {
+    let input = "graph TD\n  A-->|label|B";
+    let result = parse(input);
+
+    assert!(result.is_ok());
+    let ast = result.unwrap();
+
+    match ast {
+        DiagramAst::Flowchart(fc) => {
+            assert_eq!(fc.edges[0].label, Some("label".to_string()));
+        }
+        _ => panic!("Expected Flowchart AST"),
+    }
+}
+
+#[test]
+fn test_parse_flowchart_with_shapes() {
+    let input = "graph TD\n  A[rect] B(rounded) C((circle)) D{diamond}";
+    let result = parse(input);
+
+    assert!(result.is_ok());
+    let ast = result.unwrap();
+
+    match ast {
+        DiagramAst::Flowchart(fc) => {
+            assert_eq!(fc.nodes[0].shape, NodeShape::Rect);
+            assert_eq!(fc.nodes[1].shape, NodeShape::Rounded);
+            assert_eq!(fc.nodes[2].shape, NodeShape::Circle);
+            assert_eq!(fc.nodes[3].shape, NodeShape::Diamond);
+        }
+        _ => panic!("Expected Flowchart AST"),
+    }
+}
+```
+
+**Step 2: Run test to verify it fails**
+
+Run: `cargo test -p xmermaid-parser parser_test`
+
+Expected: FAIL - parser returns UnsupportedDiagramType
+
+**Step 3: Implement Parser**
+
+Create: `crates/xmermaid-parser/src/parser.rs`
+
+```rust
+use crate::ast::*;
+use crate::error::ParseError;
+use crate::lexer::{Lexer, Token, TokenType};
+
+/// Parse Mermaid DSL into AST
+pub struct Parser<'a> {
+    tokens: Vec<Token>,
+    pos: usize,
+    input: &'a str,
+}
+
+impl<'a> Parser<'a> {
+    pub fn new(input: &'a str) -> Self {
+        let lexer = Lexer::new(input);
+        let tokens: Vec<Token> = lexer.collect();
+        Self { tokens, pos: 0, input }
+    }
+
+    fn current(&self) -> &Token {
+        self.tokens.get(self.pos).unwrap_or(&Token {
+            ty: TokenType::Eof,
+            value: "",
+            line: 0,
+            column: 0,
+        })
+    }
+
+    fn advance(&mut self) -> &Token {
+        self.pos += 1;
+        self.current()
+    }
+
+    fn expect(&mut self, ty: TokenType) -> Result<&Token, ParseError> {
+        let token = self.current();
+        if token.ty != ty {
+            return Err(ParseError::UnexpectedToken(format!(
+                "Expected {:?}, got {:?} at line {}",
+                ty, token.ty, token.line
+            )));
+        }
+        Ok(token)
+    }
+
+    /// Parse the input into a Diagram AST
+    pub fn parse(&mut self) -> Result<DiagramAst, ParseError> {
+        // First token should be keyword: graph or flowchart
+        let keyword = self.expect(TokenType::Keyword)?;
+
+        match keyword.value.as_str() {
+            "graph" | "flowchart" => self.parse_flowchart(),
+            _ => Err(ParseError::UnsupportedDiagramType(keyword.value.clone())),
+        }
+    }
+
+    fn parse_flowchart(&mut self) -> Result<DiagramAst, ParseError> {
+        // Next should be direction
+        let dir_token = self.expect(TokenType::Direction)?;
+        let direction = match dir_token.value.as_str() {
+            "TD" | "TB" => FlowDirection::TD,
+            "BT" => FlowDirection::BT,
+            "LR" => FlowDirection::LR,
+            "RL" => FlowDirection::RL,
+            _ => FlowDirection::TD,
+        };
+
+        self.advance(); // Skip direction
+
+        let mut nodes: Vec<Node> = Vec::new();
+        let mut edges: Vec<Edge> = Vec::new();
+        let mut seen_nodes: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+        // Parse statements
+        while self.current().ty != TokenType::Eof {
+            self.skip_newlines();
+
+            if self.current().ty == TokenType::Eof {
+                break;
+            }
+
+            // Parse node or edge
+            self.parse_flowchart_statement(&mut nodes, &mut edges, &mut seen_nodes)?;
+
+            self.skip_newlines();
+        }
+
+        Ok(DiagramAst::Flowchart(FlowchartAst {
+            direction,
+            nodes,
+            edges,
+            subgraphs: Vec::new(),
+        }))
+    }
+
+    fn skip_newlines(&mut self) {
+        while self.current().ty == TokenType::Newline {
+            self.advance();
+        }
+    }
+
+    fn parse_flowchart_statement(
+        &mut self,
+        nodes: &mut Vec<Node>,
+        edges: &mut Vec<Edge>,
+        seen_nodes: &mut std::collections::HashSet<String>,
+    ) -> Result<(), ParseError> {
+        // Expect node id first
+        let id_token = self.expect(TokenType::NodeId)?;
+        let node_id = id_token.value.clone();
+
+        // Check for shape/label
+        let mut shape = NodeShape::Rect; // Default
+        let mut label: Option<String> = None;
+
+        if self.current().ty == TokenType::BracketOpen {
+            let bracket = self.current().value.clone();
+            self.advance();
+
+            // Read label content
+            let mut label_text = String::new();
+            while self.current().ty != TokenType::BracketClose && self.current().ty != TokenType::Eof {
+                if self.current().ty == TokenType::Label {
+                    label_text = self.current().value.clone();
+                } else if self.current().ty == TokenType::NodeId {
+                    label_text = self.current().value.clone();
+                }
+                self.advance();
+            }
+
+            if !label_text.is_empty() {
+                label = Some(label_text);
+            }
+
+            // Determine shape from bracket type
+            shape = if bracket == "[" {
+                NodeShape::Rect
+            } else if bracket == "(" {
+                NodeShape::Rounded
+            } else {
+                NodeShape::Rect
+            };
+
+            self.advance(); // Skip closing bracket
+        }
+
+        // Check for double circle: ((...))
+        // Check for diamond: {...}
+        // For MVP, we handle basic shapes
+
+        // Add node if not seen
+        if !seen_nodes.contains(&node_id) {
+            nodes.push(Node {
+                id: node_id.clone(),
+                label,
+                shape,
+                classes: Vec::new(),
+                styles: Vec::new(),
+            });
+            seen_nodes.insert(node_id.clone());
+        }
+
+        // Check for edge
+        if self.current().ty == TokenType::Arrow {
+            let arrow = self.current().value.clone();
+            self.advance();
+
+            // Determine edge style
+            let style = match arrow.as_str() {
+                "-->" => EdgeStyle::Arrow,
+                "---" => EdgeStyle::Line,
+                "-.-" => EdgeStyle::Dotted,
+                "==>" => EdgeStyle::Thick,
+                "~~~" => EdgeStyle::Invisible,
+                _ => EdgeStyle::Arrow,
+            };
+
+            // Check for edge label: |text|
+            let mut edge_label: Option<String> = None;
+
+            // Parse target node
+            let target_token = self.expect(TokenType::NodeId)?;
+            let target_id = target_token.value.clone();
+
+            // Add target node if not seen
+            if !seen_nodes.contains(&target_id) {
+                nodes.push(Node {
+                    id: target_id.clone(),
+                    label: None,
+                    shape: NodeShape::Rect,
+                    classes: Vec::new(),
+                    styles: Vec::new(),
+                });
+                seen_nodes.insert(target_id.clone());
+            }
+
+            edges.push(Edge {
+                from: node_id,
+                to: target_id,
+                style,
+                label: edge_label,
+                min_length: 1,
+            });
+
+            self.advance();
+        }
+
+        Ok(())
+    }
+}
+
+/// Convenience function to parse input
+pub fn parse_input(input: &str) -> Result<DiagramAst, ParseError> {
+    let mut parser = Parser::new(input);
+    parser.parse()
+}
+```
+
+**Step 4: Update lib.rs**
+
+Modify: `crates/xmermaid-parser/src/lib.rs`
+
+```rust
+//! xmermaid-parser: Mermaid DSL parser
+//!
+//! Converts Mermaid DSL text to structured AST.
+
+pub mod ast;
+pub mod error;
+pub mod lexer;
+pub mod parser;
+
+use parser::parse_input;
+
+/// Parse Mermaid DSL text into AST
+pub fn parse(input: &str) -> Result<ast::DiagramAst, error::ParseError> {
+    parse_input(input)
+}
+
+// Re-export main types for convenience
+pub use ast::{DiagramAst, FlowchartAst, Node, Edge, FlowDirection, NodeShape, EdgeStyle};
+pub use error::ParseError;
+pub use lexer::{Lexer, Token, TokenType};
+```
+
+**Step 5: Run test to verify it passes**
+
+Run: `cargo test -p xmermaid-parser parser_test`
+
+Expected: PASS - all 4 tests pass
+
+**Step 6: Commit Parser**
+
+```bash
+git add crates/xmermaid-parser/src/parser.rs crates/xmermaid-parser/src/lib.rs crates/xmermaid-parser/tests/parser_test.rs
+git commit -m "feat(parser): implement flowchart parser with basic shapes and edges"
+```
+
+---
+
+## Task 5: WASM Bindings Update
+
+**Files:**
+- Modify: `crates/xmermaid-wasm/src/lib.rs`
+- Create: `crates/xmermaid-wasm/tests/bindings_test.rs`
+
+**Step 1: Write failing WASM test**
+
+Create: `crates/xmermaid-wasm/tests/bindings_test.rs`
+
+```rust
+use wasm_bindgen_test::*;
+use xmermaid_wasm::*;
+
+wasm_bindgen_test_configure!(run_in_browser);
+
+#[wasm_bindgen_test]
+fn test_parse_dsl_returns_json() {
+    let input = "graph TD\n  A-->B";
+    let result = parse_dsl(input);
+
+    assert!(result.is_ok());
+    let json = result.unwrap();
+
+    // Should contain type and nodes
+    assert!(json.contains("\"type\":\"flowchart\""));
+    assert!(json.contains("\"nodes\""));
+    assert!(json.contains("\"edges\""));
+}
+
+#[wasm_bindgen_test]
+fn test_parse_dsl_error_handling() {
+    let input = "invalid syntax";
+    let result = parse_dsl(input);
+
+    assert!(result.is_err());
+}
+```
+
+**Step 2: Update WASM bindings**
+
+Modify: `crates/xmermaid-wasm/src/lib.rs`
+
+```rust
+//! xmermaid-wasm: WASM bindings for xmermaid
+
+use wasm_bindgen::prelude::*;
+use xmermaid_parser::{parse, DiagramAst};
+use xmermaid_layout::{layout, LayoutResult};
+
+/// Initialize WASM module (called automatically)
+#[wasm_bindgen(start)]
+pub fn init() {
+    // Set up panic hook for better error messages
+    #[cfg(feature = "console_error_panic_hook")]
+    console_error_panic_hook::set_once();
+}
+
+/// Parse DSL and return JSON AST
+#[wasm_bindgen]
+pub fn parse_dsl(input: &str) -> Result<String, JsValue> {
+    let ast = parse(input)
+        .map_err(|e| JsValue::from_str(&format!("Parse error: {}", e)))?;
+
+    serde_json::to_string(&ast)
+        .map_err(|e| JsValue::from_str(&format!("Serialization error: {}", e)))
+}
+
+/// Get diagram type from parsed AST
+#[wasm_bindgen]
+pub fn get_diagram_type(ast_json: &str) -> Result<String, JsValue> {
+    let ast: DiagramAst = serde_json::from_str(ast_json)
+        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+
+    let type_str = match ast {
+        DiagramAst::Flowchart(_) => "flowchart",
+        DiagramAst::Sequence(_) => "sequence",
+    };
+
+    Ok(type_str.to_string())
+}
+
+/// Placeholder: compute layout (will implement in Task 6)
+#[wasm_bindgen]
+pub fn compute_layout(_ast_json: &str) -> Result<String, JsValue> {
+    // Return placeholder layout for now
+    let result = LayoutResult::default();
+    serde_json::to_string(&result)
+        .map_err(|e| JsValue::from_str(&e.to_string()))
+}
+```
+
+**Step 3: Update layout crate for WASM**
+
+Modify: `crates/xmermaid-layout/src/lib.rs`
+
+```rust
+//! xmermaid-layout: Diagram layout engine
+//!
+//! Computes positions for diagram elements.
+
+pub mod coordinate;
+pub mod error;
+
+use coordinate::{Point, Dimensions};
+use serde::{Deserialize, Serialize};
+
+/// Layout result containing positions
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct LayoutResult {
+    /// Node positions (id -> Point)
+    pub positions: Vec<(String, Point)>,
+    /// Diagram dimensions
+    pub dimensions: Dimensions,
+}
+
+/// Compute layout for a diagram (placeholder)
+pub fn layout() -> LayoutResult {
+    LayoutResult::default()
+}
+```
+
+**Step 4: Run WASM build test**
+
+Run: `cargo build -p xmermaid-wasm --target wasm32-unknown-unknown`
+
+Expected: Build succeeds
+
+**Step 5: Commit WASM bindings**
+
+```bash
+git add crates/xmermaid-wasm/src/lib.rs crates/xmermaid-wasm/tests/ crates/xmermaid-layout/src/lib.rs
+git commit -m "feat(wasm): update bindings with parse_dsl and placeholder layout"
+```
+
+---
+
+## Task 6: Layout Engine Implementation
+
+**Files:**
+- Create: `crates/xmermaid-layout/src/engine.rs`
+- Create: `crates/xmermaid-layout/src/graph.rs`
+- Create: `crates/xmermaid-layout/tests/layout_test.rs`
+- Modify: `crates/xmermaid-layout/src/lib.rs`
+
+**Step 1: Write failing layout test**
+
+Create: `crates/xmermaid-layout/tests/layout_test.rs`
+
+```rust
+use xmermaid_layout::{compute_flowchart_layout, LayoutResult};
+use xmermaid_parser::{parse, DiagramAst};
+
+#[test]
+fn test_layout_two_nodes() {
+    let input = "graph TD\n  A-->B";
+    let ast = parse(input).unwrap();
+
+    let result = compute_flowchart_layout(&ast);
+    assert!(result.is_ok());
+
+    let layout = result.unwrap();
+
+    // Should have positions for A and B
+    assert_eq!(layout.positions.len(), 2);
+
+    // B should be below A in TD direction
+    let a_pos = layout.positions.iter().find(|(id, _)| id == "A").unwrap().1;
+    let b_pos = layout.positions.iter().find(|(id, _)| id == "B").unwrap().1;
+
+    assert!(a_pos.y < b_pos.y); // A is above B
+}
+
+#[test]
+fn test_layout_dimensions() {
+    let input = "graph LR\n  A-->B-->C";
+    let ast = parse(input).unwrap();
+
+    let result = compute_flowchart_layout(&ast);
+    assert!(result.is_ok());
+
+    let layout = result.unwrap();
+
+    // Should have reasonable dimensions
+    assert!(layout.dimensions.width > 0.0);
+    assert!(layout.dimensions.height > 0.0);
+}
+```
+
+**Step 2: Implement basic layout engine**
+
+Create: `crates/xmermaid-layout/src/engine.rs`
+
+```rust
+use crate::coordinate::{Point, Dimensions};
+use crate::error::LayoutError;
+use crate::LayoutResult;
+use xmermaid_parser::{DiagramAst, FlowchartAst, FlowDirection};
+
+/// Node dimensions for layout calculation
+const NODE_WIDTH: f64 = 100.0;
+const NODE_HEIGHT: f64 = 50.0;
+const NODE_SPACING_X: f64 = 50.0;
+const NODE_SPACING_Y: f64 = 50.0;
+
+/// Compute layout for flowchart diagrams
+pub fn compute_flowchart_layout(ast: &DiagramAst) -> Result<LayoutResult, LayoutError> {
+    match ast {
+        DiagramAst::Flowchart(fc) => layout_flowchart(fc),
+        _ => Err(LayoutError::UnsupportedDiagramType("not a flowchart".to_string())),
+    }
+}
+
+fn layout_flowchart(fc: &FlowchartAst) -> Result<LayoutResult, LayoutError> {
+    // Simple layered layout
+    // For MVP: place nodes in rows based on edge relationships
+
+    let mut positions: Vec<(String, Point)> = Vec::new();
+
+    // Determine layout direction
+    let (dx, dy) = match fc.direction {
+        FlowDirection::TD | FlowDirection::TB => (0.0, NODE_HEIGHT + NODE_SPACING_Y),
+        FlowDirection::BT => (0.0, -(NODE_HEIGHT + NODE_SPACING_Y)),
+        FlowDirection::LR => (NODE_WIDTH + NODE_SPACING_X, 0.0),
+        FlowDirection::RL => (-(NODE_WIDTH + NODE_SPACING_X), 0.0),
+    };
+
+    // For MVP: simple linear layout based on node order
+    // A proper implementation would use topological sort + layering
+
+    let mut current_x = NODE_SPACING_X;
+    let mut current_y = NODE_SPACING_Y;
+
+    for node in &fc.nodes {
+        positions.push((node.id.clone(), Point::new(current_x, current_y)));
+
+        current_x += dx;
+        current_y += dy;
+    }
+
+    // Calculate dimensions
+    let max_x = positions.iter().map(|(_, p)| p.x).max().unwrap_or(0.0) + NODE_WIDTH;
+    let max_y = positions.iter().map(|(_, p)| p.y).max().unwrap_or(0.0) + NODE_HEIGHT;
+
+    Ok(LayoutResult {
+        positions,
+        dimensions: Dimensions::new(max_x + NODE_SPACING_X, max_y + NODE_SPACING_Y),
+    })
+}
+```
+
+**Step 3: Create error module**
+
+Create: `crates/xmermaid-layout/src/error.rs`
+
+```rust
+use thiserror::Error;
+
+#[derive(Error, Debug, serde::Serialize)]
+pub enum LayoutError {
+    #[error("Unsupported diagram type: {0}")]
+    UnsupportedDiagramType(String),
+
+    #[error("Layout computation failed: {0}")]
+    ComputationFailed(String),
+}
+```
+
+**Step 4: Update lib.rs**
+
+Modify: `crates/xmermaid-layout/src/lib.rs`
+
+```rust
+//! xmermaid-layout: Diagram layout engine
+//!
+//! Computes positions for diagram elements.
+
+pub mod coordinate;
+pub mod error;
+pub mod engine;
+
+use coordinate::{Point, Dimensions};
+use serde::{Deserialize, Serialize};
+
+pub use engine::compute_flowchart_layout;
+pub use error::LayoutError;
+
+/// Layout result containing positions
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct LayoutResult {
+    /// Node positions (id -> Point)
+    pub positions: Vec<(String, Point)>,
+    /// Diagram dimensions
+    pub dimensions: Dimensions,
+}
+```
+
+**Step 5: Run layout tests**
+
+Run: `cargo test -p xmermaid-layout`
+
+Expected: PASS - layout tests pass
+
+**Step 6: Commit layout engine**
+
+```bash
+git add crates/xmermaid-layout/src/engine.rs crates/xmermaid-layout/src/error.rs crates/xmermaid-layout/src/lib.rs crates/xmermaid-layout/tests/
+git commit -m "feat(layout): implement basic layered layout for flowcharts"
+```
+
+---
+
+## Task 7: JS SDK Setup
+
+**Files:**
+- Create: `package.json`
+- Create: `tsconfig.json`
+- Create: `vitest.config.ts`
+- Create: `vite.config.ts`
+- Create: `rollup.config.ts`
+
+**Step 1: Create package.json**
+
+Create: `package.json`
+
+```json
+{
+  "name": "xmermaid",
+  "version": "0.1.0",
+  "description": "High-performance Mermaid diagram renderer powered by Rust WASM",
+  "type": "module",
+  "main": "dist/xmermaid.js",
+  "module": "dist/xmermaid.esm.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/xmermaid.esm.js",
+      "require": "./dist/xmermaid.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": ["dist", "pkg"],
+  "scripts": {
+    "build:wasm": "wasm-pack build crates/xmermaid-wasm --out-dir pkg --target web",
+    "build:js": "rollup -c",
+    "build": "npm run build:wasm && npm run build:js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@rollup/plugin-typescript": "^11.1.6",
+    "rollup": "^4.18.0",
+    "typescript": "^5.4.5",
+    "vitest": "^1.6.0"
+  },
+  "keywords": ["mermaid", "diagram", "wasm", "rust", "svg", "flowchart"],
+  "license": "MIT"
+}
+```
+
+**Step 2: Create tsconfig.json**
+
+Create: `tsconfig.json`
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "declaration": true,
+    "declarationDir": "./dist",
+    "outDir": "./dist",
+    "rootDir": "./src"
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "tests"]
+}
+```
+
+**Step 3: Create vitest.config.ts**
+
+Create: `vitest.config.ts`
+
+```typescript
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    include: ['tests/**/*.test.ts'],
+  },
+});
+```
+
+**Step 4: Create vite.config.ts**
+
+Create: `vite.config.ts`
+
+```typescript
+import { defineConfig } from 'vite';
+
+export default defineConfig({
+  build: {
+    outDir: 'dist',
+    lib: {
+      entry: 'src/index.ts',
+      formats: ['es', 'cjs'],
+      name: 'xmermaid',
+    },
+  },
+});
+```
+
+**Step 5: Create rollup.config.ts**
+
+Create: `rollup.config.ts`
+
+```typescript
+import typescript from '@rollup/plugin-typescript';
+
+export default [
+  // ESM build
+  {
+    input: 'src/index.ts',
+    output: {
+      file: 'dist/xmermaid.esm.js',
+      format: 'es',
+      sourcemap: true,
+    },
+    plugins: [typescript()],
+  },
+  // CommonJS build
+  {
+    input: 'src/index.ts',
+    output: {
+      file: 'dist/xmermaid.js',
+      format: 'cjs',
+      sourcemap: true,
+    },
+    plugins: [typescript()],
+  },
+];
+```
+
+**Step 6: Install dependencies**
+
+Run: `npm install`
+
+Expected: Dependencies installed successfully
+
+**Step 7: Commit JS SDK setup**
+
+```bash
+git add package.json tsconfig.json vitest.config.ts vite.config.ts rollup.config.ts package-lock.json
+git commit -m "feat(js): initialize JS SDK with TypeScript and build config"
+```
+
+---
+
+## Task 8: TypeScript Type Definitions
+
+**Files:**
+- Create: `src/types/ast.ts`
+- Create: `src/types/layout.ts`
+- Create: `src/types/options.ts`
+- Create: `src/types/error.ts`
+- Create: `src/types/index.ts`
+
+**Step 1: Create AST types**
+
+Create: `src/types/ast.ts`
+
+```typescript
+// TypeScript mirrors of Rust AST types
+
+export type FlowDirection = 'TD' | 'TB' | 'BT' | 'LR' | 'RL';
+
+export type NodeShape =
+  | 'rect'
+  | 'rounded'
+  | 'circle'
+  | 'diamond'
+  | 'stadium'
+  | 'subroutine'
+  | 'hexagon'
+  | 'parallelogram'
+  | 'trapezoid'
+  | 'doubleCircle';
+
+export type EdgeStyle = 'arrow' | 'line' | 'dotted' | 'thick' | 'invisible';
+
+export interface Node {
+  id: string;
+  label?: string;
+  shape: NodeShape;
+  classes: string[];
+  styles: StyleDef[];
+}
+
+export interface Edge {
+  from: string;
+  to: string;
+  style: EdgeStyle;
+  label?: string;
+  min_length: number;
+}
+
+export interface StyleDef {
+  key: string;
+  value: string;
+}
+
+export interface Subgraph {
+  title: string;
+  nodes: string[];
+  subgraphs: Subgraph[];
+}
+
+export interface FlowchartAst {
+  direction: FlowDirection;
+  nodes: Node[];
+  edges: Edge[];
+  subgraphs: Subgraph[];
+}
+
+export interface SequenceAst {
+  participants: string[];
+}
+
+export type DiagramAst =
+  | { type: 'flowchart'; direction: FlowDirection; nodes: Node[]; edges: Edge[]; subgraphs: Subgraph[] }
+  | { type: 'sequence'; participants: string[] };
+```
+
+**Step 2: Create layout types**
+
+Create: `src/types/layout.ts`
+
+```typescript
+export interface Point {
+  x: number;
+  y: number;
+}
+
+export interface Dimensions {
+  width: number;
+  height: number;
+}
+
+export interface LayoutResult {
+  positions: [string, Point][];
+  dimensions: Dimensions;
+}
+```
+
+**Step 3: Create options types**
+
+Create: `src/types/options.ts`
+
+```typescript
+export type RendererType = 'svg' | 'canvas' | 'auto';
+
+export type ThemeName = 'default' | 'dark' | 'forest' | 'neutral' | 'custom';
+
+export interface ThemeConfig {
+  primaryColor?: string;
+  primaryTextColor?: string;
+  primaryBorderColor?: string;
+  lineColor?: string;
+  secondaryColor?: string;
+  tertiaryColor?: string;
+  background?: string;
+  fontFamily?: string;
+  fontSize?: number;
+}
+
+export interface PerformanceOptions {
+  streaming?: boolean;
+  incremental?: boolean;
+  cacheSize?: number;
+}
+
+export interface XMermaidOptions {
+  renderer?: RendererType;
+  theme?: ThemeName;
+  themeConfig?: ThemeConfig;
+  securityLevel?: 'loose' | 'strict';
+  performance?: PerformanceOptions;
+}
+```
+
+**Step 4: Create error types**
+
+Create: `src/types/error.ts`
+
+```typescript
+export type ErrorType = 'syntax' | 'validation' | 'layout' | 'render' | 'plugin';
+
+export interface ErrorLocation {
+  line: number;
+  column: number;
+  snippet: string;
+}
+
+export interface XMermaidError {
+  code: string;
+  type: ErrorType;
+  message: string;
+  location?: ErrorLocation;
+  suggestion?: string;
+}
+```
+
+**Step 5: Create index.ts for types**
+
+Create: `src/types/index.ts`
+
+```typescript
+export * from './ast';
+export * from './layout';
+export * from './options';
+export * from './error';
+```
+
+**Step 6: Verify type check**
+
+Run: `npm run typecheck`
+
+Expected: No errors
+
+**Step 7: Commit type definitions**
+
+```bash
+git add src/types/
+git commit -m "feat(js): add TypeScript type definitions mirroring Rust AST"
+```
+
+---
+
+## Task 9: WASM Loader and Integration
+
+**Files:**
+- Create: `src/wasm.ts`
+- Create: `src/wasm-types.d.ts`
+
+**Step 1: Create WASM loader**
+
+Create: `src/wasm.ts`
+
+```typescript
+// WASM module loader and initialization
+
+let wasmModule: typeof import('../pkg/xmermaid_wasm') | null = null;
+let wasmInitialized = false;
+
+/**
+ * Initialize the WASM module
+ * Must be called before using any xmermaid functions
+ */
+export async function initWasm(): Promise<void> {
+  if (wasmInitialized) return;
+
+  // Dynamic import of WASM module
+  wasmModule = await import('../pkg/xmermaid_wasm.js');
+
+  // Initialize WASM (calls wasm-bindgen start function)
+  if (wasmModule?.default) {
+    await wasmModule.default();
+  }
+
+  wasmInitialized = true;
+}
+
+/**
+ * Check if WASM is initialized
+ */
+export function isWasmReady(): boolean {
+  return wasmInitialized && wasmModule !== null;
+}
+
+/**
+ * Get WASM module exports
+ */
+export function getWasm(): typeof import('../pkg/xmermaid_wasm') {
+  if (!wasmModule) {
+    throw new Error('WASM not initialized. Call initWasm() first.');
+  }
+  return wasmModule;
+}
+```
+
+**Step 2: Create WASM type declarations**
+
+Create: `src/wasm-types.d.ts`
+
+```typescript
+// Type declarations for WASM module generated by wasm-bindgen
+
+declare module '../pkg/xmermaid_wasm.js' {
+  export function parse_dsl(input: string): string;
+  export function get_diagram_type(astJson: string): string;
+  export function compute_layout(astJson: string): string;
+
+  // WASM initialization
+  export default function init(): Promise<void>;
+}
+```
+
+**Step 3: Commit WASM loader**
+
+```bash
+git add src/wasm.ts src/wasm-types.d.ts
+git commit -m "feat(js): add WASM loader with async initialization"
+```
+
+---
+
+## Task 10: SVG Renderer Implementation
+
+**Files:**
+- Create: `src/renderer/svg.ts`
+- Create: `src/renderer/types.ts`
+- Create: `src/renderer/index.ts`
+- Create: `tests/renderer.test.ts`
+
+**Step 1: Write failing renderer test**
+
+Create: `tests/renderer.test.ts`
+
+```typescript
+import { describe, it, expect } from 'vitest';
+import { SVGRenderer } from '../src/renderer/svg';
+import type { FlowchartAst, LayoutResult } from '../src/types';
+
+describe('SVGRenderer', () => {
+  it('creates SVG element from layout', () => {
+    const renderer = new SVGRenderer();
+
+    const ast: FlowchartAst = {
+      direction: 'TD',
+      nodes: [
+        { id: 'A', label: 'Start', shape: 'rect', classes: [], styles: [] },
+        { id: 'B', label: 'End', shape: 'rect', classes: [], styles: [] },
+      ],
+      edges: [
+        { from: 'A', to: 'B', style: 'arrow', min_length: 1 },
+      ],
+      subgraphs: [],
+    };
+
+    const layout: LayoutResult = {
+      positions: [
+        ['A', { x: 50, y: 50 }],
+        ['B', { x: 50, y: 150 }],
+      ],
+      dimensions: { width: 200, height: 250 },
+    };
+
+    const svg = renderer.render(ast, layout);
+
+    expect(svg.tagName).toBe('svg');
+    expect(svg.getAttribute('width')).toBeTruthy();
+    expect(svg.getAttribute('height')).toBeTruthy();
+
+    // Should contain nodes
+    const nodes = svg.querySelectorAll('.node');
+    expect(nodes.length).toBe(2);
+
+    // Should contain edges
+    const edges = svg.querySelectorAll('.edge');
+    expect(edges.length).toBe(1);
+  });
+});
+```
+
+**Step 2: Implement SVG renderer**
+
+Create: `src/renderer/types.ts`
+
+```typescript
+import type { FlowchartAst, LayoutResult } from '../types';
+
+export interface RenderContext {
+  ast: FlowchartAst;
+  layout: LayoutResult;
+  container?: Element;
+}
+
+export interface RenderOutput {
+  element: SVGElement;
+  dimensions: { width: number; height: number };
+}
+```
+
+Create: `src/renderer/svg.ts`
+
+```typescript
+import type { FlowchartAst, Node, Edge, LayoutResult, Point } from '../types';
+import type { RenderOutput } from './types';
+
+const NODE_WIDTH = 100;
+const NODE_HEIGHT = 50;
+const EDGE_WIDTH = 2;
+
+/**
+ * SVG renderer for flowchart diagrams
+ */
+export class SVGRenderer {
+  /**
+   * Render a flowchart to SVG
+   */
+  render(ast: FlowchartAst, layout: LayoutResult): SVGElement {
+    const svg = this.createSvgElement(layout.dimensions);
+
+    // Render edges first (so nodes appear on top)
+    for (const edge of ast.edges) {
+      const edgeElement = this.renderEdge(edge, layout.positions);
+      svg.appendChild(edgeElement);
+    }
+
+    // Render nodes
+    for (const node of ast.nodes) {
+      const pos = this.findPosition(node.id, layout.positions);
+      const nodeElement = this.renderNode(node, pos);
+      svg.appendChild(nodeElement);
+    }
+
+    return svg;
+  }
+
+  private createSvgElement(dimensions: { width: number; height: number }): SVGElement {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('width', String(dimensions.width));
+    svg.setAttribute('height', String(dimensions.height));
+    svg.setAttribute('viewBox', `0 0 ${dimensions.width} ${dimensions.height}`);
+    svg.classList.add('xmermaid-diagram');
+    return svg;
+  }
+
+  private findPosition(id: string, positions: [string, Point][]): Point {
+    const entry = positions.find(([nodeId]) => nodeId === id);
+    return entry?.[1] ?? { x: 0, y: 0 };
+  }
+
+  private renderNode(node: Node, pos: Point): SVGGElement {
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.classList.add('node');
+    g.setAttribute('id', `node-${node.id}`);
+    g.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
+
+    // Create shape based on node.shape
+    const shape = this.createNodeShape(node);
+    g.appendChild(shape);
+
+    // Create label text
+    const label = this.createNodeLabel(node);
+    g.appendChild(label);
+
+    return g;
+  }
+
+  private createNodeShape(node: Node): SVGElement {
+    const shape = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    shape.classList.add('node-shape');
+
+    // Center the shape
+    shape.setAttribute('x', String(-NODE_WIDTH / 2));
+    shape.setAttribute('y', String(-NODE_HEIGHT / 2));
+    shape.setAttribute('width', String(NODE_WIDTH));
+    shape.setAttribute('height', String(NODE_HEIGHT));
+    shape.setAttribute('rx', '5'); // Rounded corners for MVP
+
+    return shape;
+  }
+
+  private createNodeLabel(node: Node): SVGTextElement {
+    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    text.classList.add('node-label');
+    text.setAttribute('text-anchor', 'middle');
+    text.setAttribute('dominant-baseline', 'middle');
+    text.textContent = node.label ?? node.id;
+    return text;
+  }
+
+  private renderEdge(edge: Edge, positions: [string, Point][]): SVGGElement {
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.classList.add('edge');
+    g.setAttribute('id', `edge-${edge.from}-${edge.to}`);
+
+    const fromPos = this.findPosition(edge.from, positions);
+    const toPos = this.findPosition(edge.to, positions);
+
+    // Calculate start/end points accounting for node size
+    const start = this.getEdgeStart(fromPos, toPos);
+    const end = this.getEdgeEnd(toPos, fromPos);
+
+    // Create path
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.classList.add('edge-path');
+    path.setAttribute('d', `M ${start.x} ${start.y} L ${end.x} ${end.y}`);
+    path.setAttribute('stroke', '#333');
+    path.setAttribute('stroke-width', String(EDGE_WIDTH));
+    path.setAttribute('fill', 'none');
+
+    // Add arrow marker
+    path.setAttribute('marker-end', 'url(#arrowhead)');
+
+    g.appendChild(path);
+
+    // Add edge label if present
+    if (edge.label) {
+      const labelEl = this.createEdgeLabel(edge.label, start, end);
+      g.appendChild(labelEl);
+    }
+
+    return g;
+  }
+
+  private getEdgeStart(from: Point, to: Point): Point {
+    // For MVP: simple offset from node center
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    const offset = NODE_HEIGHT / 2 + 5;
+
+    return {
+      x: from.x + (dx / dist) * offset,
+      y: from.y + (dy / dist) * offset,
+    };
+  }
+
+  private getEdgeEnd(to: Point, from: Point): Point {
+    const dx = from.x - to.x;
+    const dy = from.y - to.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    const offset = NODE_HEIGHT / 2 + 5;
+
+    return {
+      x: to.x + (dx / dist) * offset,
+      y: to.y + (dy / dist) * offset,
+    };
+  }
+
+  private createEdgeLabel(label: string, start: Point, end: Point): SVGTextElement {
+    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    text.classList.add('edge-label');
+    text.setAttribute('text-anchor', 'middle');
+    text.setAttribute('dominant-baseline', 'middle');
+
+    // Place label at midpoint
+    const midX = (start.x + end.x) / 2;
+    const midY = (start.y + end.y) / 2;
+    text.setAttribute('x', String(midX));
+    text.setAttribute('y', String(midY - 10)); // Offset above line
+
+    text.textContent = label;
+    return text;
+  }
+}
+```
+
+Create: `src/renderer/index.ts`
+
+```typescript
+export { SVGRenderer } from './svg';
+export type { RenderContext, RenderOutput } from './types';
+```
+
+**Step 3: Run renderer test**
+
+Run: `npm run test`
+
+Expected: PASS - SVG renderer test passes
+
+**Step 4: Commit SVG renderer**
+
+```bash
+git add src/renderer/ tests/renderer.test.ts
+git commit -m "feat(js): implement SVG renderer for flowchart diagrams"
+```
+
+---
+
+## Task 11: XMermaid Main Class
+
+**Files:**
+- Create: `src/xmermaid.ts`
+- Create: `src/index.ts`
+- Create: `tests/integration.test.ts`
+
+**Step 1: Write failing integration test**
+
+Create: `tests/integration.test.ts`
+
+```typescript
+import { describe, it, expect, beforeAll } from 'vitest';
+import { XMermaid, initWasm } from '../src/index';
+
+describe('XMermaid Integration', () => {
+  beforeAll(async () => {
+    await initWasm();
+  });
+
+  it('renders simple flowchart', async () => {
+    const xm = new XMermaid({ renderer: 'svg' });
+
+    const input = 'graph TD\n  A-->B';
+    const result = await xm.renderToSVG(input);
+
+    expect(result).toContain('<svg');
+    expect(result).toContain('class="xmermaid-diagram"');
+    expect(result).toContain('node-A');
+    expect(result).toContain('node-B');
+  });
+
+  it('returns parse result', async () => {
+    const xm = new XMermaid();
+
+    const result = await xm.parse('graph LR\n  Start-->End');
+
+    expect(result.success).toBe(true);
+    expect(result.ast.type).toBe('flowchart');
+    expect(result.ast.nodes.length).toBe(2);
+  });
+});
+```
+
+**Step 2: Implement XMermaid class**
+
+Create: `src/xmermaid.ts`
+
+```typescript
+import { initWasm, isWasmReady, getWasm } from './wasm';
+import { SVGRenderer } from './renderer';
+import type { XMermaidOptions, DiagramAst, LayoutResult, RenderResult, ParseResult } from './types';
+
+/**
+ * Main xmermaid class for rendering diagrams
+ */
+export class XMermaid {
+  private options: XMermaidOptions;
+  private svgRenderer: SVGRenderer;
+
+  constructor(options: XMermaidOptions = {}) {
+    this.options = {
+      renderer: options.renderer ?? 'svg',
+      theme: options.theme ?? 'default',
+      ...options,
+    };
+
+    this.svgRenderer = new SVGRenderer();
+  }
+
+  /**
+   * Parse DSL to AST
+   */
+  async parse(dsl: string): Promise<ParseResult> {
+    await this.ensureWasmReady();
+
+    const wasm = getWasm();
+
+    try {
+      const json = wasm.parse_dsl(dsl);
+      const ast: DiagramAst = JSON.parse(json);
+
+      return {
+        success: true,
+        ast,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        ast: {} as DiagramAst,
+        errors: [this.parseError(error)],
+      };
+    }
+  }
+
+  /**
+   * Render to SVG string
+   */
+  async renderToSVG(dsl: string): Promise<string> {
+    const parseResult = await this.parse(dsl);
+    if (!parseResult.success) {
+      throw new Error('Parse failed');
+    }
+
+    const layoutResult = await this.computeLayout(parseResult.ast);
+
+    // Only flowchart supported in MVP
+    if (parseResult.ast.type !== 'flowchart') {
+      throw new Error('Only flowchart supported in MVP');
+    }
+
+    const svg = this.svgRenderer.render(parseResult.ast as any, layoutResult);
+
+    return svg.outerHTML;
+  }
+
+  /**
+   * Render to DOM element
+   */
+  async render(dsl: string, container: HTMLElement): Promise<RenderResult> {
+    const svgString = await this.renderToSVG(dsl);
+
+    // Parse SVG string to DOM
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(svgString, 'image/svg+xml');
+    const svg = doc.querySelector('svg')!;
+
+    container.appendChild(svg);
+
+    return {
+      success: true,
+      output: svg,
+      performance: { parse: 0, layout: 0, render: 0, total: 0 },
+    };
+  }
+
+  /**
+   * Compute layout
+   */
+  private async computeLayout(ast: DiagramAst): Promise<LayoutResult> {
+    await this.ensureWasmReady();
+
+    const wasm = getWasm();
+    const json = wasm.compute_layout(JSON.stringify(ast));
+
+    return JSON.parse(json);
+  }
+
+  private async ensureWasmReady(): Promise<void> {
+    if (!isWasmReady()) {
+      await initWasm();
+    }
+  }
+
+  private parseError(error: unknown): any {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      code: 'PARSE_ERROR',
+      type: 'syntax',
+      message,
+    };
+  }
+}
+```
+
+**Step 3: Create main entry**
+
+Create: `src/index.ts`
+
+```typescript
+// Main entry point for xmermaid JS SDK
+
+export { XMermaid } from './xmermaid';
+export { initWasm, isWasmReady } from './wasm';
+export { SVGRenderer } from './renderer';
+export * from './types';
+```
+
+**Step 4: Run integration test**
+
+Run: `npm run test`
+
+Expected: PASS (tests may need WASM build first)
+
+**Step 5: Build WASM and run full test**
+
+Run: `npm run build:wasm && npm run test`
+
+Expected: All tests pass
+
+**Step 6: Commit main class**
+
+```bash
+git add src/xmermaid.ts src/index.ts tests/integration.test.ts
+git commit -m "feat(js): implement XMermaid main class with SVG rendering"
+```
+
+---
+
+## Task 12: Build and Package
+
+**Files:**
+- Modify: `package.json` (add prepublish scripts)
+
+**Step 1: Update package.json scripts**
+
+Modify `package.json`:
+
+```json
+{
+  "scripts": {
+    "build:wasm": "wasm-pack build crates/xmermaid-wasm --out-dir pkg --target web",
+    "build:js": "rollup -c",
+    "build": "npm run build:wasm && npm run build:js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build && npm run test"
+  }
+}
+```
+
+**Step 2: Run full build**
+
+Run: `npm run build`
+
+Expected: WASM + JS built successfully
+
+**Step 3: Verify output**
+
+Run: `ls -la dist/ pkg/`
+
+Expected: Build artifacts present
+
+**Step 4: Final commit**
+
+```bash
+git add package.json
+git commit -m "feat: complete Phase 1 MVP build setup"
+```
+
+---
+
+## Summary
+
+Phase 1 MVP 完成，包含：
+
+| 模块 | 状态 |
+|------|------|
+| Rust Workspace | ✅ 3 个 crate 初始化 |
+| AST 定义 | ✅ Flowchart AST 结构 |
+| Lexer | ✅ DSL 词法分析器 |
+| Parser | ✅ Flowchart 语法解析器 |
+| WASM Bindings | ✅ parse_dsl / compute_layout |
+| Layout Engine | ✅ 基础分层布局 |
+| JS SDK | ✅ TypeScript + 构建配置 |
+| SVG Renderer | ✅ 流程图 SVG 渲染 |
+| XMermaid Class | ✅ 主 API 类 |
+
+**下一步**: 运行完整测试验证，准备发布 v0.1.0。
