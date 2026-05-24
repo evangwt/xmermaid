@@ -1,5 +1,16 @@
 .worktrees
+
+# Dependencies and generated build output
 node_modules
 target
 dist
 pkg
+
+# Local agent/runtime state
+.omx/
+.codegraph/
+
+# Temporary visual and browser diagnostics
+screenshots/
+cdp-*.cjs
+cdp-*.mjs
