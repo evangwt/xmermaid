@@ -137,4 +137,28 @@ describe('SVGRenderer', () => {
     expect(label).toBeDefined();
     expect(Number(label?.getAttribute('y'))).toBeCloseTo(115, 1);
   });
+
+  it('prefers explicit edge geometry over waypoint fallback', () => {
+    const layout = createTestLayout();
+    layout.edges[0] = {
+      ...layout.edges[0],
+      waypoints: [{ x: 160, y: 60 }, { x: 160, y: 180 }],
+      source_boundary: { x: 20, y: 30 },
+      target_boundary: { x: 120, y: 30 },
+      path_end: { x: 96, y: 30 },
+      final_tangent_angle: 0,
+      label_anchor: { x: 58, y: 42 },
+      geometry_version: 1,
+    } as LayoutEdge;
+
+    const svg = new SVGRenderer({ curveStyle: 'straight', edgeGap: 8, arrowSize: 10 }).render(layout);
+    const path = svg.querySelector('g.edge path');
+    const label = Array.from(svg.querySelectorAll('g.edge text'))
+      .find(el => el.textContent === 'yes');
+
+    expect(path?.getAttribute('d')).toBe('M 20 30 L 96 30');
+    expect(label?.getAttribute('x')).toBe('58');
+    expect(label?.getAttribute('y')).toBe('42');
+    expect(svg.querySelector('g.edge polygon')?.getAttribute('points')).toContain('120,30');
+  });
 });
