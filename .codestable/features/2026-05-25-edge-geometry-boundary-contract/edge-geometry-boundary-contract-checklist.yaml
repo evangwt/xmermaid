@@ -1,0 +1,84 @@
+feature: 2026-05-25-edge-geometry-boundary-contract
+created: 2026-05-25
+
+steps:
+  - action: "合同测试红灯：新增 Rust roundtrip 和 TS renderer 测试，先证明字段缺失和 renderer 未消费 explicit geometry"
+    exit_signal: "目标 Rust 或 renderer 测试失败于缺字段/未使用 explicit geometry"
+    status: done
+
+  - action: "Rust layout 合同：扩展 LayoutEdge 并在 flowchart layout 产出 geometry v1 字段"
+    exit_signal: "Rust contract 测试通过"
+    status: done
+
+  - action: "TS 类型与 renderer 消费：同步 TS 字段，renderer 优先构造 explicit geometry path/arrow/label"
+    exit_signal: "renderer explicit geometry 测试通过，旧 fallback 测试仍通过"
+    status: done
+
+  - action: "验证覆盖：运行 cargo tests、JS tests、typecheck、release gate、YAML 校验"
+    exit_signal: "验证矩阵通过并可进入 acceptance"
+    status: done
+
+checks:
+  - item: "Rust LayoutEdge 包含 source_boundary、target_boundary、path_end、final_tangent_angle、label_anchor、geometry_version"
+    source: 名词契约
+    status: passed
+
+  - item: "TS LayoutEdge 同步包含 explicit geometry 字段"
+    source: 名词契约
+    status: passed
+
+  - item: "geometry_version 固定为 1"
+    source: 名词契约
+    status: passed
+
+  - item: "target_boundary 表示 arrow tip landing point，不包含 edgeGap"
+    source: 流程级约束
+    status: passed
+
+  - item: "path_end 与 target_boundary 分离，供可见 stroke endpoint 使用"
+    source: 流程级约束
+    status: passed
+
+  - item: "label_anchor 存在时 renderer 优先于 label_position"
+    source: 流程级约束
+    status: passed
+
+  - item: "renderer 缺 explicit geometry 时仍走 computeEdgePath fallback"
+    source: 编排骨架
+    status: passed
+
+  - item: "挂载点限定在 layout types/flowchart、layout roundtrip test、TS layout type、SVG renderer、renderer test"
+    source: 挂载点
+    status: passed
+
+  - item: "不删除 waypoints 或 label_position"
+    source: 范围守护
+    status: passed
+
+  - item: "不修改 parser AST 或 Mermaid 语法"
+    source: 范围守护
+    status: passed
+
+  - item: "不新增 npm/Rust dependency"
+    source: 范围守护
+    status: passed
+
+  - item: "S1 Rust layout edge geometry roundtrip 测试通过"
+    source: 验收场景
+    status: passed
+
+  - item: "S2 renderer explicit geometry 测试通过"
+    source: 验收场景
+    status: passed
+
+  - item: "S3 旧 layout fallback 测试仍通过"
+    source: 验收场景
+    status: passed
+
+  - item: "S4 npm run typecheck 通过"
+    source: 验收场景
+    status: passed
+
+  - item: "S5 npm run verify:release 通过"
+    source: 验收场景
+    status: passed

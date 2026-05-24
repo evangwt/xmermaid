@@ -1,0 +1,68 @@
+feature: 2026-05-25-svg-geometry-regression-suite
+created: 2026-05-25
+
+steps:
+  - action: "regression 测试：新增复杂 path、label fallback、shape boundary、arrow style DOM 用例"
+    exit_signal: "npm test -- tests/svg-geometry-regression.test.ts 跑出明确 pass/fail"
+    status: done
+
+  - action: "最小修复（按需）：如果 regression 失败，定位并修正最小 renderer/helper 行为"
+    exit_signal: "新增 regression 测试通过，旧 renderer/edge 测试仍通过"
+    status: done
+
+  - action: "验证覆盖：运行 targeted tests、全量 release gate、YAML 校验和 status hygiene"
+    exit_signal: "验证矩阵通过，roadmap/checklist 可进入 acceptance"
+    status: done
+
+checks:
+  - item: "新增 SVG regression suite 覆盖 complex path"
+    source: 名词契约
+    status: passed
+
+  - item: "新增 SVG regression suite 覆盖 label fallback"
+    source: 名词契约
+    status: passed
+
+  - item: "新增 SVG regression suite 覆盖 diamond/circle/stadium shape boundary"
+    source: 名词契约
+    status: passed
+
+  - item: "新增 SVG regression suite 覆盖 filled/triangle/open/circle/cross arrow styles"
+    source: 名词契约
+    status: passed
+
+  - item: "测试断言实际 SVG DOM，不只断言 helper return value"
+    source: 编排骨架
+    status: passed
+
+  - item: "不提交 screenshots 或 ad hoc visual evidence"
+    source: 范围守护
+    status: passed
+
+  - item: "不新增 npm/Rust dependency"
+    source: 范围守护
+    status: passed
+
+  - item: "不修改 Rust layout routing 或 parser AST"
+    source: 范围守护
+    status: passed
+
+  - item: "S1 svg geometry regression targeted test 通过"
+    source: 验收场景
+    status: passed
+
+  - item: "S2 edge/renderer/svg regression targeted tests 通过"
+    source: 验收场景
+    status: passed
+
+  - item: "S3 npm run verify:release 通过"
+    source: 验收场景
+    status: passed
+
+  - item: "S4 git status 不列出 ignored runtime/visual scratch assets"
+    source: 验收场景
+    status: passed
+
+  - item: "S5 checklist 和 roadmap items YAML 校验通过"
+    source: 验收场景
+    status: passed
