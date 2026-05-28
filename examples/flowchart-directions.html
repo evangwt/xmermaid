@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" href="data:,">
   <title>xmermaid - Flowchart Directions</title>
   <style>
     body { font-family: sans-serif; margin: 20px; background: #f5f5f5; }
@@ -19,6 +20,12 @@
   <h2>Left to Right (LR)</h2>
   <div id="lr" class="diagram"></div>
 
+  <h2>Right to Left (RL)</h2>
+  <div id="rl" class="diagram"></div>
+
+  <h2>Bottom to Top (BT)</h2>
+  <div id="bt" class="diagram"></div>
+
   <script type="module">
     import { XMermaid } from '../dist/xmermaid.esm.js';
 
@@ -33,6 +40,12 @@
 
     const xmLR = new XMermaid({ container: document.getElementById('lr') });
     await xmLR.render(`graph LR\n${diagram}`);
+
+    const xmRL = new XMermaid({ container: document.getElementById('rl') });
+    await xmRL.render(`graph RL\n${diagram}`);
+
+    const xmBT = new XMermaid({ container: document.getElementById('bt') });
+    await xmBT.render(`graph BT\n${diagram}`);
   </script>
 </body>
 </html>

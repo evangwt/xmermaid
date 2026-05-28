@@ -21,10 +21,7 @@ export class XMermaid {
 
     let layout: any;
     if (this.layoutConfig) {
-      const defaultConfig = JSON.parse(wasm.default_config());
-      const merged = { ...defaultConfig, ...this.layoutConfig };
-      const configJson = JSON.stringify(merged);
-      layout = wasm.render_with_config(input, configJson);
+      layout = wasm.render_with_config(input, JSON.stringify(this.layoutConfig));
     } else {
       layout = wasm.render(input);
     }

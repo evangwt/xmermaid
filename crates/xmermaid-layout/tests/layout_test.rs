@@ -1,4 +1,7 @@
-use xmermaid_layout::{compute_layout, LayoutConfig};
+mod common;
+
+use common::config_for_ast;
+use xmermaid_layout::compute_layout;
 use xmermaid_parser::parse;
 
 #[test]
@@ -6,7 +9,7 @@ fn test_layout_two_nodes() {
     let input = "graph TD\n  A-->B";
     let ast = parse(input).unwrap();
 
-    let config = LayoutConfig::default();
+    let config = config_for_ast(&ast);
     let result = compute_layout(&ast, &config);
     assert_eq!(result.nodes.len(), 2);
 
@@ -21,7 +24,7 @@ fn test_layout_dimensions() {
     let input = "graph LR\n  A-->B";
     let ast = parse(input).unwrap();
 
-    let config = LayoutConfig::default();
+    let config = config_for_ast(&ast);
     let result = compute_layout(&ast, &config);
     assert!(result.dimensions.width > 0.0);
     assert!(result.dimensions.height > 0.0);
@@ -32,7 +35,7 @@ fn test_layout_lr_direction() {
     let input = "graph LR\n  A-->B";
     let ast = parse(input).unwrap();
 
-    let config = LayoutConfig::default();
+    let config = config_for_ast(&ast);
     let result = compute_layout(&ast, &config);
 
     let a_node = result.nodes.iter().find(|n| n.id == "A").unwrap();

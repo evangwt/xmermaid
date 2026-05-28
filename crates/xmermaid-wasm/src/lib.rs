@@ -1,7 +1,18 @@
 //! xmermaid-wasm: WASM bindings for xmermaid
 
 use wasm_bindgen::prelude::*;
+use serde::Deserialize;
 use xmermaid_parser::DiagramAst;
+
+#[derive(Debug, Default, Deserialize)]
+struct LayoutConfigPatch {
+    node_width: Option<f64>,
+    node_height: Option<f64>,
+    h_spacing: Option<f64>,
+    v_spacing: Option<f64>,
+    padding: Option<f64>,
+    direction: Option<xmermaid_layout::FlowDirection>,
+}
 
 /// Initialize the WASM module. Must be called before any other function.
 /// Sets up the panic hook so Rust panics produce useful error messages in JS.
@@ -87,22 +98,62 @@ fn build_config(
     ast: &DiagramAst,
     config_json: Option<String>,
 ) -> Result<xmermaid_layout::LayoutConfig, JsValue> {
-    let config: xmermaid_layout::LayoutConfig = match config_json {
-        Some(json) => serde_json::from_str(&json)
-            .map_err(|e| JsValue::from_str(&format!("Invalid config JSON: {}", e)))?,
-        None => {
-            let mut c = xmermaid_layout::LayoutConfig::default();
-            if let DiagramAst::Flowchart(fc) = ast {
-                c.direction = match fc.direction {
-                    xmermaid_parser::ast::FlowDirection::TD => xmermaid_layout::FlowDirection::TB,
-                    xmermaid_parser::ast::FlowDirection::BT => xmermaid_layout::FlowDirection::BT,
-                    xmermaid_parser::ast::FlowDirection::LR => xmermaid_layout::FlowDirection::LR,
-                    xmermaid_parser::ast::FlowDirection::RL => xmermaid_layout::FlowDirection::RL,
-                };
-            }
-            return Ok(c);
+    let mut config = xmermaid_layout::LayoutConfig::default();
+
+    if let DiagramAst::Flowchart(fc) = ast {
+        config.direction = match fc.direction {
+            xmermaid_parser::ast::FlowDirection::TD => xmermaid_layout::FlowDirection::TB,
+            xmermaid_parser::ast::FlowDirection::BT => xmermaid_layout::FlowDirection::BT,
+            xmermaid_parser::ast::FlowDirection::LR => xmermaid_layout::FlowDirection::LR,
+            xmermaid_parser::ast::FlowDirection::RL => xmermaid_layout::FlowDirection::RL,
+        };
+    }
+
+    if let Some(json) = config_json {
+        let patch: LayoutConfigPatch = serde_json::from_str(&json)
+            .map_err(|e| JsValue::from_str(&format!("Invalid config JSON: {}", e)))?;
+
+        if let Some(value) = patch.node_width {
+            config.node_width = value;
         }
-    };
+        if let Some(value) = patch.node_height {
+            config.node_height = value;
+        }
+        if let Some(value) = patch.h_spacing {
+            config.h_spacing = value;
+        }
+        if let Some(value) = patch.v_spacing {
+            config.v_spacing = value;
+        }
+        if let Some(value) = patch.padding {
+            config.padding = value;
+        }
+        if let Some(value) = patch.direction {
+            config.direction = value;
+        }
+    }
 
     Ok(config)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn partial_config_preserves_ast_direction_when_direction_is_omitted() {
+        let ast = xmermaid_parser::parse("graph LR\n  A-->B").unwrap();
+        let config = build_config(&ast, Some(r#"{"h_spacing":100}"#.to_string())).unwrap();
+
+        assert_eq!(config.direction, xmermaid_layout::FlowDirection::LR);
+        assert_eq!(config.h_spacing, 100.0);
+    }
+
+    #[test]
+    fn partial_config_can_override_ast_direction() {
+        let ast = xmermaid_parser::parse("graph LR\n  A-->B").unwrap();
+        let config = build_config(&ast, Some(r#"{"direction":"TB"}"#.to_string())).unwrap();
+
+        assert_eq!(config.direction, xmermaid_layout::FlowDirection::TB);
+    }
 }

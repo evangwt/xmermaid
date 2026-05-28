@@ -828,6 +828,50 @@ mod tests {
     }
 
     #[test]
+    fn test_custom_config() {
+        let ast = parse("graph TD\n  A-->B").unwrap();
+        let fc = match &ast {
+            xmermaid_parser::ast::DiagramAst::Flowchart(fc) => fc,
+            _ => panic!("Expected Flowchart"),
+        };
+        let config = LayoutConfig {
+            node_width: 200.0,
+            node_height: 80.0,
+            h_spacing: 120.0,
+            v_spacing: 140.0,
+            padding: 30.0,
+            direction: FlowDirection::TB,
+        };
+
+        let result = layout(fc, &config);
+        let a = result.nodes.iter().find(|n| n.id == "A").unwrap();
+        let b = result.nodes.iter().find(|n| n.id == "B").unwrap();
+
+        assert_eq!(a.bounds.width, 200.0);
+        assert_eq!(a.bounds.height, 80.0);
+        assert_eq!(b.center.y - a.center.y, 220.0);
+    }
+
+    #[test]
+    fn test_same_rank_uniform_spacing() {
+        let result = layout_from_dsl("graph TD\n  A-->B\n  A-->C\n  A-->D");
+        let mut children: Vec<_> = result
+            .nodes
+            .iter()
+            .filter(|n| n.id == "B" || n.id == "C" || n.id == "D")
+            .collect();
+        children.sort_by(|a, b| a.center.x.partial_cmp(&b.center.x).unwrap());
+
+        assert_eq!(children.len(), 3);
+        assert_eq!(children[0].center.y, children[1].center.y);
+        assert_eq!(children[1].center.y, children[2].center.y);
+
+        let first_gap = children[1].center.x - children[0].center.x;
+        let second_gap = children[2].center.x - children[1].center.x;
+        assert_eq!(first_gap, second_gap);
+    }
+
+    #[test]
     fn test_cross_rank_edge_has_midpoint() {
         let result = layout_from_dsl("graph TD\n  A-->B-->C\n  A-->C");
         // A-->C is a cross-rank edge (skips B's layer)

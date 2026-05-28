@@ -13,16 +13,7 @@ use xmermaid_parser::ast::DiagramAst;
 /// Returns a default empty `LayoutResult` for unsupported diagram types.
 pub fn compute_layout(ast: &DiagramAst, config: &LayoutConfig) -> LayoutResult {
     match ast {
-        DiagramAst::Flowchart(fc) => {
-            let mut cfg = config.clone();
-            cfg.direction = match fc.direction {
-                xmermaid_parser::ast::FlowDirection::TD => crate::types::FlowDirection::TB,
-                xmermaid_parser::ast::FlowDirection::BT => crate::types::FlowDirection::BT,
-                xmermaid_parser::ast::FlowDirection::LR => crate::types::FlowDirection::LR,
-                xmermaid_parser::ast::FlowDirection::RL => crate::types::FlowDirection::RL,
-            };
-            flowchart::layout(fc, &cfg)
-        }
+        DiagramAst::Flowchart(fc) => flowchart::layout(fc, config),
         _ => LayoutResult {
             nodes: vec![],
             edges: vec![],

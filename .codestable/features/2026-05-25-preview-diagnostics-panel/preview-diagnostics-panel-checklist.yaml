@@ -1,0 +1,92 @@
+feature: 2026-05-25-preview-diagnostics-panel
+created: 2026-05-25
+
+steps:
+  - action: "Diagnostics contract tests：新增 tests 覆盖 thrown render error maps to selected diagram range and panel item"
+    exit_signal: "tests 在当前实现上因 diagnostics panel 缺失失败"
+    status: done
+
+  - action: "Selection/edit refresh tests：覆盖 success clears diagnostics and switching diagrams refreshes range"
+    exit_signal: "tests 在当前实现上失败"
+    status: done
+
+  - action: "Diagnostics implementation：新增 types、normalize helper、panel DOM and state updates"
+    exit_signal: "targeted tests passed"
+    status: done
+
+  - action: "Example styling：给 examples/live-editor.html 添加 minimal diagnostics styles"
+    exit_signal: "HTML test or DOM query can find diagnostics region"
+    status: done
+
+  - action: "验证覆盖：运行 targeted tests、typecheck、release gate"
+    exit_signal: "相关 tests 和 release verification passed"
+    status: done
+
+checks:
+  - item: "RenderDiagnostic / RenderDiagnosticCode 类型存在"
+    source: 名词契约
+    status: passed
+
+  - item: "render error 会进入 diagnostics panel"
+    source: 编排骨架
+    status: passed
+
+  - item: "diagnostic range 默认映射 selected diagram range"
+    source: 编排骨架
+    status: passed
+
+  - item: "render success 后清空 diagnostics"
+    source: 流程级约束
+    status: passed
+
+  - item: "unsupported diagram error 映射为 unsupported_diagram_type"
+    source: 流程级约束
+    status: passed
+
+  - item: "src/index.ts 导出 RenderDiagnostic / RenderDiagnosticCode 类型"
+    source: 挂载点
+    status: passed
+
+  - item: "examples/live-editor.html 包含 diagnostics panel 样式"
+    source: 挂载点
+    status: passed
+
+  - item: "不实现 repair suggestion 或 apply button"
+    source: 范围守护
+    status: passed
+
+  - item: "不实现 export/share/hash API"
+    source: 范围守护
+    status: passed
+
+  - item: "不实现 visual edit / graph model / serialize API"
+    source: 范围守护
+    status: passed
+
+  - item: "不新增 npm dependency"
+    source: 范围守护
+    status: passed
+
+  - item: "S1：普通 Error 显示 render_error、message 和 selected range"
+    source: 验收场景
+    status: passed
+
+  - item: "S2：XMermaidError PARSE_ERROR 显示 parse_error 和 selected range"
+    source: 验收场景
+    status: passed
+
+  - item: "S3：渲染成功后 diagnostics panel 清空错误状态"
+    source: 验收场景
+    status: passed
+
+  - item: "S4：第二张图失败时 range 指向第二张图"
+    source: 验收场景
+    status: passed
+
+  - item: "S5：无图表输入显示无诊断状态"
+    source: 验收场景
+    status: passed
+
+  - item: "S6：unsupported diagram error 不伪装成 parse error"
+    source: 验收场景
+    status: passed

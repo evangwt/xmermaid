@@ -1,3 +1,12 @@
+---
+doc_type: roadmap-acceptance
+slug: phase1-mvp
+status: accepted
+accepted_at: 2026-05-25
+source_plan: phase1-mvp-plan
+tags: [mvp, backfill, acceptance]
+---
+
 # Phase 1 MVP Acceptance Backfill
 
 > Backfill date: 2026-05-25
