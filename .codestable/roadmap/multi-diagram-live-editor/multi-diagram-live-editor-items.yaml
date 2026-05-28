@@ -1,0 +1,67 @@
+roadmap: multi-diagram-live-editor
+created: 2026-05-25
+
+items:
+  - slug: live-editor-static-mvp
+    description: "静态页面跑通文档输入、多图抽取、列表切换和选中图表实时预览"
+    depends_on: []
+    status: done
+    feature: 2026-05-25-live-editor-static-mvp
+    minimal_loop: true
+    notes: "最小闭环已验收：examples/live-editor.html 可加载两个 flowchart、切换 selected source，并渲染 SVG preview"
+
+  - slug: diagram-source-map-contract
+    description: "抽取器补齐 source range、fence/raw block 区分和安全回写"
+    depends_on: [live-editor-static-mvp]
+    status: done
+    feature: 2026-05-25-diagram-source-map-contract
+    minimal_loop: false
+    notes: "已新增 replaceDiagramSource；fenced/raw range 合同和 missing id diagnostic 有单测覆盖"
+
+  - slug: preview-diagnostics-panel
+    description: "把 parse/layout/render 错误映射到选中图表和文档位置"
+    depends_on: [diagram-source-map-contract]
+    status: done
+    feature: 2026-05-25-preview-diagnostics-panel
+    minimal_loop: false
+    notes: "已新增 RenderDiagnostic 类型、错误归一化和 diagnostics panel；普通 Error、XMermaidError 与 unsupported diagram 映射有测试覆盖"
+
+  - slug: syntax-repair-rules-v1
+    description: "提供确定性语法修复建议和一键应用"
+    depends_on: [preview-diagnostics-panel]
+    status: done
+    feature: 2026-05-25-syntax-repair-rules-v1
+    minimal_loop: false
+    notes: "已新增本地 deterministic repair engine；missing header、direction typo、arrow typo、label bracket 和 unsupported hint 有测试覆盖"
+
+  - slug: share-export-workbench
+    description: "支持复制图表、导出 SVG/PNG、URL hash 分享当前文档"
+    depends_on: [live-editor-static-mvp]
+    status: planned
+    feature: null
+    minimal_loop: false
+    notes: null
+
+  - slug: visual-flowchart-model-v1
+    description: "建立 flowchart graph model 与 Mermaid serialize 协议"
+    depends_on: [diagram-source-map-contract]
+    status: planned
+    feature: null
+    minimal_loop: false
+    notes: "v1 不保证保留原始 Mermaid 格式"
+
+  - slug: visual-flowchart-editor-v1
+    description: "支持可视化增删节点和边、改 label、改方向，并反写 Mermaid"
+    depends_on: [visual-flowchart-model-v1]
+    status: planned
+    feature: null
+    minimal_loop: false
+    notes: "只支持当前选中 flowchart"
+
+  - slug: online-tool-polish
+    description: "补齐主题、布局配置、快捷操作、空状态和错误态"
+    depends_on: [syntax-repair-rules-v1, share-export-workbench]
+    status: planned
+    feature: null
+    minimal_loop: false
+    notes: "技术依赖之外的产品优先级待确认"

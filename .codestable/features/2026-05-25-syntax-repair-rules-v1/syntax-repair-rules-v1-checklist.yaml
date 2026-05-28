@@ -1,0 +1,96 @@
+feature: 2026-05-25-syntax-repair-rules-v1
+created: 2026-05-25
+
+steps:
+  - action: "Repair engine RED tests：missing header, direction typo, arrow typo, unclosed label, unsupported hint, apply exact replacement"
+    exit_signal: "tests fail because repair module/API does not exist"
+    status: done
+
+  - action: "Editor UI RED tests：render failure shows high-confidence suggestion and apply updates selected source + rerenders"
+    exit_signal: "tests fail because repair UI does not exist"
+    status: done
+
+  - action: "Repair engine implementation：new src/editor/repair.ts with deterministic rules"
+    exit_signal: "repair engine tests passed"
+    status: done
+
+  - action: "Editor integration：call suggestRepairs, render suggestions, apply high-confidence repair"
+    exit_signal: "editor UI tests passed"
+    status: done
+
+  - action: "验证覆盖：targeted tests、typecheck、release gate、browser happy path"
+    exit_signal: "相关 tests 和 release verification passed"
+    status: done
+
+checks:
+  - item: "RepairSuggestion / RepairConfidence 类型存在"
+    source: 名词契约
+    status: passed
+
+  - item: "suggestRepairs(source, diagnostics) 返回确定性建议"
+    source: 名词契约
+    status: passed
+
+  - item: "applyRepair(source, suggestion) 只替换 exact before 第一处"
+    source: 名词契约
+    status: passed
+
+  - item: "high-confidence suggestion 在 UI 中提供 apply button"
+    source: 编排骨架
+    status: passed
+
+  - item: "apply button 更新 selected source 并重新 render"
+    source: 编排骨架
+    status: passed
+
+  - item: "unsupported diagram 只给 low-confidence hint，不提供 apply"
+    source: 流程级约束
+    status: passed
+
+  - item: "src/index.ts 导出 repair API/types"
+    source: 挂载点
+    status: passed
+
+  - item: "examples/live-editor.html 包含 repair suggestion 样式"
+    source: 挂载点
+    status: passed
+
+  - item: "不接 LLM / 网络"
+    source: 范围守护
+    status: passed
+
+  - item: "不实现 export/share/hash API"
+    source: 范围守护
+    status: passed
+
+  - item: "不实现 visual edit / graph model / serialize API"
+    source: 范围守护
+    status: passed
+
+  - item: "不新增 npm dependency"
+    source: 范围守护
+    status: passed
+
+  - item: "S1：缺少 graph/flowchart header 生成 high-confidence suggestion"
+    source: 验收场景
+    status: passed
+
+  - item: "S2：方向拼写错误生成 high-confidence suggestion"
+    source: 验收场景
+    status: passed
+
+  - item: "S3：arrow typo 生成 high-confidence suggestion"
+    source: 验收场景
+    status: passed
+
+  - item: "S4：简单未闭合 label bracket 生成 high-confidence suggestion"
+    source: 验收场景
+    status: passed
+
+  - item: "S5：unsupported diagram diagnostic 只给 low-confidence hint"
+    source: 验收场景
+    status: passed
+
+  - item: "S6：点击 high-confidence apply button 更新 selected source 并重新 render"
+    source: 验收场景
+    status: passed

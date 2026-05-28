@@ -1,3 +1,11 @@
+---
+doc_type: roadmap-plan
+slug: phase1-mvp
+status: completed
+created: 2026-04-17
+tags: [mvp, parser, layout, wasm, renderer]
+---
+
 # Phase 1 MVP Implementation Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.

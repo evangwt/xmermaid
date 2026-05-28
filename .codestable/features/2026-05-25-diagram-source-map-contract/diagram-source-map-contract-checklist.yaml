@@ -1,0 +1,92 @@
+feature: 2026-05-25-diagram-source-map-contract
+created: 2026-05-25
+
+steps:
+  - action: "Source range regression tests：覆盖 fenced content slice、raw Mermaid offsets、line numbers"
+    exit_signal: "新增 tests 在当前实现上因 replacement/range contract 缺口失败"
+    status: done
+
+  - action: "Safe replacement tests：覆盖 fenced replacement、raw replacement、missing id diagnostic、fresh re-extraction"
+    exit_signal: "红灯证明 API 不存在或行为未满足"
+    status: done
+
+  - action: "Extractor/range implementation：收紧 range helper 和 line calculation，保持既有 MVP tests"
+    exit_signal: "source range tests passed"
+    status: done
+
+  - action: "Replacement API implementation：实现 replaceDiagramSource 并从 root export"
+    exit_signal: "replacement tests passed"
+    status: done
+
+  - action: "验证覆盖：运行 targeted tests、typecheck、release gate"
+    exit_signal: "相关 tests 和 release verification passed"
+    status: done
+
+checks:
+  - item: "fenced block range 指向 fence 内部源码区域"
+    source: 名词契约
+    status: passed
+
+  - item: "raw Mermaid range 指向 trim 后源码区域"
+    source: 名词契约
+    status: passed
+
+  - item: "replaceDiagramSource(text, diagramId, nextSource, document) 存在并返回 text + document"
+    source: 名词契约
+    status: passed
+
+  - item: "replacement 后 document 是基于 returned text 的 fresh extraction"
+    source: 编排骨架
+    status: passed
+
+  - item: "missing diagram id 返回原文并产生 diagram_not_found diagnostic"
+    source: 流程级约束
+    status: passed
+
+  - item: "src/index.ts 导出 replaceDiagramSource"
+    source: 挂载点
+    status: passed
+
+  - item: "不实现 diagnostics panel UI"
+    source: 范围守护
+    status: passed
+
+  - item: "不实现 repair API"
+    source: 范围守护
+    status: passed
+
+  - item: "不实现 export/share/hash API"
+    source: 范围守护
+    status: passed
+
+  - item: "不实现 visual edit / graph model / serialize API"
+    source: 范围守护
+    status: passed
+
+  - item: "不新增 npm dependency"
+    source: 范围守护
+    status: passed
+
+  - item: "S1：fenced block range 切片只覆盖 fence 内源码"
+    source: 验收场景
+    status: passed
+
+  - item: "S2：raw Mermaid 输入前后空白替换后保留"
+    source: 验收场景
+    status: passed
+
+  - item: "S3：fenced replacement 保留 Markdown prose 和 fence 标记"
+    source: 验收场景
+    status: passed
+
+  - item: "S4：raw replacement returned text 和 document 同步"
+    source: 验收场景
+    status: passed
+
+  - item: "S5：missing diagramId 不抛异常并产生 diagnostic"
+    source: 验收场景
+    status: passed
+
+  - item: "S6：替换第一张图不会改动第二张图"
+    source: 验收场景
+    status: passed

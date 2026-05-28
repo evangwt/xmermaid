@@ -1,3 +1,13 @@
+---
+doc_type: feature-acceptance
+feature: 2026-05-25-edge-geometry-boundary-contract
+status: accepted
+accepted_at: 2026-05-25
+roadmap: visual-rendering-readiness
+roadmap_item: edge-geometry-boundary-contract
+tags: [layout, renderer, edge-geometry, svg]
+---
+
 # edge-geometry-boundary-contract 验收报告
 
 > 阶段：阶段 3（验收闭环）

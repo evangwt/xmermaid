@@ -1,7 +1,10 @@
 //! Deep layout tests with real-world diagram examples
 //! and falsification of known layout limitations.
 
-use xmermaid_layout::{compute_layout, LayoutConfig};
+mod common;
+
+use common::config_for_ast;
+use xmermaid_layout::compute_layout;
 use xmermaid_parser::{parse, DiagramAst};
 
 // ═══════════════════════════════════════════════════════════════════
@@ -11,7 +14,7 @@ use xmermaid_parser::{parse, DiagramAst};
 #[test]
 fn test_layout_ci_cd_pipeline_lr() {
     let ast = parse("graph LR\n  Code-->Build-->Test-->Deploy").unwrap();
-    let config = LayoutConfig::default();
+    let config = config_for_ast(&ast);
     let layout = compute_layout(&ast, &config);
 
     let positions: Vec<_> = ["Code", "Build", "Test", "Deploy"]
@@ -27,7 +30,7 @@ fn test_layout_ci_cd_pipeline_lr() {
 #[test]
 fn test_layout_decision_tree_td() {
     let ast = parse("graph TD\n  A-->B\n  A-->C\n  B-->D\n  C-->E").unwrap();
-    let config = LayoutConfig::default();
+    let config = config_for_ast(&ast);
     let layout = compute_layout(&ast, &config);
 
     let a = pos(&layout, "A");
@@ -43,7 +46,7 @@ fn test_layout_decision_tree_td() {
 #[test]
 fn test_layout_diamond_merge() {
     let ast = parse("graph TD\n  A-->B\n  A-->C\n  B-->D\n  C-->D").unwrap();
-    let config = LayoutConfig::default();
+    let config = config_for_ast(&ast);
     let layout = compute_layout(&ast, &config);
 
     let a = pos(&layout, "A");
@@ -60,7 +63,7 @@ fn test_layout_diamond_merge() {
 #[test]
 fn test_layout_wide_graph_10_nodes() {
     let ast = parse("graph LR\n  N1-->N2-->N3-->N4-->N5-->N6-->N7-->N8-->N9-->N10").unwrap();
-    let config = LayoutConfig::default();
+    let config = config_for_ast(&ast);
     let layout = compute_layout(&ast, &config);
 
     assert_eq!(layout.nodes.len(), 10);
@@ -74,7 +77,7 @@ fn test_layout_wide_graph_10_nodes() {
 #[test]
 fn test_layout_star_topology() {
     let ast = parse("graph TD\n  Hub-->S1\n  Hub-->S2\n  Hub-->S3\n  Hub-->S4").unwrap();
-    let config = LayoutConfig::default();
+    let config = config_for_ast(&ast);
     let layout = compute_layout(&ast, &config);
 
     let hub = pos(&layout, "Hub");
@@ -92,7 +95,7 @@ fn test_layout_star_topology() {
 fn test_falsify_state_machine_back_edge() {
     // Paused-->Running is a back-edge; cycle detection now handles it.
     let ast = parse("graph TD\n  Idle-->Running\n  Running-->Paused\n  Paused-->Running\n  Running-->Stopped").unwrap();
-    let config = LayoutConfig::default();
+    let config = config_for_ast(&ast);
     let layout = compute_layout(&ast, &config);
 
     assert_eq!(layout.nodes.len(), 4);
@@ -114,7 +117,7 @@ fn test_falsify_state_machine_back_edge() {
 #[test]
 fn test_layout_microservices() {
     let ast = parse("graph LR\n  GW-->Auth\n  GW-->Order\n  GW-->User\n  Order-->DB\n  User-->DB\n  Auth-->Cache").unwrap();
-    let config = LayoutConfig::default();
+    let config = config_for_ast(&ast);
     let layout = compute_layout(&ast, &config);
 
     assert_eq!(layout.nodes.len(), 6);
@@ -132,7 +135,7 @@ fn test_layout_microservices() {
 #[test]
 fn test_layout_exact_td_chain() {
     let ast = parse("graph TD\n  A-->B-->C").unwrap();
-    let config = LayoutConfig::default();
+    let config = config_for_ast(&ast);
     let layout = compute_layout(&ast, &config);
 
     // With normalization ensuring node bounds start at padding:
@@ -147,7 +150,7 @@ fn test_layout_exact_td_chain() {
 #[test]
 fn test_layout_exact_lr_chain() {
     let ast = parse("graph LR\n  A-->B-->C").unwrap();
-    let config = LayoutConfig::default();
+    let config = config_for_ast(&ast);
     let layout = compute_layout(&ast, &config);
 
     // LR direction: layers go horizontally
@@ -162,7 +165,7 @@ fn test_layout_exact_lr_chain() {
 #[test]
 fn test_layout_exact_diamond_dimensions() {
     let ast = parse("graph TD\n  A-->B\n  A-->C\n  B-->D\n  C-->D").unwrap();
-    let config = LayoutConfig::default();
+    let config = config_for_ast(&ast);
     let layout = compute_layout(&ast, &config);
 
     // With centering and normalization:
@@ -188,7 +191,7 @@ fn test_layout_exact_diamond_dimensions() {
 #[test]
 fn test_layout_dimensions_encompass_all_nodes() {
     let ast = parse("graph TD\n  A-->B-->C-->D").unwrap();
-    let config = LayoutConfig::default();
+    let config = config_for_ast(&ast);
     let layout = compute_layout(&ast, &config);
 
     for n in &layout.nodes {
@@ -201,7 +204,7 @@ fn test_layout_dimensions_encompass_all_nodes() {
 fn test_layout_dimensions_increase_with_nodes() {
     let ast2 = parse("graph TD\n  A-->B").unwrap();
     let ast4 = parse("graph TD\n  A-->B-->C-->D").unwrap();
-    let config = LayoutConfig::default();
+    let config = config_for_ast(&ast2);
     let layout2 = compute_layout(&ast2, &config);
     let layout4 = compute_layout(&ast4, &config);
 
@@ -216,7 +219,7 @@ fn test_layout_dimensions_increase_with_nodes() {
 fn test_falsify_bt_does_not_reverse_y() {
     // BT direction now correctly reverses y coordinates
     let ast = parse("graph BT\n  A-->B").unwrap();
-    let config = LayoutConfig::default();
+    let config = config_for_ast(&ast);
     let layout = compute_layout(&ast, &config);
 
     let a = pos(&layout, "A");
@@ -230,7 +233,7 @@ fn test_falsify_bt_does_not_reverse_y() {
 fn test_falsify_rl_does_not_reverse_x() {
     // RL direction now correctly reverses x coordinates
     let ast = parse("graph RL\n  A-->B").unwrap();
-    let config = LayoutConfig::default();
+    let config = config_for_ast(&ast);
     let layout = compute_layout(&ast, &config);
 
     let a = pos(&layout, "A");
@@ -244,7 +247,7 @@ fn test_falsify_rl_does_not_reverse_x() {
 fn test_falsify_cycle_no_detection() {
     // Cycle detection now excludes back-edges from layering
     let ast = parse("graph TD\n  A-->B\n  B-->A").unwrap();
-    let config = LayoutConfig::default();
+    let config = config_for_ast(&ast);
     let layout = compute_layout(&ast, &config);
 
     assert_eq!(layout.nodes.len(), 2);
@@ -258,7 +261,7 @@ fn test_falsify_cycle_no_detection() {
 fn test_falsify_long_cycle_no_stack_overflow() {
     // Longer cycle: A-->B-->C-->A — back-edge C-->A detected and excluded
     let ast = parse("graph TD\n  A-->B\n  B-->C\n  C-->A").unwrap();
-    let config = LayoutConfig::default();
+    let config = config_for_ast(&ast);
     let layout = compute_layout(&ast, &config);
     assert_eq!(layout.nodes.len(), 3);
     // A at layer 0, B at layer 1, C at layer 2 (C-->A back-edge excluded)
@@ -272,7 +275,7 @@ fn test_falsify_long_cycle_no_stack_overflow() {
 #[test]
 fn test_falsify_self_loop_layout() {
     let ast = parse("graph TD\n  A-->A").unwrap();
-    let config = LayoutConfig::default();
+    let config = config_for_ast(&ast);
     let layout = compute_layout(&ast, &config);
     assert_eq!(layout.nodes.len(), 1);
 }
@@ -282,7 +285,7 @@ fn test_falsify_non_flowchart_rejected() {
     let ast = DiagramAst::Sequence(xmermaid_parser::ast::SequenceAst {
         participants: vec!["A".to_string()],
     });
-    let config = LayoutConfig::default();
+    let config = config_for_ast(&ast);
     let result = compute_layout(&ast, &config);
     // Unsupported types return empty LayoutResult
     assert_eq!(result.nodes.len(), 0);
@@ -296,7 +299,7 @@ fn test_falsify_no_crossing_minimization() {
     // barycenter sorting should place A left of B and D left of C
     // (or equivalently, reduce crossings).
     let ast = parse("graph TD\n  A-->D\n  B-->C").unwrap();
-    let config = LayoutConfig::default();
+    let config = config_for_ast(&ast);
     let layout = compute_layout(&ast, &config);
 
     let a = pos(&layout, "A");
@@ -312,7 +315,7 @@ fn test_falsify_no_crossing_minimization() {
 fn test_falsify_no_rank_balancing() {
     // Rank balancing now compacts layers so there are no gaps.
     let ast = parse("graph TD\n  A-->B-->D\n  C-->D").unwrap();
-    let config = LayoutConfig::default();
+    let config = config_for_ast(&ast);
     let layout = compute_layout(&ast, &config);
 
     let a = pos(&layout, "A");
@@ -333,7 +336,7 @@ fn test_falsify_no_rank_balancing() {
 #[test]
 fn test_layout_empty_graph() {
     let ast = parse("graph TD").unwrap();
-    let config = LayoutConfig::default();
+    let config = config_for_ast(&ast);
     let layout = compute_layout(&ast, &config);
     assert_eq!(layout.nodes.len(), 0);
     assert_eq!(layout.dimensions.width, 80.0);
@@ -343,7 +346,7 @@ fn test_layout_empty_graph() {
 #[test]
 fn test_layout_single_isolated_node() {
     let ast = parse("graph TD\n  A").unwrap();
-    let config = LayoutConfig::default();
+    let config = config_for_ast(&ast);
     let layout = compute_layout(&ast, &config);
     assert_eq!(layout.nodes.len(), 1);
     assert_eq!(pos(&layout, "A"), (100.0, 60.0));
@@ -352,7 +355,7 @@ fn test_layout_single_isolated_node() {
 #[test]
 fn test_layout_many_isolated_nodes() {
     let ast = parse("graph TD\n  A B C D E").unwrap();
-    let config = LayoutConfig::default();
+    let config = config_for_ast(&ast);
     let layout = compute_layout(&ast, &config);
     assert_eq!(layout.nodes.len(), 5);
     let y = pos(&layout, "A").1;
@@ -364,7 +367,7 @@ fn test_layout_many_isolated_nodes() {
 #[test]
 fn test_layout_multiple_edges_same_pair() {
     let ast = parse("graph TD\n  A-->B\n  A-->B").unwrap();
-    let config = LayoutConfig::default();
+    let config = config_for_ast(&ast);
     let layout = compute_layout(&ast, &config);
     assert_eq!(layout.nodes.len(), 2);
 }
@@ -372,7 +375,7 @@ fn test_layout_multiple_edges_same_pair() {
 #[test]
 fn test_layout_disconnected_subgraphs() {
     let ast = parse("graph TD\n  A-->B\n  C-->D").unwrap();
-    let config = LayoutConfig::default();
+    let config = config_for_ast(&ast);
     let layout = compute_layout(&ast, &config);
     assert_eq!(layout.nodes.len(), 4);
     assert_eq!(pos(&layout, "A").1, pos(&layout, "C").1);

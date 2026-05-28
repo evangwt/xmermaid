@@ -1,0 +1,100 @@
+feature: 2026-04-27-arch-redesign
+created: 2026-05-28
+
+steps:
+  - action: "Rust 合同：落地 parser NodeShape、layout LayoutConfig/LayoutResult/LayoutEdge/Bounds/Point，并同步 re-export"
+    exit_signal: "cargo check 与 parser/layout 合同测试通过"
+    status: done
+
+  - action: "Flowchart layout：拆出 flowchart layout，使用 LayoutConfig，输出 bounds、waypoints、edge geometry v1"
+    exit_signal: "layout unit/integration tests 覆盖 directions、custom config、same-rank spacing、edge geometry"
+    status: done
+
+  - action: "WASM binding：暴露 render、render_with_config、default_config，并支持 partial LayoutConfig"
+    exit_signal: "WASM tests 覆盖 partial config 保留 AST 方向和显式 direction override"
+    status: done
+
+  - action: "TypeScript 合同：同步 layout/theme/options 类型并导出 public API"
+    exit_signal: "npm run typecheck 通过，theme tests 通过"
+    status: done
+
+  - action: "Renderer：实现 edge path helper、shape boundary truncation、arrow styles、theme-aware SVG renderer"
+    exit_signal: "edge/renderer/svg geometry regression tests 通过"
+    status: done
+
+  - action: "SDK 接入：XMermaid 传递 partial layoutConfig、应用 RenderTheme、归一化 WASM enum 值"
+    exit_signal: "xmermaid tests 与 browser examples 均能渲染"
+    status: done
+
+  - action: "Examples：basic、complex、directions、theme-comparison 示例对齐 Batch 1 计划"
+    exit_signal: "Playwright 验证 basic=1、complex=2、directions=4、theme-comparison=3 个 SVG 且无 error"
+    status: done
+
+  - action: "收尾验证与落档：运行 cargo/npm/build/release gate，更新 plan checkbox、architecture 和 acceptance"
+    exit_signal: "验证矩阵通过，CodeStable acceptance 可证明所有 Batch 1 代办完成"
+    status: done
+
+checks:
+  - item: "LayoutConfig、LayoutNode、LayoutEdge、LayoutResult、Bounds、Point、NodeShape 在 Rust 和 TS 中定义并使用"
+    source: 名词契约
+    status: passed
+
+  - item: "compute_layout 尊重传入 LayoutConfig.direction"
+    source: 流程级约束
+    status: passed
+
+  - item: "WASM partial config 未传 direction 时保留 DSL 方向，显式传 direction 时覆盖 DSL 方向"
+    source: 流程级约束
+    status: passed
+
+  - item: "Renderer 从 LayoutResult + RenderTheme 绘制 SVG，不重新执行 layout"
+    source: 编排骨架
+    status: passed
+
+  - item: "Edge path 覆盖 bezier、step、straight、gap truncation、arrow placement 和 shape boundary"
+    source: 验收场景
+    status: passed
+
+  - item: "Flowchart layout 覆盖 custom config、same-rank uniform spacing、directions、bounds 和 waypoints"
+    source: 验收场景
+    status: passed
+
+  - item: "Examples 覆盖 basic、complex、TB/LR/RL/BT directions、default/dark/minimal theme comparison"
+    source: 验收场景
+    status: passed
+
+  - item: "不新增非 flowchart 图表类型"
+    source: 范围守护
+    status: passed
+
+  - item: "不新增 npm 或 Rust dependency"
+    source: 范围守护
+    status: passed
+
+  - item: "不修改 live-editor feature 范围"
+    source: 范围守护
+    status: passed
+
+  - item: "cargo test 通过"
+    source: 验收场景
+    status: passed
+
+  - item: "npm test 通过"
+    source: 验收场景
+    status: passed
+
+  - item: "npm run typecheck 通过"
+    source: 验收场景
+    status: passed
+
+  - item: "npm run build 通过"
+    source: 验收场景
+    status: passed
+
+  - item: "npm run verify:release 通过"
+    source: 验收场景
+    status: passed
+
+  - item: "非提交类 plan checkbox 已同步为完成；逐任务 commit checkbox 按 CodeStable scoped-commit 规则待用户确认"
+    source: 工作流闭环
+    status: passed

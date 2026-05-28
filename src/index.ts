@@ -1,4 +1,5 @@
 export { XMermaid } from './xmermaid';
+export { XMermaidLiveEditor, extractDiagrams, replaceDiagramSource, suggestRepairs, applyRepair } from './editor';
 export { SVGRenderer } from './renderer/svg';
 export { computeEdgePath, computeBezierPath, computeStepPath, computeStraightPath, truncateAtBounds, computeArrowPoints } from './renderer/edge';
 export { DEFAULT_THEME, DARK_THEME, MINIMAL_THEME, createTheme } from './types/theme';
@@ -7,4 +8,5 @@ export { XMermaidError } from './types/error';
 export type { RenderTheme, ThemeColors, ArrowStyle, CurveStyle } from './types/theme';
 export type { LayoutConfig, LayoutResult, LayoutNode, LayoutEdge, Bounds, Point, NodeShape, FlowDirection, Dimensions } from './types/layout';
 export type { XMermaidOptions } from './types/options';
+export type { DiagramBlock, DiagramDocument, DiagramOrigin, DocumentDiagnostic, SourceRange, RenderDiagnostic, RenderDiagnosticCode, RepairConfidence, RepairSuggestion, ReplaceDiagramSourceResult, XMermaidLiveEditorOptions, LiveEditorRenderRequest } from './editor';
 export type { DiagramAst, FlowchartAst, SequenceAst, EdgeStyle, FlowchartNode, FlowchartEdge, Subgraph } from './types/ast';

@@ -1,0 +1,100 @@
+feature: 2026-05-25-live-editor-static-mvp
+created: 2026-05-25
+
+steps:
+  - action: "文档抽取计算节点：新增 extractor 类型和函数"
+    exit_signal: "测试覆盖 Markdown 多 fence、纯 Mermaid 和无图表输入"
+    status: done
+
+  - action: "编辑器编排骨架：新增 live editor DOM class，支持 mount、列表、选择和 selected source state"
+    exit_signal: "测试可断言列表数量、默认选中和点击切换"
+    status: done
+
+  - action: "预览接入：把 selected source 交给可注入 render callback，默认 callback 使用 XMermaid.render"
+    exit_signal: "测试可断言初次渲染和编辑后重新渲染；错误显示在 preview"
+    status: done
+
+  - action: "静态页面入口：新增 examples/live-editor.html"
+    exit_signal: "页面引用 dist bundle，包含文档输入、图表列表、源码编辑和预览容器"
+    status: done
+
+  - action: "验证覆盖：运行 targeted tests、typecheck、release gate"
+    exit_signal: "相关测试和 release verification 通过"
+    status: done
+
+checks:
+  - item: "DiagramBlock / DiagramDocument / extractDiagrams(text) 类型和函数存在"
+    source: 名词契约
+    status: passed
+
+  - item: "XMermaidLiveEditor 提供静态编辑器 UI 编排"
+    source: 名词契约
+    status: passed
+
+  - item: "文档输入会经过 extractDiagrams 后渲染图表列表"
+    source: 编排骨架
+    status: passed
+
+  - item: "默认选中第一张图，点击列表项切换 selected diagram"
+    source: 编排骨架
+    status: passed
+
+  - item: "selected source 编辑后实时触发预览"
+    source: 编排骨架
+    status: passed
+
+  - item: "无图表输入显示空状态且不抛异常"
+    source: 流程级约束
+    status: passed
+
+  - item: "渲染失败显示错误且保留输入和列表状态"
+    source: 流程级约束
+    status: passed
+
+  - item: "src/index.ts 导出 live editor / document extractor"
+    source: 挂载点
+    status: passed
+
+  - item: "examples/live-editor.html 提供静态 MVP 入口"
+    source: 挂载点
+    status: passed
+
+  - item: "不实现语法修复按钮或 repair API"
+    source: 范围守护
+    status: passed
+
+  - item: "不实现导出、分享、URL hash API"
+    source: 范围守护
+    status: passed
+
+  - item: "不实现 visual edit / graph model / serialize API"
+    source: 范围守护
+    status: passed
+
+  - item: "不新增 npm dependency"
+    source: 范围守护
+    status: passed
+
+  - item: "S1：两个 mermaid fenced blocks 显示两项并默认渲染第一张"
+    source: 验收场景
+    status: passed
+
+  - item: "S2：点击第二个图表切换 selected source 并预览第二张"
+    source: 验收场景
+    status: passed
+
+  - item: "S3：编辑 selected source 触发使用编辑后源码的预览"
+    source: 验收场景
+    status: passed
+
+  - item: "S4：纯 Mermaid 文本抽取为一张图"
+    source: 验收场景
+    status: passed
+
+  - item: "S5：无 Mermaid 内容显示无图表空状态"
+    source: 验收场景
+    status: passed
+
+  - item: "S6：渲染 callback 抛错时 preview 显示错误信息"
+    source: 验收场景
+    status: passed

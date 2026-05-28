@@ -52,6 +52,16 @@ xmermaid 采用四层模块化架构，各层独立可替换：
 - 各层独立可替换，支持不同应用场景的组合使用
 - 插件机制在渲染层扩展，用户可添加自定义图表渲染器
 
+### 当前 Flowchart 解耦合同
+
+当前已落地的 flowchart 主链路是 `parser -> layout -> renderer` 的类型合同：parser 输出纯 AST，layout 接收 AST 与 `LayoutConfig` 并返回 `LayoutResult`，renderer 只消费 `LayoutResult` 与 `RenderTheme` 生成 SVG。布局层不依赖 DOM，渲染层不再重新执行图布局。
+
+`LayoutConfig` 是布局输入合同，包含节点尺寸、水平/垂直间距、padding 和方向。WASM `render_with_config(input, configJson)` 支持 partial config：未传方向时根据 DSL 方向补默认值，显式传 `direction` 时以 config 为准。
+
+`LayoutResult` 包含 `nodes`、`edges` 和 `dimensions`。每个 `LayoutNode` 提供 `center`、`bounds`、`shape`、`label`；每个 `LayoutEdge` 提供中心点 `waypoints`、标签位置、边样式，以及 geometry v1 显式字段：`source_boundary`、`target_boundary`、`path_end`、`final_tangent_angle`、`label_anchor`。Renderer 优先使用 geometry v1 字段绘制 arrow tip、stroke endpoint 和 label anchor；缺字段时回退到 TS `computeEdgePath`。
+
+SVG renderer 的主题合同是 `RenderTheme`，当前内置 `DEFAULT_THEME`、`DARK_THEME`、`MINIMAL_THEME`。主题控制颜色、箭头样式、曲线样式、edge gap、arrow size、圆角和字体。`XMermaidOptions` 暴露 `theme` 与 `layoutConfig`，`XMermaid.render()` 负责 WASM 初始化、布局调用、WASM enum 归一化和 DOM 替换。
+
 ---
 
 ## 解析层设计
@@ -264,6 +274,18 @@ editor.on('rendered', (result) => {
   console.log('渲染完成', result.duration);
 });
 ```
+
+### 当前静态 Live Editor MVP
+
+源码中当前已落地一个轻量应用层入口 `XMermaidLiveEditor`（`src/editor/index.ts`），并通过 `src/index.ts` 公开导出。它不是完整 Editor SDK，而是无后端静态 MVP：`extractDiagrams(text)` 从 Markdown fenced block 或纯 Mermaid 文本抽取 flowchart 图表，编辑器维护 document text、diagram list、selected diagram source，并把选中源码交给现有 `XMermaid.render()` 生成 SVG preview。
+
+`DiagramBlock.range` 是安全回写合同：Markdown fence 模式下指向 fence 内部源码区域，raw Mermaid 模式下指向 trim 后源码区域，offset 使用 JS string offset 且 `endOffset` 为 exclusive。`replaceDiagramSource(text, diagramId, nextSource, document)` 是后续 repair/visual edit 共享的单图替换入口；它只替换 matched diagram 的 range，保留文档上下文，替换后重新 `extractDiagrams`，找不到 id 时返回原文并追加 `diagram_not_found` diagnostic。
+
+Preview runtime errors are normalized into `RenderDiagnostic` records and shown in the static editor diagnostics panel. A diagnostic carries `code`, `message`, `severity`, and `range`; when the renderer cannot provide a more precise source span, the range defaults to the selected `DiagramBlock.range`. `XMermaidError` codes map to `parse_error`, `layout_error`, `render_error`, `wasm_init_error`, or `unsupported_diagram_type`, and unsupported diagram errors must not be presented as parse errors.
+
+Syntax repair is local and deterministic. `suggestRepairs(source, diagnostics)` returns `RepairSuggestion` records for high-confidence fixes such as adding a missing `flowchart TD` header, correcting common direction typos, replacing common arrow typos, and closing simple label brackets. `applyRepair(source, suggestion)` replaces the first exact `before` fragment in the selected source only; unsupported diagram diagnostics produce a low-confidence hint and no one-click rewrite. There is no LLM or network repair path in the current system.
+
+示例入口是 `examples/live-editor.html`。页面直接加载构建后的 `dist/xmermaid.esm.js`，提供文档输入、多图列表、选中源码编辑区和预览区域。MVP 的边界是只编辑当前 selected source；语法修复、导出/分享、URL hash、视觉编辑和 Mermaid serialize 都仍属于 `multi-diagram-live-editor` roadmap 的后续 feature。
 
 ---
 
