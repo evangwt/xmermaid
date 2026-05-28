@@ -1,3 +1,12 @@
+---
+doc_type: feature-plan
+feature: 2026-04-27-arch-redesign
+status: completed
+created: 2026-04-27
+summary: Historical Batch 1 implementation plan for the arch-redesign feature.
+tags: [architecture, flowchart, layout, renderer]
+---
+
 # xmermaid Architecture Redesign — Batch 1 Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking tracking.
@@ -64,7 +73,7 @@
 - Create: `crates/xmermaid-layout/src/types.rs`
 - Modify: `crates/xmermaid-layout/src/lib.rs`
 
-- [ ] **Step 1: Create `types.rs` with all layout types**
+- [x] **Step 1: Create `types.rs` with all layout types**
 
 ```rust
 use serde::{Deserialize, Serialize};
@@ -191,7 +200,7 @@ pub struct LayoutResult {
 }
 ```
 
-- [ ] **Step 2: Update `lib.rs` to re-export new types**
+- [x] **Step 2: Update `lib.rs` to re-export new types**
 
 Replace the entire content of `crates/xmermaid-layout/src/lib.rs`:
 
@@ -207,12 +216,12 @@ pub use types::{
 };
 ```
 
-- [ ] **Step 3: Run `cargo check` to verify types compile**
+- [x] **Step 3: Run `cargo check` to verify types compile**
 
 Run: `cd /Volumes/Data/Code/xmermaid && cargo check`
 Expected: Compiles with warnings about unused imports in `engine.rs` (will fix in Task 3)
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add crates/xmermaid-layout/src/types.rs crates/xmermaid-layout/src/lib.rs
@@ -226,7 +235,7 @@ git commit -m "feat(layout): define LayoutConfig, LayoutNode, LayoutEdge, Layout
 **Files:**
 - Modify: `crates/xmermaid-parser/src/ast.rs`
 
-- [ ] **Step 1: Add `NodeShape` enum and `shape` field to `FlowchartNode`**
+- [x] **Step 1: Add `NodeShape` enum and `shape` field to `FlowchartNode`**
 
 In `crates/xmermaid-parser/src/ast.rs`, add the `NodeShape` enum before `FlowchartNode`:
 
@@ -255,7 +264,7 @@ pub struct FlowchartNode {
 }
 ```
 
-- [ ] **Step 2: Update all `FlowchartNode` construction sites**
+- [x] **Step 2: Update all `FlowchartNode` construction sites**
 
 In `crates/xmermaid-parser/src/parser.rs`, find every place where `FlowchartNode` is constructed and add `shape: NodeShape::RoundedRect` (the current default for `[]` syntax). Update the parser to assign shapes based on delimiter syntax:
 - `[label]` → `NodeShape::Rectangle`
@@ -269,12 +278,12 @@ In `crates/xmermaid-parser/src/parser.rs`, find every place where `FlowchartNode
 
 For now, since the current parser only handles `[label]` and `(label)`, add `shape: NodeShape::Rectangle` to the `[label]` case and `NodeShape::RoundedRect` to the `(label)` case. All other cases get `NodeShape::Rectangle` as a placeholder until the parser is extended.
 
-- [ ] **Step 3: Run `cargo check`**
+- [x] **Step 3: Run `cargo check`**
 
 Run: `cd /Volumes/Data/Code/xmermaid && cargo check`
 Expected: Compiles (may have warnings about unused `NodeShape` variants — that's fine)
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add crates/xmermaid-parser/src/ast.rs crates/xmermaid-parser/src/parser.rs
@@ -290,7 +299,7 @@ git commit -m "feat(parser): add NodeShape enum and shape field to FlowchartNode
 - Modify: `crates/xmermaid-layout/src/engine.rs`
 - Modify: `crates/xmermaid-layout/src/lib.rs`
 
-- [ ] **Step 1: Create `flowchart.rs` with the extracted flowchart layout logic**
+- [x] **Step 1: Create `flowchart.rs` with the extracted flowchart layout logic**
 
 Move the core layout algorithm from `engine.rs` into `crates/xmermaid-layout/src/flowchart.rs`. The function signature changes to accept `LayoutConfig` and return `LayoutResult`. The implementation is the same algorithm but uses config fields instead of constants, and computes waypoints for edges.
 
@@ -540,7 +549,7 @@ fn compute_waypoints(
 }
 ```
 
-- [ ] **Step 2: Update `engine.rs` to be a dispatcher**
+- [x] **Step 2: Update `engine.rs` to be a dispatcher**
 
 Replace the entire content of `crates/xmermaid-layout/src/engine.rs`:
 
@@ -559,7 +568,7 @@ pub fn compute_layout(ast: &DiagramAst, config: &LayoutConfig) -> LayoutResult {
 }
 ```
 
-- [ ] **Step 3: Update `lib.rs` to include flowchart module**
+- [x] **Step 3: Update `lib.rs` to include flowchart module**
 
 ```rust
 pub mod coordinate;
@@ -573,12 +582,12 @@ pub use types::{
 };
 ```
 
-- [ ] **Step 4: Run `cargo check`**
+- [x] **Step 4: Run `cargo check`**
 
 Run: `cd /Volumes/Data/Code/xmermaid && cargo check`
 Expected: Compiles successfully
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add crates/xmermaid-layout/src/flowchart.rs crates/xmermaid-layout/src/engine.rs crates/xmermaid-layout/src/lib.rs
@@ -592,7 +601,7 @@ git commit -m "refactor(layout): extract flowchart layout, accept LayoutConfig, 
 **Files:**
 - Modify: `crates/xmermaid-wasm/src/lib.rs`
 
-- [ ] **Step 1: Update WASM bindings to expose new types and accept LayoutConfig**
+- [x] **Step 1: Update WASM bindings to expose new types and accept LayoutConfig**
 
 Replace the entire content of `crates/xmermaid-wasm/src/lib.rs`:
 
@@ -648,7 +657,7 @@ pub fn default_config() -> Result<String, JsValue> {
 }
 ```
 
-- [ ] **Step 2: Add `serde` and `serde_json` dependencies to WASM crate**
+- [x] **Step 2: Add `serde` and `serde_json` dependencies to WASM crate**
 
 In `crates/xmermaid-wasm/Cargo.toml`, add to `[dependencies]`:
 
@@ -657,12 +666,12 @@ serde = { workspace = true }
 serde_json = "1.0"
 ```
 
-- [ ] **Step 3: Run `cargo check`**
+- [x] **Step 3: Run `cargo check`**
 
 Run: `cd /Volumes/Data/Code/xmermaid && cargo check`
 Expected: Compiles successfully
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add crates/xmermaid-wasm/src/lib.rs crates/xmermaid-wasm/Cargo.toml
@@ -679,7 +688,7 @@ git commit -m "feat(wasm): expose LayoutConfig, render_with_config, default_conf
 - Modify: `src/types/options.ts`
 - Modify: `src/types/index.ts`
 
-- [ ] **Step 1: Update `src/types/layout.ts`**
+- [x] **Step 1: Update `src/types/layout.ts`**
 
 Replace the entire content:
 
@@ -745,7 +754,7 @@ export interface LayoutResult {
 }
 ```
 
-- [ ] **Step 2: Create `src/types/theme.ts`**
+- [x] **Step 2: Create `src/types/theme.ts`**
 
 ```typescript
 export type ArrowStyle = 'triangle' | 'filled' | 'open' | 'circle' | 'cross';
@@ -846,7 +855,7 @@ export function createTheme(overrides: Partial<RenderTheme> = {}): RenderTheme {
 }
 ```
 
-- [ ] **Step 3: Update `src/types/options.ts`**
+- [x] **Step 3: Update `src/types/options.ts`**
 
 Replace the entire content:
 
@@ -861,7 +870,7 @@ export interface XMermaidOptions {
 }
 ```
 
-- [ ] **Step 4: Update `src/types/index.ts`**
+- [x] **Step 4: Update `src/types/index.ts`**
 
 Replace the entire content:
 
@@ -873,12 +882,12 @@ export * from './options';
 export * from './theme';
 ```
 
-- [ ] **Step 5: Run TypeScript check**
+- [x] **Step 5: Run TypeScript check**
 
 Run: `cd /Volumes/Data/Code/xmermaid && npx tsc --noEmit`
 Expected: May have errors in `svg.ts` and `xmermaid.ts` referencing old types — will fix in Tasks 6-7
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/types/layout.ts src/types/theme.ts src/types/options.ts src/types/index.ts
@@ -893,7 +902,7 @@ git commit -m "feat(types): add LayoutConfig, LayoutNode, LayoutEdge, RenderThem
 - Create: `src/renderer/edge.ts`
 - Create: `tests/edge.test.ts`
 
-- [ ] **Step 1: Write failing tests for edge path computation**
+- [x] **Step 1: Write failing tests for edge path computation**
 
 Create `tests/edge.test.ts`:
 
@@ -1025,12 +1034,12 @@ describe('computeEdgePath', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd /Volumes/Data/Code/xmermaid && npx vitest run tests/edge.test.ts`
 Expected: FAIL — module not found
 
-- [ ] **Step 3: Implement edge path computation**
+- [x] **Step 3: Implement edge path computation**
 
 Create `src/renderer/edge.ts`:
 
@@ -1294,12 +1303,12 @@ export function computeArrowPath(
 }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `cd /Volumes/Data/Code/xmermaid && npx vitest run tests/edge.test.ts`
 Expected: All tests PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/renderer/edge.ts tests/edge.test.ts
@@ -1315,7 +1324,7 @@ git commit -m "feat(renderer): implement edge path computation with bezier/step/
 - Modify: `src/renderer/types.ts`
 - Modify: `src/renderer/index.ts`
 
-- [ ] **Step 1: Update `src/renderer/types.ts`**
+- [x] **Step 1: Update `src/renderer/types.ts`**
 
 Replace the entire content:
 
@@ -1324,7 +1333,7 @@ export type { RenderTheme, ThemeColors, ArrowStyle, CurveStyle } from '../types/
 export type { LayoutNode, LayoutEdge, LayoutResult, Bounds, Point, NodeShape } from '../types/layout';
 ```
 
-- [ ] **Step 2: Rewrite `src/renderer/svg.ts`**
+- [x] **Step 2: Rewrite `src/renderer/svg.ts`**
 
 Replace the entire content:
 
@@ -1585,7 +1594,7 @@ export class SVGRenderer {
 }
 ```
 
-- [ ] **Step 3: Update `src/renderer/index.ts`**
+- [x] **Step 3: Update `src/renderer/index.ts`**
 
 Replace the entire content:
 
@@ -1594,12 +1603,12 @@ export { SVGRenderer } from './svg';
 export { computeEdgePath, computeArrowPath, truncateEdgeAtBounds, intersectRayWithBounds } from './edge';
 ```
 
-- [ ] **Step 4: Run TypeScript check**
+- [x] **Step 4: Run TypeScript check**
 
 Run: `cd /Volumes/Data/Code/xmermaid && npx tsc --noEmit`
 Expected: May have errors in `xmermaid.ts` — will fix in Task 8
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/renderer/svg.ts src/renderer/types.ts src/renderer/index.ts
@@ -1616,7 +1625,7 @@ git commit -m "feat(renderer): rewrite SVG renderer with theme support, edge gap
 - Modify: `src/wasm-types.d.ts`
 - Modify: `src/index.ts`
 
-- [ ] **Step 1: Update `src/wasm.ts`**
+- [x] **Step 1: Update `src/wasm.ts`**
 
 Replace the entire content:
 
@@ -1637,7 +1646,7 @@ export function getWasm() {
 }
 ```
 
-- [ ] **Step 2: Update `src/wasm-types.d.ts`**
+- [x] **Step 2: Update `src/wasm-types.d.ts`**
 
 Replace the entire content:
 
@@ -1652,7 +1661,7 @@ declare module '../pkg/xmermaid_wasm' {
 }
 ```
 
-- [ ] **Step 3: Update `src/xmermaid.ts`**
+- [x] **Step 3: Update `src/xmermaid.ts`**
 
 Replace the entire content:
 
@@ -1700,7 +1709,7 @@ export class XMermaid {
 }
 ```
 
-- [ ] **Step 4: Update `src/index.ts`**
+- [x] **Step 4: Update `src/index.ts`**
 
 Replace the entire content:
 
@@ -1714,12 +1723,12 @@ export type { LayoutConfig, LayoutResult, LayoutNode, LayoutEdge, Bounds, Point,
 export type { XMermaidOptions } from './types/options';
 ```
 
-- [ ] **Step 5: Run TypeScript check**
+- [x] **Step 5: Run TypeScript check**
 
 Run: `cd /Volumes/Data/Code/xmermaid && npx tsc --noEmit`
 Expected: Passes with no errors
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/xmermaid.ts src/wasm.ts src/wasm-types.d.ts src/index.ts
@@ -1735,7 +1744,7 @@ git commit -m "feat(sdk): update XMermaid class with LayoutConfig and RenderThem
 - Modify: `tests/xmermaid.test.ts`
 - Create: `tests/theme.test.ts`
 
-- [ ] **Step 1: Write theme tests**
+- [x] **Step 1: Write theme tests**
 
 Create `tests/theme.test.ts`:
 
@@ -1784,12 +1793,12 @@ describe('createTheme', () => {
 });
 ```
 
-- [ ] **Step 2: Run theme tests**
+- [x] **Step 2: Run theme tests**
 
 Run: `cd /Volumes/Data/Code/xmermaid && npx vitest run tests/theme.test.ts`
 Expected: All tests PASS
 
-- [ ] **Step 3: Update `tests/renderer.test.ts`**
+- [x] **Step 3: Update `tests/renderer.test.ts`**
 
 Replace the entire content:
 
@@ -1873,7 +1882,7 @@ describe('SVGRenderer', () => {
 });
 ```
 
-- [ ] **Step 4: Update `tests/xmermaid.test.ts`**
+- [x] **Step 4: Update `tests/xmermaid.test.ts`**
 
 Replace the entire content:
 
@@ -1909,12 +1918,12 @@ describe('XMermaid', () => {
 });
 ```
 
-- [ ] **Step 5: Run all tests**
+- [x] **Step 5: Run all tests**
 
 Run: `cd /Volumes/Data/Code/xmermaid && npx vitest run`
 Expected: All tests PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add tests/renderer.test.ts tests/xmermaid.test.ts tests/theme.test.ts
@@ -1928,7 +1937,7 @@ git commit -m "test: update renderer and xmermaid tests for new layout types, ad
 **Files:**
 - Modify: `examples/basic.html`
 
-- [ ] **Step 1: Update `examples/basic.html`**
+- [x] **Step 1: Update `examples/basic.html`**
 
 Replace the entire content:
 
@@ -1964,12 +1973,12 @@ Replace the entire content:
 </html>
 ```
 
-- [ ] **Step 2: Rebuild WASM and JS**
+- [x] **Step 2: Rebuild WASM and JS**
 
 Run: `cd /Volumes/Data/Code/xmermaid && PATH="/Users/evan/.cargo/bin:$PATH" npm run build && cp pkg/xmermaid_wasm_bg.wasm dist/`
 Expected: Build succeeds, `dist/xmermaid.esm.js` and `dist/xmermaid_wasm_bg.wasm` exist
 
-- [ ] **Step 3: Verify in browser**
+- [x] **Step 3: Verify in browser**
 
 Open `examples/basic.html` via local server. Verify:
 - Nodes render with rounded rectangles
@@ -1977,7 +1986,7 @@ Open `examples/basic.html` via local server. Verify:
 - Arrow tips touch node borders without being hidden
 - Edge labels are readable with background
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add examples/basic.html
@@ -1991,7 +2000,7 @@ git commit -m "docs: update basic.html example for new API"
 **Files:**
 - Create: `examples/flowchart-complex.html`
 
-- [ ] **Step 1: Create complex flowchart example**
+- [x] **Step 1: Create complex flowchart example**
 
 ```html
 <!DOCTYPE html>
@@ -2049,11 +2058,11 @@ git commit -m "docs: update basic.html example for new API"
 </html>
 ```
 
-- [ ] **Step 2: Verify in browser**
+- [x] **Step 2: Verify in browser**
 
 Open `examples/flowchart-complex.html` via local server. Verify both diagrams render correctly with proper spacing and arrows.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add examples/flowchart-complex.html
@@ -2068,7 +2077,7 @@ git commit -m "docs: add complex flowchart example with multi-branch and self-lo
 - Create: `examples/flowchart-directions.html`
 - Create: `examples/theme-comparison.html`
 
-- [ ] **Step 1: Create directions example**
+- [x] **Step 1: Create directions example**
 
 ```html
 <!DOCTYPE html>
@@ -2111,7 +2120,7 @@ git commit -m "docs: add complex flowchart example with multi-branch and self-lo
 </html>
 ```
 
-- [ ] **Step 2: Create theme comparison example**
+- [x] **Step 2: Create theme comparison example**
 
 ```html
 <!DOCTYPE html>
@@ -2161,9 +2170,9 @@ git commit -m "docs: add complex flowchart example with multi-branch and self-lo
 </html>
 ```
 
-- [ ] **Step 3: Verify both examples in browser**
+- [x] **Step 3: Verify both examples in browser**
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add examples/flowchart-directions.html examples/theme-comparison.html
@@ -2177,7 +2186,7 @@ git commit -m "docs: add flowchart directions and theme comparison examples"
 **Files:**
 - Modify: `crates/xmermaid-layout/src/flowchart.rs`
 
-- [ ] **Step 1: Add unit tests to `flowchart.rs`**
+- [x] **Step 1: Add unit tests to `flowchart.rs`**
 
 Append at the end of `crates/xmermaid-layout/src/flowchart.rs`:
 
@@ -2327,12 +2336,12 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Run Rust tests**
+- [x] **Step 2: Run Rust tests**
 
 Run: `cd /Volumes/Data/Code/xmermaid && cargo test`
 Expected: All tests PASS
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add crates/xmermaid-layout/src/flowchart.rs
@@ -2346,7 +2355,7 @@ git commit -m "test(layout): add unit tests for flowchart layout — bounds, spa
 **Files:**
 - Modify: `crates/xmermaid-parser/src/parser.rs`
 
-- [ ] **Step 1: Add unit tests to `parser.rs`**
+- [x] **Step 1: Add unit tests to `parser.rs`**
 
 Append at the end of `crates/xmermaid-parser/src/parser.rs`:
 
@@ -2417,12 +2426,12 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Run Rust tests**
+- [x] **Step 2: Run Rust tests**
 
 Run: `cd /Volumes/Data/Code/xmermaid && cargo test`
 Expected: All tests PASS
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add crates/xmermaid-parser/src/parser.rs

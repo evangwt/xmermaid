@@ -1,3 +1,13 @@
+---
+doc_type: feature-acceptance
+feature: 2026-05-25-codestable-evidence-governance
+status: accepted
+accepted_at: 2026-05-25
+roadmap: visual-rendering-readiness
+roadmap_item: codestable-evidence-governance
+tags: [codestable, evidence, repository-hygiene, release-readiness]
+---
+
 # codestable-evidence-governance 验收报告
 
 > 阶段：阶段 3（验收闭环）

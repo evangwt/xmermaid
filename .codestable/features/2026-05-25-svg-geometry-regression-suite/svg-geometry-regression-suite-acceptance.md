@@ -1,3 +1,13 @@
+---
+doc_type: feature-acceptance
+feature: 2026-05-25-svg-geometry-regression-suite
+status: accepted
+accepted_at: 2026-05-25
+roadmap: visual-rendering-readiness
+roadmap_item: svg-geometry-regression-suite
+tags: [svg, rendering, regression-tests, geometry]
+---
+
 # svg-geometry-regression-suite 验收报告
 
 > 阶段：阶段 3（验收闭环）

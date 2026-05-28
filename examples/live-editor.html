@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%232563eb'/%3E%3Cpath d='M4 5h8M4 8h8M4 11h8' stroke='white' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E">
+  <title>xmermaid - Live Editor</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f3f4f6; color: #1f2937; }
+    .app { min-height: 100vh; display: grid; grid-template-rows: auto 1fr; }
+    header { padding: 16px 20px; background: #ffffff; border-bottom: 1px solid #d1d5db; }
+    h1 { margin: 0; font-size: 20px; font-weight: 650; }
+    .xmermaid-live-editor { min-height: 0; }
+    .xm-live-shell { height: calc(100vh - 58px); display: grid; grid-template-columns: minmax(280px, 0.9fr) 180px minmax(320px, 1fr) minmax(320px, 1fr); gap: 12px; padding: 12px; }
+    [data-xm-document-input],
+    [data-xm-selected-source] {
+      width: 100%;
+      height: 100%;
+      resize: none;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      padding: 12px;
+      font: 13px/1.5 "SF Mono", "Fira Code", Consolas, monospace;
+      background: #ffffff;
+      color: #111827;
+    }
+    [data-xm-diagram-list] { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+    [data-xm-diagram-item] {
+      padding: 8px 10px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      background: #ffffff;
+      color: #1f2937;
+      text-align: left;
+      cursor: pointer;
+    }
+    [data-xm-diagram-item].is-selected { border-color: #2563eb; background: #eff6ff; color: #1d4ed8; }
+    .xm-live-preview-panel { min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: 12px; }
+    [data-xm-preview] { min-height: 0; overflow: auto; border: 1px solid #cbd5e1; border-radius: 6px; background: #ffffff; padding: 16px; }
+    [data-xm-preview] svg { max-width: 100%; }
+    [data-xm-preview-error] { color: #b91c1c; background: #fee2e2; border: 1px solid #fecaca; border-radius: 6px; padding: 10px; }
+    [data-xm-diagnostics] { border: 1px solid #cbd5e1; border-radius: 6px; background: #ffffff; padding: 10px; min-height: 44px; }
+    [data-xm-diagnostic-item] { color: #991b1b; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 8px; font: 12px/1.4 "SF Mono", "Fira Code", Consolas, monospace; }
+    [data-xm-repair-suggestion] { margin-top: 8px; color: #374151; background: #f8fafc; border: 1px solid #dbeafe; border-radius: 6px; padding: 8px; font-size: 13px; }
+    [data-xm-repair-apply] { margin-left: 8px; border: 1px solid #2563eb; border-radius: 5px; background: #2563eb; color: #ffffff; padding: 4px 8px; cursor: pointer; }
+    [data-xm-diagnostics-empty] { margin: 0; color: #64748b; font-size: 13px; }
+    [data-xm-empty] { margin: 0; padding: 10px; border: 1px dashed #cbd5e1; border-radius: 6px; background: #ffffff; color: #64748b; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>xmermaid live editor</h1>
+    </header>
+    <main id="editor"></main>
+  </div>
+
+  <script type="module">
+    import { XMermaidLiveEditor } from '../dist/xmermaid.esm.js';
+
+    const initialText = `# Service Map
+
+\`\`\`mermaid
+graph TD
+  A[Start] --> B{Valid?}
+  B -->|Yes| C[Render]
+  B -->|No| D[Show Error]
+\`\`\`
+
+Some markdown text can live between diagrams.
+
+\`\`\`mermaid
+flowchart LR
+  Client[Client] --> API[API]
+  API --> DB[(Database)]
+\`\`\`
+`;
+
+    const editor = new XMermaidLiveEditor({
+      root: document.getElementById('editor'),
+      initialText,
+    });
+
+    await editor.mount();
+  </script>
+</body>
+</html>

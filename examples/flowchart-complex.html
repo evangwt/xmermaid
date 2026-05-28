@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" href="data:,">
   <title>xmermaid - Complex Flowchart</title>
   <style>
     body { font-family: sans-serif; margin: 20px; background: #f5f5f5; }
@@ -18,21 +19,40 @@
   <script type="module">
     import { XMermaid } from '../dist/xmermaid.esm.js';
 
-    // Multi-branch flowchart with long labels
+    // 15+ nodes with subgraphs, long labels, multi-input/output, and a cycle.
     const xm1 = new XMermaid({ container: document.getElementById('diagram1') });
     await xm1.render(`graph TD
-    A[Start Process] --> B{Check Input Valid?}
-    B -->|Valid| C[Process Data]
-    B -->|Invalid| D[Show Error Message]
-    C --> E{Data Complete?}
-    E -->|Yes| F[Save to Database]
-    E -->|No| G[Request More Info]
-    G --> C
-    D --> H[Log Error]
-    H --> A
-    F --> I[Generate Report]
-    I --> J[Send Notification]
-    J --> K[End]`);
+    subgraph Intake [Input Intake]
+      A[Receive customer request with a long descriptive label] --> B{Payload schema valid?}
+      B -->|No| C[Normalize validation errors]
+      C --> D[Send actionable response to client]
+      D --> A
+      B -->|Yes| E[Enrich request context]
+    end
+
+    subgraph Processing [Processing Pipeline]
+      E --> F{Existing account found?}
+      F -->|Yes| G[Load account preferences]
+      F -->|No| H[Create provisional account record]
+      G --> I[Queue primary workflow]
+      H --> I
+      I --> J[Run fraud and compliance checks]
+      J --> K{Manual review required?}
+      K -->|Yes| L[Assign specialist review task]
+      L --> J
+      K -->|No| M[Commit workflow results]
+    end
+
+    subgraph Notification [Notification Fan-out]
+      M --> N[Generate customer summary]
+      M --> O[Write audit trail event]
+      N --> P[Send email notification]
+      N --> Q[Send webhook callback]
+      O --> R[Archive immutable evidence bundle]
+      P --> S[Done]
+      Q --> S
+      R --> S
+    end`);
 
     // Flowchart with self-loop and multi-input nodes
     const xm2 = new XMermaid({ container: document.getElementById('diagram2') });
