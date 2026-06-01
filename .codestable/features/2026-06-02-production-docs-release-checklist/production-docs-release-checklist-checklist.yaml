@@ -1,0 +1,60 @@
+feature: 2026-06-02-production-docs-release-checklist
+created: 2026-06-02
+
+steps:
+  - action: "RED 测试：新增 docs gate matrix 和 --check-docs failure/success 期望"
+    exit_signal: "测试因 --check-docs 缺失失败"
+    status: done
+
+  - action: "文档实现：扩 README，新增 production release checklist"
+    exit_signal: "docs gate 仍因脚本缺失失败，但文档内容存在"
+    status: done
+
+  - action: "release gate 实现：新增 --check-docs 与默认 matrix command"
+    exit_signal: "tests/verify-release.test.ts 通过"
+    status: done
+
+  - action: "发布门禁验证：跑 build、consumer smoke、docs gate"
+    exit_signal: "npm run build、npm run smoke:consumer -- --json、node scripts/verify-release.cjs --check-docs 通过"
+    status: done
+
+  - action: "回归验证：相关单测、全量 JS、typecheck、build、consumer smoke"
+    exit_signal: "验证命令全部通过"
+    status: done
+
+checks:
+  - item: "README 明确 partial flowchart support、unsupported diagram families、diagnostics、安全 strict、Chrome/CHROME_BIN、consumer smoke"
+    source: 验收场景
+    status: passed
+
+  - item: "production release checklist 列出 build、consumer smoke、docs sync、JS tests、typecheck、cargo、diff whitespace"
+    source: 验收场景
+    status: passed
+
+  - item: "默认 release matrix 包含 docs-support-matrix-sync 且在 consumer smoke 之后"
+    source: 发布门禁
+    status: passed
+
+  - item: "--check-docs 当前文档返回 0"
+    source: 发布门禁
+    status: passed
+
+  - item: "缺少关键 docs 短语时 docs gate 返回非 0"
+    source: 发布门禁
+    status: passed
+
+  - item: "不新增运行时能力"
+    source: 范围守护
+    status: passed
+
+  - item: "不改 package version"
+    source: 范围守护
+    status: passed
+
+  - item: "不承诺完整 Mermaid 兼容"
+    source: 范围守护
+    status: passed
+
+  - item: "不承诺 Node/server rendering"
+    source: 范围守护
+    status: passed

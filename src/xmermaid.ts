@@ -1,8 +1,13 @@
-import type { XMermaidOptions, LayoutConfig, RenderTheme } from './types';
+import type { XMermaidOptions, LayoutConfig, RenderOptions, RenderResult, RenderTheme } from './types';
 import { DEFAULT_THEME } from './types/theme';
 import { SVGRenderer } from './renderer/svg';
 import { initWasm, getWasm } from './wasm';
 import type { LayoutResult, EdgeStyle, NodeShape } from './types/layout';
+import { XMermaidError } from './types/error';
+import { analyzeSupport } from './support';
+import type { UnsupportedFeature } from './support';
+import type { XMermaidDiagnostic, XMermaidDiagnosticCode } from './types/diagnostics';
+import { detectSecurityDiagnostics, resolveSecurityPolicy } from './security';
 
 export class XMermaid {
   private container: HTMLElement;
@@ -16,14 +21,75 @@ export class XMermaid {
   }
 
   async render(input: string): Promise<void> {
-    await initWasm();
-    const wasm = getWasm();
+    const result = await this.renderToSVGElement(input);
+    this.container.innerHTML = '';
+    this.container.appendChild(result.svg);
+  }
+
+  async renderToSVGElement(input: string, options: RenderOptions = {}): Promise<RenderResult> {
+    const support = analyzeSupport(input);
+    const supportDiagnostics = support.unsupportedFeatures.map(unsupportedFeatureToDiagnostic);
+    const securityDiagnostics = detectSecurityDiagnostics(input, resolveSecurityPolicy(options));
+    const diagnostics = [...supportDiagnostics, ...securityDiagnostics];
+    const unsupportedDiagramDiagnostic = diagnostics.find(diagnostic => diagnostic.code === 'unsupported_diagram_type');
+    if (unsupportedDiagramDiagnostic) {
+      throw new XMermaidError(
+        'UNSUPPORTED_DIAGRAM',
+        unsupportedDiagramDiagnostic.message,
+        { diagnostics },
+        diagnostics,
+      );
+    }
+    const securityBlockingDiagnostic = diagnostics.find(diagnostic => diagnostic.code.startsWith('security_blocked_'));
+    if (securityBlockingDiagnostic) {
+      throw new XMermaidError(
+        'RENDER_ERROR',
+        'Render blocked by the active security policy.',
+        { diagnostics },
+        diagnostics,
+      );
+    }
+
+    const layout = await this.renderLayout(input, options.layoutConfig ?? this.layoutConfig);
+    const renderer = options.theme ? new SVGRenderer(options.theme) : this.renderer;
+    const svg = renderer.render(layout);
+
+    return {
+      diagramType: support.diagramType,
+      diagnostics,
+      dimensions: layout.dimensions,
+      svg,
+    };
+  }
+
+  async renderToSVGString(input: string, options: RenderOptions = {}): Promise<string> {
+    const result = await this.renderToSVGElement(input, options);
+    return new XMLSerializer().serializeToString(result.svg);
+  }
+
+  private async renderLayout(input: string, layoutConfig?: Partial<LayoutConfig>): Promise<LayoutResult> {
+    try {
+      await initWasm();
+    } catch (error) {
+      throw normalizeWasmInitError(error);
+    }
+
+    let wasm;
+    try {
+      wasm = getWasm();
+    } catch (error) {
+      throw normalizeWasmInitError(error);
+    }
 
     let layout: any;
-    if (this.layoutConfig) {
-      layout = wasm.render_with_config(input, JSON.stringify(this.layoutConfig));
-    } else {
-      layout = wasm.render(input);
+    try {
+      if (layoutConfig) {
+        layout = wasm.render_with_config(input, JSON.stringify(layoutConfig));
+      } else {
+        layout = wasm.render(input);
+      }
+    } catch (error) {
+      throw normalizeWasmRenderError(error);
     }
 
     // serde_wasm_bindgen may serialize enums as Map objects; convert to strings
@@ -44,9 +110,7 @@ export class XMermaid {
       }
     }
 
-    const svg = this.renderer.render(layout as LayoutResult);
-    this.container.innerHTML = '';
-    this.container.appendChild(svg);
+    return layout as LayoutResult;
   }
 
   setTheme(theme: Partial<RenderTheme>): void {
@@ -73,4 +137,51 @@ export class XMermaid {
       }
     }
   }
+}
+
+function unsupportedFeatureToDiagnostic(feature: UnsupportedFeature): XMermaidDiagnostic {
+  return {
+    code: feature.id.startsWith('diagram.') ? 'unsupported_diagram_type' : 'unsupported_syntax',
+    message: feature.message,
+    severity: feature.severity,
+    range: feature.range,
+    featureId: feature.id,
+  };
+}
+
+function normalizeWasmRenderError(error: unknown): XMermaidError {
+  if (error instanceof XMermaidError) return error;
+
+  const message = error instanceof Error ? error.message : String(error);
+  if (/unsupported diagram type/i.test(message)) {
+    return diagnosticError('UNSUPPORTED_DIAGRAM', 'unsupported_diagram_type', message, error);
+  }
+  if (/parse error/i.test(message)) {
+    return diagnosticError('PARSE_ERROR', 'parse_error', message, error);
+  }
+  if (/layout/i.test(message)) {
+    return diagnosticError('LAYOUT_ERROR', 'layout_error', message, error);
+  }
+  return diagnosticError('RENDER_ERROR', 'render_error', message, error);
+}
+
+function normalizeWasmInitError(error: unknown): XMermaidError {
+  if (error instanceof XMermaidError) return error;
+  const message = error instanceof Error ? error.message : String(error);
+  return diagnosticError('WASM_ERROR', 'wasm_init_error', message, error);
+}
+
+function diagnosticError(
+  code: ConstructorParameters<typeof XMermaidError>[0],
+  diagnosticCode: XMermaidDiagnosticCode,
+  message: string,
+  details: unknown,
+): XMermaidError {
+  const diagnostics: XMermaidDiagnostic[] = [{
+    code: diagnosticCode,
+    message,
+    severity: 'error',
+    range: null,
+  }];
+  return new XMermaidError(code, message, details, diagnostics);
 }

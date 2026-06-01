@@ -1,0 +1,68 @@
+feature: 2026-06-02-support-analyzer-v1
+created: 2026-06-02
+
+steps:
+  - action: "RED 测试：新增 analyzer 行为和 public API typecheck 期望"
+    exit_signal: "测试因 detectUnsupportedFeatures 缺失失败"
+    status: done
+
+  - action: "名词层实现：新增 UnsupportedFeatureId / SupportSourceRange / UnsupportedFeature / SupportReport 字段"
+    exit_signal: "typecheck 通过"
+    status: done
+
+  - action: "扫描实现：unsupported diagram + flowchart unsupported syntax line scanner"
+    exit_signal: "support matrix analyzer 测试通过"
+    status: done
+
+  - action: "发布门禁接入：consumer smoke typecheck 引用新 analyzer API"
+    exit_signal: "npm run build && npm run smoke:consumer -- --json 通过"
+    status: done
+
+  - action: "回归验证：跑相关单测、全量 JS 测试、typecheck、build、consumer smoke"
+    exit_signal: "验证命令全部通过"
+    status: done
+
+checks:
+  - item: "unsupported diagram family 返回 diagram.* feature 和第一行 range"
+    source: 验收场景
+    status: passed
+
+  - item: "flowchart class/classDef/style/click 返回对应 unsupported feature 和行 range"
+    source: 验收场景
+    status: passed
+
+  - item: "flowchart HTML label / Markdown label 返回对应 unsupported feature"
+    source: 验收场景
+    status: passed
+
+  - item: "analyzeSupport 返回 unsupportedFeatures 且保留旧字段"
+    source: 兼容守护
+    status: passed
+
+  - item: "基础 supported flowchart 返回空 unsupportedFeatures"
+    source: 验收场景
+    status: passed
+
+  - item: "root public API 导出 detectUnsupportedFeatures 和 analyzer 类型"
+    source: 名词契约
+    status: passed
+
+  - item: "packed consumer typecheck 能 import analyzer API"
+    source: 发布门禁
+    status: passed
+
+  - item: "不调用 WASM 或 Rust parser"
+    source: 范围守护
+    status: passed
+
+  - item: "不修改 render behavior"
+    source: 范围守护
+    status: passed
+
+  - item: "不接入 live editor diagnostics"
+    source: 范围守护
+    status: passed
+
+  - item: "不新增 security policy 判断"
+    source: 范围守护
+    status: passed

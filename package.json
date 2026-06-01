@@ -1,7 +1,7 @@
 {
   "name": "xmermaid",
   "version": "0.1.0",
-  "description": "High-performance Mermaid diagram renderer powered by Rust WASM",
+  "description": "Flowchart-focused Mermaid renderer with partial Mermaid support powered by Rust WASM",
   "type": "module",
   "main": "dist/xmermaid.js",
   "module": "dist/xmermaid.esm.js",
@@ -20,8 +20,9 @@
   "scripts": {
     "build:wasm": "node scripts/build-wasm.cjs",
     "build:js": "rollup -c",
-    "build": "npm run build:wasm && npm run build:js",
+    "build": "npm run build:wasm && npm run build:js && node scripts/copy-wasm-dist.cjs",
     "verify:release": "node scripts/verify-release.cjs",
+    "smoke:consumer": "node scripts/consumer-smoke.cjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"

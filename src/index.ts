@@ -5,8 +5,23 @@ export { computeEdgePath, computeBezierPath, computeStepPath, computeStraightPat
 export { DEFAULT_THEME, DARK_THEME, MINIMAL_THEME, createTheme } from './types/theme';
 export { initWasm, isWasmReady } from './wasm';
 export { XMermaidError } from './types/error';
+export { getSupportMatrix, getDiagramSupport, analyzeSupport, detectUnsupportedFeatures } from './support';
+export { DEFAULT_SECURITY_POLICY } from './security';
 export type { RenderTheme, ThemeColors, ArrowStyle, CurveStyle } from './types/theme';
 export type { LayoutConfig, LayoutResult, LayoutNode, LayoutEdge, Bounds, Point, NodeShape, FlowDirection, Dimensions } from './types/layout';
-export type { XMermaidOptions } from './types/options';
-export type { DiagramBlock, DiagramDocument, DiagramOrigin, DocumentDiagnostic, SourceRange, RenderDiagnostic, RenderDiagnosticCode, RepairConfidence, RepairSuggestion, ReplaceDiagramSourceResult, XMermaidLiveEditorOptions, LiveEditorRenderRequest } from './editor';
+export type { RenderOptions, RenderResult, WasmInitOptions, XMermaidOptions } from './types/options';
+export type { SourceRange, XMermaidDiagnostic, XMermaidDiagnosticCode } from './types/diagnostics';
+export type { SecurityLevel, SecurityPolicy } from './security';
+export type {
+  DiagramType,
+  SupportStatus,
+  SyntaxCapability,
+  DiagramSupportEntry,
+  SupportMatrix,
+  SupportReport,
+  SupportSourceRange,
+  UnsupportedFeature,
+  UnsupportedFeatureId,
+} from './support';
+export type { DiagramBlock, DiagramDocument, DiagramOrigin, DocumentDiagnostic, RenderDiagnostic, RenderDiagnosticCode, RepairConfidence, RepairSuggestion, ReplaceDiagramSourceResult, XMermaidLiveEditorOptions, LiveEditorRenderRequest } from './editor';
 export type { DiagramAst, FlowchartAst, SequenceAst, EdgeStyle, FlowchartNode, FlowchartEdge, Subgraph } from './types/ast';

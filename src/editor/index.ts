@@ -1,19 +1,14 @@
 import { XMermaid } from '../xmermaid';
 import { XMermaidError } from '../types/error';
 import type { XMermaidOptions } from '../types/options';
+import type { SourceRange, XMermaidDiagnostic, XMermaidDiagnosticCode } from '../types/diagnostics';
 import { applyRepair, suggestRepairs, type RepairSuggestion } from './repair';
 
+export type { SourceRange } from '../types/diagnostics';
 export { applyRepair, suggestRepairs };
 export type { RepairConfidence, RepairSuggestion } from './repair';
 
 export type DiagramOrigin = 'markdown-fence' | 'raw-mermaid-block';
-
-export interface SourceRange {
-  startOffset: number;
-  endOffset: number;
-  startLine: number;
-  endLine: number;
-}
 
 export interface DocumentDiagnostic {
   code: string;
@@ -23,18 +18,20 @@ export interface DocumentDiagnostic {
 }
 
 export type RenderDiagnosticCode =
-  | 'parse_error'
-  | 'unsupported_diagram_type'
-  | 'layout_error'
-  | 'render_error'
-  | 'wasm_init_error';
+  Extract<
+    XMermaidDiagnosticCode,
+    | 'parse_error'
+    | 'unsupported_diagram_type'
+    | 'unsupported_syntax'
+    | 'layout_error'
+    | 'render_error'
+    | 'wasm_init_error'
+    | 'security_blocked_url'
+    | 'security_blocked_html'
+    | 'security_blocked_click'
+  >;
 
-export interface RenderDiagnostic {
-  code: RenderDiagnosticCode;
-  message: string;
-  severity: 'error' | 'warning';
-  range: SourceRange | null;
-}
+export type RenderDiagnostic = XMermaidDiagnostic & { code: RenderDiagnosticCode };
 
 export interface DiagramBlock {
   id: string;
@@ -67,7 +64,7 @@ export interface LiveEditorRenderRequest {
 export interface XMermaidLiveEditorOptions {
   root: HTMLElement;
   initialText?: string;
-  renderDiagram?: (request: LiveEditorRenderRequest) => Promise<void>;
+  renderDiagram?: (request: LiveEditorRenderRequest) => Promise<RenderDiagnostic[] | void>;
   xmermaidOptions?: Omit<XMermaidOptions, 'container'>;
 }
 
@@ -143,7 +140,7 @@ export function replaceDiagramSource(
 
 class XMermaidLiveEditor {
   private readonly root: HTMLElement;
-  private readonly renderDiagram: (request: LiveEditorRenderRequest) => Promise<void>;
+  private readonly renderDiagram: (request: LiveEditorRenderRequest) => Promise<RenderDiagnostic[] | void>;
   private readonly xmermaidOptions?: Omit<XMermaidOptions, 'container'>;
   private documentText: string;
   private diagramDocument: DiagramDocument;
@@ -259,14 +256,15 @@ class XMermaidLiveEditor {
 
     const source = this.sourceInput.value;
     try {
-      await this.renderDiagram({
+      const diagnostics = await this.renderDiagram({
         source,
         container: this.previewEl,
         diagram: { ...selected, source },
       });
+      this.renderDiagnostics(diagnostics ?? []);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      const diagnostics = [normalizeRenderError(error, selected.range)];
+      const diagnostics = normalizeRenderError(error, selected.range);
       this.renderDiagnostics(diagnostics, suggestRepairs(source, diagnostics));
       const errorEl = document.createElement('div');
       errorEl.setAttribute('data-xm-preview-error', '');
@@ -275,12 +273,15 @@ class XMermaidLiveEditor {
     }
   }
 
-  private defaultRenderDiagram = async ({ source, container }: LiveEditorRenderRequest): Promise<void> => {
+  private defaultRenderDiagram = async ({ source, container }: LiveEditorRenderRequest): Promise<RenderDiagnostic[]> => {
     const renderer = new XMermaid({
       ...this.xmermaidOptions,
       container,
     });
-    await renderer.render(source);
+    const result = await renderer.renderToSVGElement(source);
+    container.innerHTML = '';
+    container.appendChild(result.svg);
+    return result.diagnostics as RenderDiagnostic[];
   };
 
   private renderDiagnostics(diagnostics: RenderDiagnostic[], suggestions: RepairSuggestion[] = []): void {
@@ -351,7 +352,9 @@ function createDiagramBlock(input: CreateDiagramBlockInput): DiagramBlock {
       startOffset: input.startOffset,
       endOffset: input.endOffset,
       startLine: lineForOffset(input.text, input.startOffset),
+      startColumn: columnForOffset(input.text, input.startOffset),
       endLine: lineForOffset(input.text, input.endOffset),
+      endColumn: columnForOffset(input.text, input.endOffset),
     },
     diagramType: isMermaidStart(input.source) ? 'flowchart' : 'unknown',
   };
@@ -365,12 +368,28 @@ function lineForOffset(text: string, offset: number): number {
   return text.slice(0, offset).split('\n').length;
 }
 
-function normalizeRenderError(error: unknown, range: SourceRange): RenderDiagnostic {
-  return {
+function columnForOffset(text: string, offset: number): number {
+  const lineStart = text.lastIndexOf('\n', Math.max(0, offset - 1));
+  return offset - lineStart;
+}
+
+function normalizeRenderError(error: unknown, range: SourceRange): RenderDiagnostic[] {
+  if (error instanceof XMermaidError && error.diagnostics.length > 0) {
+    return error.diagnostics.map(diagnostic => withFallbackRange(diagnostic as RenderDiagnostic, range));
+  }
+
+  return [{
     code: renderDiagnosticCode(error),
     message: error instanceof Error ? error.message : String(error),
     severity: 'error',
     range,
+  }];
+}
+
+function withFallbackRange(diagnostic: RenderDiagnostic, range: SourceRange): RenderDiagnostic {
+  return {
+    ...diagnostic,
+    range: diagnostic.range ?? range,
   };
 }
 

@@ -1,0 +1,72 @@
+feature: 2026-06-02-pack-install-render-smoke
+created: 2026-06-02
+
+steps:
+  - action: "RED 测试：新增 release matrix / consumer smoke helper 测试"
+    exit_signal: "测试因 --list-matrix 不存在或 consumer-smoke.cjs 不存在失败"
+    status: done
+
+  - action: "编排骨架：实现 consumer-smoke.cjs 的 pack、manifest 校验、临时消费者安装和 JSON 记录"
+    exit_signal: "smoke helper 测试通过，脚本 --help 可用"
+    status: done
+
+  - action: "计算节点：接入 typecheck、Node import、HTTP server 和 Chrome browser render smoke"
+    exit_signal: "npm run smoke:consumer -- --json 在 build 后通过"
+    status: done
+
+  - action: "release 挂载：更新 verify-release 默认矩阵、summary 解析和 package script"
+    exit_signal: "release script 测试通过，verify-release --list-matrix --json 显示 consumer gate"
+    status: done
+
+  - action: "回归验证：跑相关单测、全量 JS 测试、typecheck、build、consumer smoke"
+    exit_signal: "验证命令全部通过"
+    status: done
+
+checks:
+  - item: "verify-release 默认矩阵包含 required consumer-pack-install 且位于 wasm-js-build 后"
+    source: 验收场景
+    status: passed
+
+  - item: "consumer smoke 使用 npm pack tarball，不从 src 或仓库根入口 import"
+    source: 名词契约
+    status: passed
+
+  - item: "pack manifest 校验 dist JS、dist declarations、WASM asset 和 README"
+    source: 验收场景
+    status: passed
+
+  - item: "临时消费者项目安装 packed tarball 后 tsc --noEmit 通过"
+    source: 验收场景
+    status: passed
+
+  - item: "root ESM 在 Node/SSR 解析场景可 import，但不承诺 Node DOM 渲染"
+    source: 流程级约束
+    status: passed
+
+  - item: "真实浏览器加载 package ESM 与 WASM 并渲染最小 flowchart SVG"
+    source: 验收场景
+    status: passed
+
+  - item: "smoke JSON summary 记录 package size 与 browser render duration"
+    source: 流程级约束
+    status: passed
+
+  - item: "无 Chrome 时失败并提示 CHROME_BIN，不降级到 jsdom"
+    source: 流程级约束
+    status: passed
+
+  - item: "不新增 Playwright/Puppeteer 或其他依赖"
+    source: 范围守护
+    status: passed
+
+  - item: "不新增 render API 或更改 XMermaid.render 行为"
+    source: 范围守护
+    status: passed
+
+  - item: "不新增 diagram/parser/renderer 能力"
+    source: 范围守护
+    status: passed
+
+  - item: "不把 smoke tarball 留在仓库根目录"
+    source: 范围守护
+    status: passed

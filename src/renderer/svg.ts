@@ -428,7 +428,9 @@ export class SVGRenderer {
     const fallbackWidth = text.length * fontSize * 0.6;
 
     try {
-      const ctx = SVGRenderer._canvas.getContext('2d');
+      const canvas = SVGRenderer.getCanvas();
+      if (!canvas) return fallbackWidth;
+      const ctx = canvas.getContext('2d');
       if (!ctx) return fallbackWidth;
       ctx.font = `${fontSize}px ${this.theme.fontFamily}`;
       return ctx.measureText(text).width;
@@ -437,5 +439,11 @@ export class SVGRenderer {
     }
   }
 
-  private static _canvas: HTMLCanvasElement = document.createElement('canvas');
+  private static _canvas: HTMLCanvasElement | null = null;
+
+  private static getCanvas(): HTMLCanvasElement | null {
+    if (typeof document === 'undefined') return null;
+    SVGRenderer._canvas ??= document.createElement('canvas');
+    return SVGRenderer._canvas;
+  }
 }

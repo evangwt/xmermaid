@@ -1,0 +1,60 @@
+feature: 2026-06-02-release-support-matrix
+created: 2026-06-02
+
+steps:
+  - action: "RED 测试：新增 support matrix/package/README 同步测试"
+    exit_signal: "目标测试因缺少 API、README 或旧 package 描述失败"
+    status: done
+
+  - action: "名词层实现：新增 support matrix 类型、常量和 diagram-level report"
+    exit_signal: "support matrix 行为测试通过"
+    status: done
+
+  - action: "挂载点接入：导出 API、更新 package 描述和 README"
+    exit_signal: "同步测试和 typecheck 通过"
+    status: done
+
+  - action: "回归验证：跑相关单测、全量 JS 测试和 typecheck"
+    exit_signal: "验证命令全部通过"
+    status: done
+
+checks:
+  - item: "Support matrix API 提供 getSupportMatrix/getDiagramSupport/analyzeSupport"
+    source: 名词契约
+    status: passed
+
+  - item: "root public API 导出 support matrix 函数和类型"
+    source: 挂载点
+    status: passed
+
+  - item: "package.json description 不再暗示完整 Mermaid 替代"
+    source: 挂载点
+    status: passed
+
+  - item: "README 明确 flowchart partial support、unsupported diagrams 和限制"
+    source: 挂载点
+    status: passed
+
+  - item: "getSupportMatrix 返回 flowchart partial support"
+    source: 验收场景
+    status: passed
+
+  - item: "analyzeSupport 对 flowchart source 返回 partial flowchart report"
+    source: 验收场景
+    status: passed
+
+  - item: "analyzeSupport 对 sequenceDiagram 返回 unsupported sequence report"
+    source: 验收场景
+    status: passed
+
+  - item: "不新增非 flowchart parser/renderer 实现"
+    source: 范围守护
+    status: passed
+
+  - item: "不修改 layout/render 行为"
+    source: 范围守护
+    status: passed
+
+  - item: "不新增 PNG/server/CLI API"
+    source: 范围守护
+    status: passed

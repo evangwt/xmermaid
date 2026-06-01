@@ -1,0 +1,76 @@
+feature: 2026-06-02-structured-diagnostics-v1
+created: 2026-06-02
+
+steps:
+  - action: "RED 测试：新增 SDK diagnostics、error diagnostics、live editor diagnostics 和 consumer typecheck 期望"
+    exit_signal: "目标测试因 diagnostics 仍为空或类型缺失失败"
+    status: done
+
+  - action: "名词层实现：新增共享 diagnostics 类型，改 XMermaidError 与导出"
+    exit_signal: "typecheck 能识别新类型"
+    status: done
+
+  - action: "SDK 编排实现：support analyzer 转 diagnostics、unsupported diagram preflight、WASM error diagnostics"
+    exit_signal: "tests/xmermaid.test.ts 目标用例通过"
+    status: done
+
+  - action: "Editor 消费实现：默认 render 使用 element API result diagnostics，error fallback 读取 XMermaidError.diagnostics"
+    exit_signal: "tests/live-editor.test.ts 目标用例通过"
+    status: done
+
+  - action: "发布门禁接入：consumer smoke typecheck 引用 diagnostics 类型"
+    exit_signal: "npm run build && npm run smoke:consumer -- --json 通过"
+    status: done
+
+  - action: "回归验证：跑相关单测、全量 JS 测试、typecheck、build、consumer smoke"
+    exit_signal: "验证命令全部通过"
+    status: done
+
+checks:
+  - item: "renderToSVGElement 成功渲染 partial flowchart 时返回 unsupported_syntax diagnostics 和 line/column range"
+    source: 验收场景
+    status: passed
+
+  - item: "unsupported diagram preflight 抛 XMermaidError('UNSUPPORTED_DIAGRAM') 且携带 unsupported_diagram_type diagnostic"
+    source: 验收场景
+    status: passed
+
+  - item: "WASM parse error 抛 XMermaidError('PARSE_ERROR') 且携带 parse_error diagnostic"
+    source: 验收场景
+    status: passed
+
+  - item: "live editor 默认 render 显示 SDK 返回的 unsupported_syntax diagnostics 且 preview 保持 SVG"
+    source: 验收场景
+    status: passed
+
+  - item: "live editor custom renderDiagram 抛带 diagnostics 的 XMermaidError 时优先显示 error diagnostics"
+    source: 验收场景
+    status: passed
+
+  - item: "root public API 导出 XMermaidDiagnosticCode / XMermaidDiagnostic / SourceRange"
+    source: 名词契约
+    status: passed
+
+  - item: "packed consumer typecheck 能 import diagnostics 类型"
+    source: 发布门禁
+    status: passed
+
+  - item: "不实现 security policy 行为"
+    source: 范围守护
+    status: passed
+
+  - item: "不新增 Mermaid diagram/render 支持"
+    source: 范围守护
+    status: passed
+
+  - item: "不把 unsupported syntax 变成 fatal error"
+    source: 范围守护
+    status: passed
+
+  - item: "不伪造 parser token column"
+    source: 范围守护
+    status: passed
+
+  - item: "不改变 render(input): Promise<void> 兼容行为"
+    source: 兼容守护
+    status: passed

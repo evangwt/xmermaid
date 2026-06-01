@@ -1,4 +1,5 @@
-import type { RenderDiagnostic, SourceRange } from './index';
+import type { SourceRange } from '../types/diagnostics';
+import type { RenderDiagnostic } from './index';
 
 export type RepairConfidence = 'high' | 'medium' | 'low';
 
@@ -64,6 +65,14 @@ export function suggestRepairs(source: string, diagnostics: RenderDiagnostic[]):
 
 export function applyRepair(source: string, suggestion: RepairSuggestion): string {
   if (!suggestion.before) return source;
+  if (
+    suggestion.range
+    && suggestion.range.startOffset >= 0
+    && suggestion.range.endOffset <= source.length
+    && source.slice(suggestion.range.startOffset, suggestion.range.endOffset) === suggestion.before
+  ) {
+    return `${source.slice(0, suggestion.range.startOffset)}${suggestion.after}${source.slice(suggestion.range.endOffset)}`;
+  }
   const index = source.indexOf(suggestion.before);
   if (index === -1) return source;
   return `${source.slice(0, index)}${suggestion.after}${source.slice(index + suggestion.before.length)}`;
