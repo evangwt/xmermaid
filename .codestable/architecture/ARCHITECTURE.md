@@ -62,6 +62,12 @@ xmermaid 采用四层模块化架构，各层独立可替换：
 
 SVG renderer 的主题合同是 `RenderTheme`，当前内置 `DEFAULT_THEME`、`DARK_THEME`、`MINIMAL_THEME`。主题控制颜色、箭头样式、曲线样式、edge gap、arrow size、圆角和字体。`XMermaidOptions` 暴露 `theme` 与 `layoutConfig`，`XMermaid.render()` 负责 WASM 初始化、布局调用、WASM enum 归一化和 DOM 替换。
 
+公开 SDK 现在同时提供容器替换路径和可复用 SVG 输出路径。`XMermaid.render(input): Promise<void>` 保持兼容：清空 constructor 传入的 container 并插入 SVG。`XMermaid.renderToSVGElement(input, options?)` 是主输出 API，返回 `RenderResult`，包含 `diagramType`、`diagnostics`、`dimensions` 和 `svg: SVGSVGElement`；成功渲染 partial flowchart 时，support analyzer 发现的 unsupported syntax 会以 warning diagnostics 返回，unsupported diagram family 会在调用 WASM 前抛 `XMermaidError('UNSUPPORTED_DIAGRAM')`。`XMermaid.renderToSVGString(input, options?)` 是 element API 的序列化包装，不另走第二套渲染逻辑。`RenderOptions` 支持单次 `theme` 与 `layoutConfig`，并保留 `WasmInitOptions` 类型边界给后续自定义 WASM 加载；当前 loader 行为未改变。
+
+`src/types/diagnostics.ts` 是 SDK、错误对象、live editor 和 repair engine 共享的诊断合同。`XMermaidDiagnosticCode` 当前覆盖 `parse_error`、`unsupported_diagram_type`、`unsupported_syntax`、`layout_error`、`render_error`、`wasm_init_error` 以及 security policy 的 `security_blocked_url`、`security_blocked_html`、`security_blocked_click`。`SourceRange` 使用 JS string offset，line/column 为 1-based，endOffset/endColumn 为 exclusive。`XMermaidError` 仍保留 `code` 与 `details`，并新增 `diagnostics: XMermaidDiagnostic[]`；WASM parse/layout/render/init 失败会被归一化为相同诊断对象。Rust parser 当前没有输出结构化 offset/column，所以这类 WASM 错误的 diagnostic range 为 `null`，不从 message 中伪造 token 位置。
+
+生产默认安全策略由 `src/security.ts` 定义并通过 root API 导出 `DEFAULT_SECURITY_POLICY`、`SecurityLevel`、`SecurityPolicy`。默认 `securityLevel` 是 `strict`：不可信 Mermaid input 中的 `click` callback/link、HTML label 和不在 allowlist 中的 URL protocol 会在 render preflight 阶段产生 `security_blocked_click`、`security_blocked_html`、`security_blocked_url` error diagnostics，并在调用 WASM 前阻断渲染。`loose` 只放宽 click/HTML 的 security blocking，让它们回到普通 unsupported syntax warning；危险 URL 仍然阻断。当前 allowlist 为 `http:`、`https:`、`mailto:`。v1 只做 source-level diagnostics，不执行 click callback，不把 HTML label 当 HTML 渲染，也不实现 sanitizer、CSP 或 sandbox。
+
 ---
 
 ## 解析层设计
@@ -281,11 +287,27 @@ editor.on('rendered', (result) => {
 
 `DiagramBlock.range` 是安全回写合同：Markdown fence 模式下指向 fence 内部源码区域，raw Mermaid 模式下指向 trim 后源码区域，offset 使用 JS string offset 且 `endOffset` 为 exclusive。`replaceDiagramSource(text, diagramId, nextSource, document)` 是后续 repair/visual edit 共享的单图替换入口；它只替换 matched diagram 的 range，保留文档上下文，替换后重新 `extractDiagrams`，找不到 id 时返回原文并追加 `diagram_not_found` diagnostic。
 
-Preview runtime errors are normalized into `RenderDiagnostic` records and shown in the static editor diagnostics panel. A diagnostic carries `code`, `message`, `severity`, and `range`; when the renderer cannot provide a more precise source span, the range defaults to the selected `DiagramBlock.range`. `XMermaidError` codes map to `parse_error`, `layout_error`, `render_error`, `wasm_init_error`, or `unsupported_diagram_type`, and unsupported diagram errors must not be presented as parse errors.
+Preview diagnostics use the same `XMermaidDiagnostic` / `SourceRange` contract as the SDK. The default live editor render path calls `renderToSVGElement()` so successful partial renders can still show `unsupported_syntax` warnings while preserving the SVG preview. Render failures prefer diagnostics carried by `XMermaidError.diagnostics`; when no structured diagnostic exists, the editor falls back to a single diagnostic with the selected `DiagramBlock.range`. `XMermaidError` codes map to `parse_error`, `layout_error`, `render_error`, `wasm_init_error`, or `unsupported_diagram_type`, and unsupported diagram errors must not be presented as parse errors.
 
 Syntax repair is local and deterministic. `suggestRepairs(source, diagnostics)` returns `RepairSuggestion` records for high-confidence fixes such as adding a missing `flowchart TD` header, correcting common direction typos, replacing common arrow typos, and closing simple label brackets. `applyRepair(source, suggestion)` replaces the first exact `before` fragment in the selected source only; unsupported diagram diagnostics produce a low-confidence hint and no one-click rewrite. There is no LLM or network repair path in the current system.
 
 示例入口是 `examples/live-editor.html`。页面直接加载构建后的 `dist/xmermaid.esm.js`，提供文档输入、多图列表、选中源码编辑区和预览区域。MVP 的边界是只编辑当前 selected source；语法修复、导出/分享、URL hash、视觉编辑和 Mermaid serialize 都仍属于 `multi-diagram-live-editor` roadmap 的后续 feature。
+
+### 当前生产支持合同
+
+源码中当前已落地 `src/support.ts`，并通过 `src/index.ts` 公开导出 `getSupportMatrix()`、`getDiagramSupport(diagramType)` 和 `analyzeSupport(source)`。这组 API 是生产发布合同的机器可读入口：它描述当前支持范围，而不是增加新的 parser/render 能力。
+
+当前合同把 `flowchart` 标为 `partial`：基础 `graph` / `flowchart` 声明、基础节点和有向边、常见标签、核心 shape 和部分 subgraph parse 属于支持范围；`class`、`classDef`、`style`、`click`、HTML label 和 Markdown label 明确列为 unsupported 或 partial。`sequenceDiagram`、`classDiagram`、`stateDiagram`、`erDiagram`、`gantt`、`pie` 和 `mindmap` 当前仍是 unsupported diagram family。
+
+`analyzeSupport(source)` 仍不替代 Rust parser，但现在会携带 `unsupportedFeatures`。`detectUnsupportedFeatures(source)` 是轻量 production support analyzer：unsupported diagram family 返回 `diagram.*` feature，flowchart 中的 `class`、`classDef`、`style`、`click`、HTML label 和 Markdown label 返回对应 `flowchart.*` feature。`SupportSourceRange` 使用 JS string offset，line/column 为 1-based，endOffset/endColumn 为 exclusive。Analyzer 只读 source，不调用 WASM；它的 feature id 必须映射到 support matrix 的 unsupported syntax id，后续 diagnostics/runtime 只能消费这些结构化输出，不能靠字符串猜。
+
+发布门禁现在包含 packed consumer smoke 和 docs support matrix sync。`scripts/verify-release.cjs` 的默认矩阵在 `npm run build` 之后执行 `consumer-pack-install`，命令为 `npm run --silent smoke:consumer -- --json`。该 gate 由 `scripts/consumer-smoke.cjs` 负责：在临时目录运行 `npm pack`、校验 tarball 中存在 `dist/index.d.ts`、`dist/support.d.ts`、ESM/CJS bundle、`dist/xmermaid_wasm_bg.wasm`、README 和 package metadata，再把 tarball 安装进临时消费者项目执行 TypeScript typecheck、root ESM import smoke，并通过 headless Chrome 加载 installed package 的 ESM bundle 与 WASM asset 渲染最小 flowchart SVG。JSON summary 记录 package size 和 browser render duration；第一阶段只记录基线，不设硬阈值。
+
+`docs-support-matrix-sync` 命令为 `node scripts/verify-release.cjs --check-docs`，在默认矩阵中紧跟 `consumer-pack-install`。它读取 `README.md`、`package.json` 和 `docs/production-release-checklist.md`，检查 package description 仍声明 flowchart/partial，README 仍说明 partial Mermaid support、unsupported diagram families、diagnostics、默认 strict security、consumer smoke 和 Chrome/`CHROME_BIN`，并检查 release checklist 列出默认矩阵所有 command id。该 gate 不跑 build/test，不访问网络，只防止生产承诺和机器可读支持合同漂移。
+
+消费者类型声明不能泄漏 `pkg/` 构建目录。`src/wasm.ts` 对外导出 `XMermaidWasmModule` 作为 WASM wrapper 的稳定 TypeScript 边界，`dist/wasm.d.ts` 不再引用 `../pkg/xmermaid_wasm`。root ESM bundle 允许被 Node/SSR/构建工具解析，但不承诺在 Node 环境执行 DOM 渲染；SVG renderer 的 canvas measurement 因此只能懒访问 `document`，不能在模块加载期触碰 browser globals。
+
+packed consumer smoke 的 TypeScript fixture 会 import `RenderOptions`、`RenderResult`、`WasmInitOptions`、`XMermaidDiagnosticCode`、`XMermaidDiagnostic`、`SourceRange`、`DEFAULT_SECURITY_POLICY`、`SecurityLevel` 和 `SecurityPolicy`，并调用 `renderToSVGElement()` / `renderToSVGString()`，因此新 SVG API、diagnostics 和 security 声明必须随 `dist/index.d.ts` 正确进入 tarball。
 
 ---
 

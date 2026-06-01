@@ -1,0 +1,76 @@
+feature: 2026-06-02-security-policy-v1
+created: 2026-06-02
+
+steps:
+  - action: "RED 测试：新增 strict 默认、loose 放宽、dangerous URL、live editor default 和 consumer typecheck 期望"
+    exit_signal: "测试因安全类型缺失或 diagnostics 缺失失败"
+    status: done
+
+  - action: "名词层实现：新增 security types/default policy 并导出"
+    exit_signal: "typecheck 能识别 security API"
+    status: done
+
+  - action: "计算实现：新增 source-level security diagnostics"
+    exit_signal: "security unit/render tests 通过"
+    status: done
+
+  - action: "编排接入：SDK render preflight 合并 security diagnostics 并在 blocking error 时抛 XMermaidError"
+    exit_signal: "tests/xmermaid.test.ts 目标场景通过"
+    status: done
+
+  - action: "Editor/consumer 接入验证：live editor 默认 strict 行为和 packed typecheck"
+    exit_signal: "tests/live-editor.test.ts 目标场景、npm run build && npm run smoke:consumer -- --json 通过"
+    status: done
+
+  - action: "回归验证：相关单测、全量 JS、typecheck、build、consumer smoke"
+    exit_signal: "验证命令全部通过"
+    status: done
+
+checks:
+  - item: "strict 默认 click 产生 security_blocked_click diagnostic"
+    source: 验收场景
+    status: passed
+
+  - item: "strict 默认 HTML label 产生 security_blocked_html diagnostic"
+    source: 验收场景
+    status: passed
+
+  - item: "危险 URL 在 strict/loose 下都产生 security_blocked_url diagnostic"
+    source: 验收场景
+    status: passed
+
+  - item: "loose 对 click/HTML 不产生 security diagnostics，但保留 unsupported_syntax warning"
+    source: 验收场景
+    status: passed
+
+  - item: "live editor 默认 render 显示 security diagnostics"
+    source: 验收场景
+    status: passed
+
+  - item: "root public API 导出 SecurityLevel / SecurityPolicy / DEFAULT_SECURITY_POLICY"
+    source: 名词契约
+    status: passed
+
+  - item: "packed consumer typecheck 能 import security API 并传入 render options"
+    source: 发布门禁
+    status: passed
+
+  - item: "不执行 click callback"
+    source: 范围守护
+    status: passed
+
+  - item: "不渲染 HTML label"
+    source: 范围守护
+    status: passed
+
+  - item: "不实现 sanitizer/CSP"
+    source: 范围守护
+    status: passed
+
+  - item: "不新增 Mermaid diagram/parser 支持"
+    source: 范围守护
+    status: passed
+
+  - item: "loose 不允许危险 URL"
+    source: 范围守护
+    status: passed

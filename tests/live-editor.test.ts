@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import * as editorModule from '../src/editor';
 import * as publicApi from '../src/index';
+import { XMermaid } from '../src/xmermaid';
 import { XMermaidError } from '../src/types/error';
 
 const { extractDiagrams, XMermaidLiveEditor } = editorModule;
@@ -228,6 +229,30 @@ describe('syntax repair rules', () => {
 
     expect(nextSource).toBe('flowchart TD\n  A ==> B\n  B --> C');
   });
+
+  it('uses a precise source range when repeated repair text appears more than once', () => {
+    const source = 'flowchart TD\n  A ==> B\n  A ==> B';
+    const secondMatch = source.lastIndexOf('A ==> B');
+
+    const nextSource = applyRepair(source, {
+      id: 'fix-arrow-typo',
+      title: 'Fix arrow typo',
+      confidence: 'high',
+      range: {
+        startOffset: secondMatch,
+        endOffset: secondMatch + 'A ==> B'.length,
+        startLine: 3,
+        startColumn: 3,
+        endLine: 3,
+        endColumn: 10,
+      },
+      before: 'A ==> B',
+      after: 'A --> B',
+      reason: 'Common arrow typo.',
+    });
+
+    expect(nextSource).toBe('flowchart TD\n  A ==> B\n  A --> B');
+  });
 });
 
 describe('XMermaidLiveEditor', () => {
@@ -392,6 +417,100 @@ describe('XMermaidLiveEditor', () => {
     const diagnostic = root.querySelector<HTMLElement>('[data-xm-diagnostic-item]');
     expect(diagnostic?.textContent).toContain('second diagram failed');
     expect(diagnostic?.textContent).toContain('Lines 11-12');
+  });
+
+  it('shows SDK diagnostics returned by the default render path without hiding the preview', async () => {
+    const root = document.createElement('div');
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.classList.add('xmermaid-diagram');
+    const renderSpy = vi.spyOn(XMermaid.prototype, 'renderToSVGElement').mockResolvedValue({
+      diagramType: 'flowchart',
+      diagnostics: [{
+        code: 'unsupported_syntax',
+        message: 'Flowchart classDef statements are not supported yet.',
+        severity: 'warning',
+        featureId: 'flowchart.classDef',
+        range: {
+          startOffset: 18,
+          endOffset: 45,
+          startLine: 3,
+          startColumn: 3,
+          endLine: 3,
+          endColumn: 30,
+        },
+      }],
+      dimensions: { width: 200, height: 120 },
+      svg,
+    });
+    const editor = new XMermaidLiveEditor({
+      root,
+      initialText: [
+        'graph TD',
+        '  A --> B',
+        '  classDef hot fill:#fff',
+      ].join('\n'),
+    });
+
+    try {
+      await editor.mount();
+    } finally {
+      renderSpy.mockRestore();
+    }
+
+    expect(root.querySelector('svg.xmermaid-diagram')).not.toBeNull();
+    const diagnostic = root.querySelector<HTMLElement>('[data-xm-diagnostic-item]');
+    expect(diagnostic?.getAttribute('data-xm-diagnostic-code')).toBe('unsupported_syntax');
+    expect(diagnostic?.textContent).toContain('Lines 3-3');
+    expect(root.querySelector('[data-xm-preview-error]')).toBeNull();
+  });
+
+  it('prefers diagnostics carried by XMermaidError over whole-diagram fallback diagnostics', async () => {
+    const root = document.createElement('div');
+    const editor = new XMermaidLiveEditor({
+      root,
+      initialText: 'graph TD\n  A --> B\n  classDef hot fill:#fff',
+      renderDiagram: vi.fn(async () => {
+        throw new XMermaidError('RENDER_ERROR', 'structured failure', {
+          diagnostics: [{
+            code: 'unsupported_syntax',
+            message: 'Flowchart classDef statements are not supported yet.',
+            severity: 'warning',
+            featureId: 'flowchart.classDef',
+            range: {
+              startOffset: 18,
+              endOffset: 45,
+              startLine: 3,
+              startColumn: 3,
+              endLine: 3,
+              endColumn: 30,
+            },
+          }],
+        });
+      }),
+    });
+
+    await editor.mount();
+
+    const diagnostic = root.querySelector<HTMLElement>('[data-xm-diagnostic-item]');
+    expect(diagnostic?.getAttribute('data-xm-diagnostic-code')).toBe('unsupported_syntax');
+    expect(diagnostic?.textContent).toContain('Lines 3-3');
+    expect(diagnostic?.textContent).not.toContain('render_error');
+  });
+
+  it('uses strict security policy in the default render path', async () => {
+    const root = document.createElement('div');
+    const editor = new XMermaidLiveEditor({
+      root,
+      initialText: 'graph TD\n  A-->B\n  click A javascript:alert(1)',
+    });
+
+    await editor.mount();
+
+    const diagnosticCodes = Array.from(root.querySelectorAll<HTMLElement>('[data-xm-diagnostic-item]'))
+      .map(item => item.getAttribute('data-xm-diagnostic-code'));
+    expect(diagnosticCodes).toContain('security_blocked_click');
+    expect(diagnosticCodes).toContain('security_blocked_url');
+    expect(root.querySelector('[data-xm-preview-error]')?.textContent).toContain('blocked');
   });
 
   it('shows an empty diagnostics state when no diagrams are present', async () => {

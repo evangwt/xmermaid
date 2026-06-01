@@ -1,0 +1,64 @@
+feature: 2026-06-02-render-svg-api
+created: 2026-06-02
+
+steps:
+  - action: "RED 测试：新增 renderToSVGElement / renderToSVGString / consumer typecheck API 期望"
+    exit_signal: "目标测试因方法或类型缺失失败"
+    status: done
+
+  - action: "名词层实现：新增 RenderOptions / RenderResult / XMermaidDiagnostic / WasmInitOptions 类型并导出"
+    exit_signal: "typecheck 能识别类型"
+    status: done
+
+  - action: "编排实现：抽共享渲染管线，新增 element/string API，保留 render() DOM replacement"
+    exit_signal: "目标单测通过"
+    status: done
+
+  - action: "发布门禁接入：consumer smoke typecheck 引用新 API"
+    exit_signal: "npm run build && npm run smoke:consumer -- --json 通过"
+    status: done
+
+  - action: "回归验证：跑相关单测、全量 JS 测试、typecheck、build、consumer smoke"
+    exit_signal: "验证命令全部通过"
+    status: done
+
+checks:
+  - item: "renderToSVGElement 返回 RenderResult、SVG element、dimensions、flowchart diagramType 和空 diagnostics"
+    source: 验收场景
+    status: passed
+
+  - item: "renderToSVGString 返回 serialized SVG 字符串"
+    source: 验收场景
+    status: passed
+
+  - item: "现有 render(input) 仍替换 constructor container 并返回 undefined"
+    source: 兼容守护
+    status: passed
+
+  - item: "单次 layoutConfig options 使用 render_with_config 且不污染后续调用"
+    source: 流程级约束
+    status: passed
+
+  - item: "unsupported diagram error 仍映射为 XMermaidError('UNSUPPORTED_DIAGRAM')"
+    source: 验收场景
+    status: passed
+
+  - item: "root public API 导出 RenderOptions / RenderResult / XMermaidDiagnostic / WasmInitOptions"
+    source: 名词契约
+    status: passed
+
+  - item: "packed consumer typecheck 能 import 新类型并调用新方法"
+    source: 发布门禁
+    status: passed
+
+  - item: "不新增 PNG/canvas/blob export"
+    source: 范围守护
+    status: passed
+
+  - item: "不实现 custom wasm URL 加载"
+    source: 范围守护
+    status: passed
+
+  - item: "不新增 diagram/parser/renderer 支持能力"
+    source: 范围守护
+    status: passed
