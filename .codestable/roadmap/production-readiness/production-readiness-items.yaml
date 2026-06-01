@@ -1,0 +1,59 @@
+roadmap: production-readiness
+created: 2026-06-02
+
+items:
+  - slug: release-support-matrix
+    description: 收敛公开定位、支持矩阵、README/package 描述和限制清单
+    depends_on: []
+    status: done
+    feature: 2026-06-02-release-support-matrix
+    minimal_loop: false
+    notes: 已新增 src/support.ts、README 支持范围说明和 package 描述收敛；公开合同声明 flowchart 为 partial support，非 flowchart diagram family 当前 unsupported
+
+  - slug: pack-install-render-smoke
+    description: 增加真实 npm pack 消费者安装、类型解析、WASM 加载和浏览器最小渲染门禁
+    depends_on: [release-support-matrix]
+    status: done
+    feature: 2026-06-02-pack-install-render-smoke
+    minimal_loop: true
+    notes: 已新增 consumer smoke gate；真实 packed tarball 可安装进临时消费者，TypeScript 可解析类型，root ESM 可被 Node/SSR 解析，headless Chrome 可加载 WASM 并渲染最小 flowchart SVG
+
+  - slug: render-svg-api
+    description: 补齐 renderToSVGElement、renderToSVGString 和 RenderResult 公开 API
+    depends_on: [release-support-matrix]
+    status: done
+    feature: 2026-06-02-render-svg-api
+    minimal_loop: false
+    notes: 已新增 renderToSVGElement、renderToSVGString、RenderResult、RenderOptions、WasmInitOptions；现有 render(input) DOM replacement 保持兼容；PNG export 仍不在范围
+
+  - slug: support-analyzer-v1
+    description: 建立 diagram/syntax support analyzer，输出 unsupported feature 列表与 source range
+    depends_on: [release-support-matrix]
+    status: done
+    feature: 2026-06-02-support-analyzer-v1
+    minimal_loop: false
+    notes: 已新增 detectUnsupportedFeatures、UnsupportedFeature、SupportSourceRange；支持 unsupported diagram family 和 flowchart class/classDef/style/click/HTML/Markdown label 的轻量扫描与 range 输出
+
+  - slug: structured-diagnostics-v1
+    description: 从 support analyzer/WASM 到 SDK/live editor 贯通结构化诊断和 line/column range
+    depends_on: [support-analyzer-v1, render-svg-api]
+    status: done
+    feature: 2026-06-02-structured-diagnostics-v1
+    minimal_loop: false
+    notes: 已新增共享 XMermaidDiagnosticCode / SourceRange / XMermaidDiagnostic 合同；renderToSVGElement 返回 unsupported_syntax warning diagnostics，unsupported diagram preflight 抛带 diagnostics 的 XMermaidError，live editor 默认渲染路径显示 SDK diagnostics
+
+  - slug: security-policy-v1
+    description: 落地 strict/loose 安全策略、URL/click/html label 处理和安全 diagnostics
+    depends_on: [structured-diagnostics-v1]
+    status: done
+    feature: 2026-06-02-security-policy-v1
+    minimal_loop: false
+    notes: 已新增 DEFAULT_SECURITY_POLICY、SecurityLevel、SecurityPolicy；默认 strict 在 render preflight 阶段阻断 click、HTML label 和危险 URL 并输出 security_blocked_* diagnostics；loose 只放宽 click/HTML，不放开危险 URL
+
+  - slug: production-docs-release-checklist
+    description: 补齐 README、API 文档、限制清单、排错说明、changelog 和 release checklist
+    depends_on: [pack-install-render-smoke, structured-diagnostics-v1, security-policy-v1]
+    status: done
+    feature: 2026-06-02-production-docs-release-checklist
+    minimal_loop: false
+    notes: 已扩写 README，新增 docs/production-release-checklist.md，并把 docs-support-matrix-sync 接入默认 verify-release matrix；README/package/support matrix/security/release checklist 关键事实不同步时 release 失败
