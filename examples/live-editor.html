@@ -12,7 +12,26 @@
     header { padding: 16px 20px; background: #ffffff; border-bottom: 1px solid #d1d5db; }
     h1 { margin: 0; font-size: 20px; font-weight: 650; }
     .xmermaid-live-editor { min-height: 0; }
-    .xm-live-shell { height: calc(100vh - 58px); display: grid; grid-template-columns: minmax(280px, 0.9fr) 180px minmax(320px, 1fr) minmax(320px, 1fr); gap: 12px; padding: 12px; }
+    .xm-live-shell { height: calc(100vh - 58px); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; padding: 12px; }
+    .xm-live-workspace { min-height: 0; display: grid; grid-template-columns: minmax(280px, 0.9fr) 180px minmax(320px, 1fr) minmax(320px, 1fr); gap: 12px; }
+    [data-xm-toolbar] { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    [data-xm-toolbar] select,
+    [data-xm-toolbar] button,
+    [data-xm-download-link],
+    [data-xm-visual-editor] button {
+      min-height: 32px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      background: #ffffff;
+      color: #1f2937;
+      padding: 5px 9px;
+      font: 13px/1.3 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    [data-xm-toolbar] button,
+    [data-xm-download-link],
+    [data-xm-visual-editor] button { cursor: pointer; }
+    [data-xm-download-link][hidden],
+    [data-xm-visual-editor][hidden] { display: none; }
     [data-xm-document-input],
     [data-xm-selected-source] {
       width: 100%;
@@ -46,6 +65,23 @@
     [data-xm-repair-apply] { margin-left: 8px; border: 1px solid #2563eb; border-radius: 5px; background: #2563eb; color: #ffffff; padding: 4px 8px; cursor: pointer; }
     [data-xm-diagnostics-empty] { margin: 0; color: #64748b; font-size: 13px; }
     [data-xm-empty] { margin: 0; padding: 10px; border: 1px dashed #cbd5e1; border-radius: 6px; background: #ffffff; color: #64748b; }
+    [data-xm-visual-editor] {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      background: #ffffff;
+      padding: 10px;
+    }
+    [data-xm-visual-editor] input {
+      min-height: 32px;
+      min-width: 120px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      padding: 5px 8px;
+      font: 13px/1.3 "SF Mono", "Fira Code", Consolas, monospace;
+    }
   </style>
 </head>
 <body>
