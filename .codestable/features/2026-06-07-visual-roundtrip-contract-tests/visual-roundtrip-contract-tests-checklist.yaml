@@ -1,0 +1,60 @@
+feature: 2026-06-07-visual-roundtrip-contract-tests
+created: 2026-06-07
+
+steps:
+  - action: "合同红灯：新增真实 WASM roundtrip tests"
+    exit_signal: "测试能调用真实 WASM，并在缺合同时失败"
+    status: done
+
+  - action: "Fixture 矩阵：覆盖 supported shapes/styles/labels/subgraph/direction edit 和 blocked unsupported source"
+    exit_signal: "所有 fixture 有明确断言"
+    status: done
+
+  - action: "验证覆盖：运行 build、targeted test、full tests、typecheck、yaml/diff checks"
+    exit_signal: "相关 checks 全部通过"
+    status: done
+
+checks:
+  - item: "tests/visual-roundtrip.test.ts 初始化真实 pkg/xmermaid_wasm_bg.wasm bytes"
+    source: 名词契约
+    status: passed
+
+  - item: "roundtrip tests 不 mock src/wasm.ts"
+    source: 流程级约束
+    status: passed
+
+  - item: "supported shape/style/label rename 后真实 WASM parse 保留语义"
+    source: 验收场景
+    status: passed
+
+  - item: "subgraph rename 后真实 WASM parse 保留 subgraph 且 render 成功"
+    source: 验收场景
+    status: passed
+
+  - item: "direction edit TD -> LR 后真实 WASM parse direction 为 LR 且 render 成功"
+    source: 验收场景
+    status: passed
+
+  - item: "blocked classDef source 返回 read-only + visual_unsupported_syntax"
+    source: 验收场景
+    status: passed
+
+  - item: "validateVisualEditResult parse 成功后执行 render/layout validation，失败返回 visual_render_failed"
+    source: 验收场景
+    status: passed
+
+  - item: "不新增 parser 支持"
+    source: 范围守护
+    status: passed
+
+  - item: "不新增 dependency"
+    source: 范围守护
+    status: passed
+
+  - item: "不提交 generated dist/pkg 产物"
+    source: 范围守护
+    status: passed
+
+  - item: "不新增截图/视觉基线资产"
+    source: 范围守护
+    status: passed

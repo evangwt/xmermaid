@@ -1,0 +1,116 @@
+feature: 2026-06-07-visual-flowchart-ast-contract
+created: 2026-06-07
+
+steps:
+  - action: "合同红灯：新增 helper-level tests 覆盖 AST-backed model 字段和 serializer 语义"
+    exit_signal: "新增 tests 在当前 regex-only implementation 上失败"
+    status: done
+
+  - action: "名词合同：补齐 FlowchartGraphModel 字段和 AST -> model 转换"
+    exit_signal: "AST conversion tests 通过，既有 model tests 更新为显式 shape/style"
+    status: done
+
+  - action: "Serializer 语义保留：输出 supported node shape、edge style、edge label、direction 和 subgraph"
+    exit_signal: "serialize tests 通过，normalized output 能表达支持字段"
+    status: done
+
+  - action: "WASM analysis/validation 编排：新增 async analysis + validation helper 和 parse 函数注入"
+    exit_signal: "parse success/failure tests 通过，诊断结构不依赖真实 WASM"
+    status: done
+
+  - action: "Live editor 接入：visual edit path 改用 AST-backed analysis/validation 后再 commit"
+    exit_signal: "visual editor UI tests 通过，shape/style 不会被 rename 丢失"
+    status: done
+
+  - action: "验证覆盖：运行 targeted tests、typecheck、yaml/diff checks"
+    exit_signal: "相关 checks 全部通过"
+    status: done
+
+checks:
+  - item: "FlowchartGraphNode.shape 是 model 合同字段"
+    source: 名词契约
+    status: passed
+
+  - item: "FlowchartGraphEdge.style 和 min_length 是 model 合同字段"
+    source: 名词契约
+    status: passed
+
+  - item: "FlowchartGraphModel.subgraphs 保留 AST subgraph 结构"
+    source: 名词契约
+    status: passed
+
+  - item: "analyzeFlowchartForVisualEdit 通过 Rust/WASM parse_dsl 或注入等价 parse 函数派生 model"
+    source: 编排骨架
+    status: passed
+
+  - item: "visual edit 编排不再使用 parseFlowchartToGraph 作为语义权威"
+    source: 编排骨架
+    status: passed
+
+  - item: "WASM parse 失败转为 visual_parse_failed diagnostic"
+    source: 流程级约束
+    status: passed
+
+  - item: "新增节点默认 rect，新增边默认 arrow 且 min_length 为 1"
+    source: 流程级约束
+    status: passed
+
+  - item: "删除节点同时删除 incident edges"
+    source: 流程级约束
+    status: passed
+
+  - item: "src/editor/index.ts visual edit source rewrite 接入 AST-backed analysis/validation"
+    source: 挂载点
+    status: passed
+
+  - item: "src/editor/index.ts / src/index.ts 导出 visual analysis/validation helper"
+    source: 挂载点
+    status: passed
+
+  - item: "不新增拖拽画布、坐标编辑或 visual UI 控件"
+    source: 范围守护
+    status: passed
+
+  - item: "不新增 parser 对 Mermaid 未支持语法的 Rust 实现"
+    source: 范围守护
+    status: passed
+
+  - item: "不引入 LLM、网络调用或新 npm dependency"
+    source: 范围守护
+    status: passed
+
+  - item: "不承诺保留原始注释、空白或格式"
+    source: 范围守护
+    status: passed
+
+  - item: "不把完整 render/layout roundtrip fixture 矩阵塞进本 feature"
+    source: 范围守护
+    status: passed
+
+  - item: "S1：AST supported shape 转 graph 后保留 shape，label null 时用 id"
+    source: 验收场景
+    status: passed
+
+  - item: "S2：AST edge style、label、min_length 转 graph 后保留"
+    source: 验收场景
+    status: passed
+
+  - item: "S3：subgraph AST 转 graph 后保留，并可 serialize 为 subgraph/end"
+    source: 验收场景
+    status: passed
+
+  - item: "S4：rename-node 不丢 non-rect shape 和 non-arrow edge style"
+    source: 验收场景
+    status: passed
+
+  - item: "S5：parse 成功的 flowchart source analysis 返回 editable + model"
+    source: 验收场景
+    status: passed
+
+  - item: "S6：parse 失败或非 flowchart AST 返回 diagnostic 且不提交 rewrite"
+    source: 验收场景
+    status: passed
+
+  - item: "S7：validateVisualEditResult parse 成功 applied，parse 失败 blocked"
+    source: 验收场景
+    status: passed
