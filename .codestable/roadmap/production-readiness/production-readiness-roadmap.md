@@ -407,7 +407,7 @@ type ProductionVerificationCommandId =
 
 ## 7. 观察项
 
-- `ARCHITECTURE.md` 仍描述“完全兼容 Mermaid DSL”和 Web/CLI/Server/Editor SDK 全生态，这与当前实现冲突；本 roadmap 只记录修正路径，不直接改 architecture。
+- `ARCHITECTURE.md` 的当前定位已修正为 flowchart-focused partial Mermaid support；后续不要把完整 Mermaid 兼容或 CLI/Server/Canvas/插件生态写成当前事实。
 - 现有 `visual-rendering-readiness` 和 `multi-diagram-live-editor` 均已 completed，本 roadmap 不回写它们。
 - `pack-install-render-smoke` 已修复 `dist/wasm.d.ts` 泄漏 `../pkg/xmermaid_wasm` 内部构建路径的问题；后续不要重新把 `pkg/` 类型路径暴露给消费者。
 - requirements 目录目前没有生产发布愿景文档；如果要长期维护产品定位，建议另起 `cs-req` 补 `production-release` 能力愿景。

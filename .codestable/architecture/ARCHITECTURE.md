@@ -4,35 +4,37 @@
 
 ## 项目定位
 
-**xmermaid** 是一个完全兼容 Mermaid DSL 语法的下一代图表渲染引擎，旨在解决现有 mermaid.js 在渲染速度、内存占用、解析速度和加载时间四个维度的性能问题。
+**xmermaid** 当前是一个面向浏览器的 Mermaid-like flowchart SDK：Rust/WASM 负责解析与布局，TypeScript 负责 SVG 渲染和应用层编辑器编排。当前生产合同是 **partial Mermaid support**，重点覆盖基础 `graph` / `flowchart`，并通过 support matrix、structured diagnostics 和 release gate 如实暴露不支持的图表类型与语法。
 
-### 核心目标
+早期“完整 Mermaid 兼容”、CLI/Server SDK、Canvas/PNG 渲染和完整 Editor SDK 只属于历史规划或后续 roadmap 方向，不能当作当前架构事实或生产承诺。
 
-- **渲染速度** — 加速大型/复杂图表渲染
-- **内存占用** — 更轻量的内存消耗，支持图表密集场景
-- **解析速度** — DSL 文本解析速度提升 2-5 倍
-- **加载时间** — WASM 模块体积更小，初始下载更快
+### 当前交付原则
 
-### 使用场景
+- **支持边界诚实** — partial flowchart support 必须通过 support matrix、diagnostics 和文档一致表达。
+- **浏览器 SVG 闭环** — 当前核心交付面是 browser SDK 渲染基础 flowchart SVG。
+- **Rust/WASM 语义边界** — parser/layout 是语义来源，TypeScript renderer/editor 消费结构化结果。
+- **发布可验证** — build、packed consumer smoke、docs sync、JS tests、typecheck、Rust tests 和 whitespace check 必须能证明发布底线。
 
-1. **单页面嵌入** — 文档/博客中嵌入图表
-2. **图表密集型应用** — 如 Notion 类工具，单页面 10-50 个图表
-3. **实时编辑器** — 类似 Mermaid Live Editor，快速预览更新
-4. **批量生成** — 服务端/CLI 批量渲染大量图表为 SVG/PNG
+### 当前使用场景
+
+1. **单页面嵌入** — 文档/博客中嵌入基础 flowchart SVG
+2. **浏览器图表应用** — 在 Web 应用中渲染当前支持的 flowchart 子集
+3. **静态 Live Editor** — 文档多图抽取、预览、诊断、修复、分享/导出和表单式 visual edit
+4. **发布验证** — packed browser consumer smoke 验证安装、类型解析、WASM 加载和最小渲染闭环
 
 ---
 
 ## 整体架构
 
-xmermaid 采用四层模块化架构，各层独立可替换：
+xmermaid 当前已落地的主链路是四层结构：
 
 ```
 ┌─────────────────────────────────────────────────┐
 │                   应用层                          │
-│  (Web SDK / CLI / Server SDK / Editor SDK)      │
+│  (Browser SDK / Static Live Editor)             │
 ├─────────────────────────────────────────────────┤
 │                   渲染层                          │
-│  (SVG Renderer / Canvas Renderer / PNG Export)  │
+│  (SVG Renderer / Browser Export Helpers)        │
 │                   [JS + WASM]                     │
 ├─────────────────────────────────────────────────┤
 │                   布局层                          │
@@ -48,9 +50,9 @@ xmermaid 采用四层模块化架构，各层独立可替换：
 **核心设计原则：**
 
 - 解析层和布局层完全用 Rust/WASM 实现，最大化性能优势
-- 渲染层在 JS 中实现，充分利用浏览器 DOM/Canvas API
-- 各层独立可替换，支持不同应用场景的组合使用
-- 插件机制在渲染层扩展，用户可添加自定义图表渲染器
+- 渲染层在 TypeScript 中生成 SVG，浏览器 DOM 是当前交付面
+- 各层通过 AST、LayoutResult、RenderResult 和 diagnostics 合同组合
+- support matrix、安全策略和 release gate 负责阻断夸大承诺
 
 ### 当前 Flowchart 解耦合同
 
@@ -79,46 +81,30 @@ SVG renderer 的主题合同是 `RenderTheme`，当前内置 `DEFAULT_THEME`、`
 输出: DiagramAST { type: "flowchart", nodes: [...], edges: [...] }
 ```
 
-### 核心模块
+### 当前核心模块
 
 | 模块 | 功能 | 说明 |
 |------|------|------|
-| `Lexer` | 词法分析 | 识别 DSL 语法元素（关键字、标识符、箭头、标签等） |
-| `Parser` | 语法分析 | 构建 AST，处理嵌套结构、子图、样式定义 |
-| `Validator` | 语义验证 | 检查语法错误、不支持的特性，生成错误信息 |
-| `AST Normalizer` | AST 标准化 | 统一不同图表类型的 AST 结构，便于下游处理 |
+| `Lexer` | 词法分析 | 手写 lexer，识别关键字、标识符、方向、箭头、标签、shape token 等 |
+| `Parser` | 语法分析 | 手写 parser，当前 `parse()` 只把 `graph` / `flowchart` 送入 `parse_flowchart()`；其他 diagram keyword 返回 `UnsupportedDiagramType` |
+| `FlowchartAst` | AST 合同 | 保留 direction、node shape、edge style、edge label、`min_length` 和 subgraph |
+| `support.ts` analyzer | 生产支持边界 | 在 render 前识别 unsupported diagram / syntax，输出 diagnostics；不替代 Rust parser |
 
-### 支持的图表类型（15+ 种）
+### 当前支持的图表类型
 
-**核心图表：**
-- flowchart / graph
-- sequenceDiagram
-- classDiagram
-- stateDiagram
-- erDiagram
-
-**扩展图表：**
-- gantt
-- pie
-- mindmap
-- timeline
-- kanban
-- gitgraph
-- journey
-- quadrant
-- requirement
-- treemap
-- block
+- `graph` / `flowchart`：partial support，覆盖基础节点、边、常见 label、核心 shape 和部分 subgraph。
+- `sequenceDiagram`、`classDiagram`、`stateDiagram`、`erDiagram`、`gantt`、`pie`、`mindmap`：当前 unsupported，通过 support matrix / diagnostics 暴露。
+- `class`、`classDef`、`style`、`click`、HTML label、Markdown label：当前 unsupported 或安全阻断；不能把跳过解析当成完整支持。
 
 ### 技术选型
 
-- Rust 解析器框架：`nom`（组合子解析器）或手写递归下降解析器
-- AST 用 Rust 结构体表示，通过 `serde` 序列化为 JS 可用的 JSON
+- Rust parser 当前是手写 lexer/parser，没有引入 `nom`。
+- AST 用 Rust 结构体表示，通过 `serde` 序列化为 JS 可用的 JSON。
 
 ### 性能目标
 
-- 解析速度：比 mermaid.js 快 2-5 倍
-- 支持 streaming 解析（大图表增量处理）
+- 当前 release gate 不设解析性能承诺。
+- 不承诺 streaming / incremental parsing；如需性能目标，另起性能 roadmap 并用基准测试落证据。
 
 ---
 
@@ -164,121 +150,65 @@ SVG renderer 的主题合同是 `RenderTheme`，当前内置 `DEFAULT_THEME`、`
 
 ### 性能目标
 
-- 1000+ 节点图表布局计算在 100ms 内完成
-- 支持增量布局更新（节点变化时局部重算）
+- 当前 release gate 不设 layout 性能 SLA。
+- 不承诺增量布局更新；如需性能目标，必须另起性能 roadmap 并用 benchmark 落证据。
 
 ---
 
 ## 渲染层设计
 
-**职责：将布局结果转换为可视化输出（SVG/Canvas/PNG）**
+**职责：将布局结果转换为浏览器 SVG 输出**
 
 ```
-输入: LayoutResult + DiagramAST
-输出: SVG DOM / Canvas 绘制 / PNG 二进制
+输入: LayoutResult + RenderTheme
+输出: SVG DOM
 ```
 
-### 核心模块
+### 当前核心模块
 
 | 模块 | 功能 | 技术栈 |
 |------|------|--------|
-| `SVGRenderer` | SVG 渲染 | JS + DOM API，生成 SVG 元素树 |
-| `CanvasRenderer` | Canvas 渲染 | JS + Canvas 2D API，高性能批量绘制 |
-| `PNGExporter` | PNG 导出 | WASM + Canvas toBlob，支持高分辨率 |
-| `StyleEngine` | 样式处理 | JS，处理主题、自定义样式、CSS 类 |
-| `InteractionHandler` | 交互处理 | JS，处理点击、悬停、拖拽等用户交互 |
+| `SVGRenderer` | SVG 渲染 | TypeScript + DOM API，生成 SVG 元素树 |
+| `RenderTheme` | 主题合同 | `DEFAULT_THEME`、`DARK_THEME`、`MINIMAL_THEME` 及 partial theme override |
+| edge geometry helpers | 边路径表达 | 优先消费 layout geometry v1，缺字段时回退到 legacy path 计算 |
+| browser export helpers | Live editor 导出 | 基于当前 preview SVG 导出 SVG，PNG 仅作为 live editor browser helper |
 
 ### SVG 渲染器特点
 
 - 输出标准 SVG DOM，可被 CSS 样式化
-- 支持主题切换（default、dark、forest、neutral 等）
+- 支持主题切换（default、dark、minimal）
 - 每个 node/edge 有唯一 ID，便于 JS 操作
 - 支持响应式缩放（viewBox 设置）
 
-### Canvas 渲染器特点
+### 当前不做
 
-- 高性能批量渲染，适合图表密集场景
-- 内存占用更低，适合长时间运行的页面
-- 支持离屏渲染，减少主线程压力
-- 输出为 bitmap，不支持 DOM 操作和 CSS 样式
-
-### PNG 导出流程
-
-1. 渲染到 Canvas（可指定高分辨率倍数）
-2. WASM 端处理图像数据（可选压缩优化）
-3. 导出为 PNG Blob/File
-
-### 插件扩展点
-
-- 自定义渲染器：用户可注册新的图表类型渲染逻辑
-- 自定义样式：提供样式定义 API，扩展主题系统
-- 自定义交互：支持为特定元素添加交互行为
+- 不提供 SDK 级 Canvas renderer。
+- 不提供 SDK 级 PNG export API；PNG 只存在于 live editor 的 browser-only export helper。
+- 不提供插件渲染器或用户自定义图表类型扩展点。
+- 不执行 Mermaid click callback，不把 HTML label 当 trusted HTML 渲染。
 
 ---
 
 ## 应用层设计
 
-**职责：面向不同使用场景的 SDK/API 封装**
+**职责：面向 browser SDK 和静态 live editor 的 API 封装**
 
-### Web SDK（浏览器端）
+### Browser SDK（浏览器端）
 
 ```typescript
 import { XMermaid } from 'xmermaid';
 
+const container = document.getElementById('container')!;
 const xm = new XMermaid({
-  renderer: 'svg',
-  theme: 'default'
+  container,
 });
 
 // 渲染到 DOM
-xm.render('graph TD\n  A-->B', document.getElementById('container'));
+xm.render('graph TD\n  A-->B');
 
-// 获取 SVG/Canvas 输出
-const svg = xm.renderToSVG('graph TD\n  A-->B');
-const canvas = xm.renderToCanvas('graph TD\n  A-->B');
-const png = xm.exportPNG('graph TD\n  A-->B', { scale: 2 });
-```
-
-### CLI SDK（命令行工具）
-
-```bash
-# 单文件渲染
-xmermaid render input.mmd -o output.svg
-
-# 批量渲染
-xmermaid batch ./diagrams/ -o ./output/ --format png --scale 2
-
-# Markdown 文件中提取并渲染
-xmermaid extract README.md -o ./images/
-```
-
-### Server SDK（Node.js 端）
-
-```javascript
-import { XMermaidServer } from 'xmermaid/server';
-
-const xm = new XMermaidServer();
-
-app.post('/render', async (req, res) => {
-  const svg = await xm.renderSVG(req.body.dsl);
-  res.send(svg);
-});
-```
-
-### Editor SDK（实时编辑器）
-
-```typescript
-import { XMermaidEditor } from 'xmermaid/editor';
-
-const editor = new XMermaidEditor({
-  container: '#editor',
-  preview: '#preview',
-  syncDelay: 100
-});
-
-editor.on('rendered', (result) => {
-  console.log('渲染完成', result.duration);
-});
+// 获取可复用 SVG 输出
+const result = await xm.renderToSVGElement('graph TD\n  A-->B');
+const svg = await xm.renderToSVGString('graph TD\n  A-->B');
 ```
 
 ### 当前静态 Live Editor MVP
@@ -339,7 +269,9 @@ SVG 几何行为由 `tests/edge.test.ts`、`tests/renderer.test.ts` 和 `tests/s
 
 ---
 
-## 插件系统设计
+## 历史规划附录：插件系统设计（非当前架构事实）
+
+以下内容保留早期规划语境，不能作为当前生产合同或已落地架构引用。插件系统尚未落地；如需推进，必须另起 roadmap / feature，并在验收后回写当前架构部分。
 
 **职责：支持用户扩展图表类型和渲染能力**
 
@@ -410,7 +342,7 @@ XMermaid.registerDSLExtension({
 
 ---
 
-## 错误处理与日志系统
+## 历史规划附录：错误处理与日志草案（非完整当前合同）
 
 **职责：提供清晰的错误信息，便于用户调试**
 
@@ -472,7 +404,7 @@ console.log(result.performance);
 
 ---
 
-## 测试策略
+## 历史规划附录：测试策略草案
 
 ### 测试层次
 
@@ -492,7 +424,7 @@ console.log(result.performance);
 
 ---
 
-## 构建与发布策略
+## 历史规划附录：构建与发布草案
 
 ### 输出产物
 
@@ -522,7 +454,7 @@ console.log(result.performance);
 
 ---
 
-## 技术栈选型
+## 历史规划附录：技术栈草案
 
 ### Rust 侧依赖
 
@@ -558,7 +490,7 @@ console.log(result.performance);
 
 ---
 
-## API 设计
+## 历史规划附录：早期 API 草案（非当前 API）
 
 ### Core API
 
@@ -620,7 +552,7 @@ interface PluginDefinition {
 
 ---
 
-## 项目里程碑
+## 历史规划附录：早期项目里程碑
 
 ### Phase 1：核心基础（MVP）— 2-3 月
 
@@ -679,13 +611,13 @@ interface PluginDefinition {
 
 ## 总结
 
-xmermaid 是一个雄心勃勃的项目，旨在通过 Rust WASM 技术全面提升 Mermaid 图表渲染的性能。核心设计理念包括：
+xmermaid 当前已经收敛成一个以 flowchart 浏览器渲染为核心的 Rust/WASM + TypeScript SDK。当前已落地的核心结构包括：
 
 1. **四层模块化架构** — 解析、布局、渲染、应用各层独立可替换
-2. **全面兼容 Mermaid DSL** — 用户迁移零成本
-3. **双渲染模式** — SVG 和 Canvas 支持不同场景需求
-4. **完整生态** — Web SDK、CLI、Server SDK、Editor SDK 四种应用形式
-5. **插件系统** — JS 插件为基础，DSL 扩展为高级选项
-6. **清晰错误处理** — 结构化错误信息，便于调试
+2. **Flowchart partial support** — 用 support matrix 和 diagnostics 暴露支持边界，而不是假装完整兼容 Mermaid
+3. **SVG-first browser SDK** — 当前稳定输出 SVG element/string，DOM replacement path 保持兼容
+4. **静态 Live Editor 工作台** — 支持多图抽取、预览、诊断、修复、分享/导出和 AST-backed flowchart visual edit
+5. **严格安全默认值** — strict security policy 默认阻断 risky click、HTML label 和危险 URL
+6. **发布闭环门禁** — build、packed consumer smoke、docs sync、JS tests、typecheck、Rust tests 和 whitespace check 统一进入 `npm run verify:release`
 
-预计 6-9 个月达到 v1.0.0 全功能版本。
+非 flowchart 图表扩展、CLI/Server SDK、Canvas/PNG renderer、插件系统和完整 Mermaid 兼容都必须另起 roadmap / feature，真实落地并验收后才能回写本架构文档。
