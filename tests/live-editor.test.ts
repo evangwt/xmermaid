@@ -242,9 +242,7 @@ describe('syntax repair rules', () => {
         startOffset: secondMatch,
         endOffset: secondMatch + 'A ==> B'.length,
         startLine: 3,
-        startColumn: 3,
         endLine: 3,
-        endColumn: 10,
       },
       before: 'A ==> B',
       after: 'A --> B',
@@ -288,6 +286,29 @@ describe('XMermaidLiveEditor', () => {
     expect(rendered.at(-1)).toBe('flowchart LR\n  C[Client] --> D[Server]');
   });
 
+  it('uses the selected diagram direction for layout when switching diagrams', async () => {
+    const root = document.createElement('div');
+    const renderDiagram = vi.fn(async ({ container }) => {
+      container.textContent = 'rendered';
+    });
+    const editor = new XMermaidLiveEditor({
+      root,
+      initialText: markdownWithTwoDiagrams,
+      renderDiagram,
+    });
+
+    await editor.mount();
+    root.querySelectorAll<HTMLButtonElement>('[data-xm-diagram-item]')[1].click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(renderDiagram).toHaveBeenLastCalledWith(expect.objectContaining({
+      source: 'flowchart LR\n  C[Client] --> D[Server]',
+      layoutConfig: expect.objectContaining({ direction: 'LR' }),
+    }));
+    expect(root.querySelector<HTMLSelectElement>('[data-xm-layout-direction]')?.value)
+      .toBe('LR');
+  });
+
   it('rerenders with edited selected source and displays render errors', async () => {
     const root = document.createElement('div');
     const renderDiagram = vi.fn(async ({ source, container }) => {
@@ -313,6 +334,69 @@ describe('XMermaidLiveEditor', () => {
     }));
     expect(root.querySelector('[data-xm-preview-error]')?.textContent).toContain('parse failed');
     expect(root.querySelectorAll('[data-xm-diagram-item]')).toHaveLength(1);
+  });
+
+  it('commits selected source edits back to the document before switching diagrams', async () => {
+    const root = document.createElement('div');
+    const editor = new XMermaidLiveEditor({
+      root,
+      initialText: markdownWithTwoDiagrams,
+      renderDiagram: vi.fn(async ({ source, container }) => {
+        container.textContent = source;
+      }),
+    });
+
+    await editor.mount();
+
+    const selectedSource = root.querySelector<HTMLTextAreaElement>('[data-xm-selected-source]')!;
+    const documentInput = root.querySelector<HTMLTextAreaElement>('[data-xm-document-input]')!;
+    selectedSource.value = 'graph TD\n  Edited[Edited] --> B[End]';
+    selectedSource.dispatchEvent(new Event('input', { bubbles: true }));
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(documentInput.value).toContain('Edited[Edited]');
+    root.querySelectorAll<HTMLButtonElement>('[data-xm-diagram-item]')[1].click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    root.querySelectorAll<HTMLButtonElement>('[data-xm-diagram-item]')[0].click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(root.querySelector<HTMLTextAreaElement>('[data-xm-selected-source]')?.value)
+      .toContain('Edited[Edited]');
+  });
+
+  it('ignores stale async render results after a newer render completes', async () => {
+    const root = document.createElement('div');
+    let releaseSlowRender: (() => void) | null = null;
+    const editor = new XMermaidLiveEditor({
+      root,
+      initialText: 'graph TD\n  A --> B',
+      renderDiagram: vi.fn(async ({ source, container }) => {
+        if (source.includes('Slow')) {
+          await new Promise<void>(resolve => {
+            releaseSlowRender = resolve;
+          });
+          container.textContent = 'rendered slow';
+          return;
+        }
+        container.textContent = `rendered:${source.includes('Fast') ? 'fast' : 'initial'}`;
+      }),
+    });
+
+    await editor.mount();
+    const selectedSource = root.querySelector<HTMLTextAreaElement>('[data-xm-selected-source]')!;
+
+    selectedSource.value = 'graph TD\n  Slow --> B';
+    selectedSource.dispatchEvent(new Event('input', { bubbles: true }));
+    await Promise.resolve();
+    selectedSource.value = 'graph TD\n  Fast --> B';
+    selectedSource.dispatchEvent(new Event('input', { bubbles: true }));
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(root.querySelector('[data-xm-preview]')?.textContent).toBe('rendered:fast');
+    releaseSlowRender?.();
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(root.querySelector('[data-xm-preview]')?.textContent).toBe('rendered:fast');
   });
 
   it('shows an empty state when no diagrams are present', async () => {
@@ -396,29 +480,6 @@ describe('XMermaidLiveEditor', () => {
       .toContain('No diagnostics');
   });
 
-  it('updates diagnostics to the clicked diagram range', async () => {
-    const root = document.createElement('div');
-    const editor = new XMermaidLiveEditor({
-      root,
-      initialText: markdownWithTwoDiagrams,
-      renderDiagram: vi.fn(async ({ diagram }) => {
-        if (diagram.id === 'diagram-2') {
-          throw new Error('second diagram failed');
-        }
-      }),
-    });
-
-    await editor.mount();
-    expect(root.querySelector('[data-xm-diagnostic-item]')).toBeNull();
-
-    root.querySelectorAll<HTMLButtonElement>('[data-xm-diagram-item]')[1].click();
-    await new Promise(resolve => setTimeout(resolve, 0));
-
-    const diagnostic = root.querySelector<HTMLElement>('[data-xm-diagnostic-item]');
-    expect(diagnostic?.textContent).toContain('second diagram failed');
-    expect(diagnostic?.textContent).toContain('Lines 11-12');
-  });
-
   it('shows SDK diagnostics returned by the default render path without hiding the preview', async () => {
     const root = document.createElement('div');
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -462,6 +523,83 @@ describe('XMermaidLiveEditor', () => {
     expect(diagnostic?.getAttribute('data-xm-diagnostic-code')).toBe('unsupported_syntax');
     expect(diagnostic?.textContent).toContain('Lines 3-3');
     expect(root.querySelector('[data-xm-preview-error]')).toBeNull();
+  });
+
+  it('keeps the last successful preview visible when a later render fails', async () => {
+    const root = document.createElement('div');
+    const editor = new XMermaidLiveEditor({
+      root,
+      initialText: 'graph TD\n  A --> B',
+      renderDiagram: vi.fn(async ({ source, container }) => {
+        if (source.includes('BROKEN')) {
+          throw new XMermaidError('PARSE_ERROR', 'bad edit');
+        }
+        container.textContent = 'last good preview';
+      }),
+    });
+
+    await editor.mount();
+    const selectedSource = root.querySelector<HTMLTextAreaElement>('[data-xm-selected-source]')!;
+    selectedSource.value = 'graph TD\n  A --> BROKEN';
+    selectedSource.dispatchEvent(new Event('input', { bubbles: true }));
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(root.querySelector('[data-xm-preview]')?.textContent).toContain('last good preview');
+    expect(root.querySelector('[data-xm-preview-error]')?.textContent).toContain('bad edit');
+  });
+
+  it('updates diagnostics to the clicked diagram range', async () => {
+    const root = document.createElement('div');
+    const editor = new XMermaidLiveEditor({
+      root,
+      initialText: markdownWithTwoDiagrams,
+      renderDiagram: vi.fn(async ({ diagram }) => {
+        if (diagram.id === 'diagram-2') {
+          throw new Error('second diagram failed');
+        }
+      }),
+    });
+
+    await editor.mount();
+    expect(root.querySelector('[data-xm-diagnostic-item]')).toBeNull();
+
+    root.querySelectorAll<HTMLButtonElement>('[data-xm-diagram-item]')[1].click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    const diagnostic = root.querySelector<HTMLElement>('[data-xm-diagnostic-item]');
+    expect(diagnostic?.textContent).toContain('second diagram failed');
+    expect(diagnostic?.textContent).toContain('Lines 11-12');
+  });
+
+  it('shows an empty diagnostics state when no diagrams are present', async () => {
+    const root = document.createElement('div');
+    const editor = new XMermaidLiveEditor({
+      root,
+      initialText: '# Notes only',
+      renderDiagram: vi.fn(),
+    });
+
+    await editor.mount();
+
+    expect(root.querySelector('[data-xm-diagnostics-empty]')?.textContent)
+      .toContain('No diagnostics');
+  });
+
+  it('maps unsupported diagram errors without treating them as parse errors', async () => {
+    const root = document.createElement('div');
+    const editor = new XMermaidLiveEditor({
+      root,
+      initialText: 'graph TD\n  A --> B',
+      renderDiagram: vi.fn(async () => {
+        throw new XMermaidError('UNSUPPORTED_DIAGRAM', 'sequence diagrams are not supported');
+      }),
+    });
+
+    await editor.mount();
+
+    const diagnostic = root.querySelector<HTMLElement>('[data-xm-diagnostic-item]');
+    expect(diagnostic?.getAttribute('data-xm-diagnostic-code')).toBe('unsupported_diagram_type');
+    expect(diagnostic?.textContent).not.toContain('parse_error');
   });
 
   it('prefers diagnostics carried by XMermaidError over whole-diagram fallback diagnostics', async () => {
@@ -513,37 +651,6 @@ describe('XMermaidLiveEditor', () => {
     expect(root.querySelector('[data-xm-preview-error]')?.textContent).toContain('blocked');
   });
 
-  it('shows an empty diagnostics state when no diagrams are present', async () => {
-    const root = document.createElement('div');
-    const editor = new XMermaidLiveEditor({
-      root,
-      initialText: '# Notes only',
-      renderDiagram: vi.fn(),
-    });
-
-    await editor.mount();
-
-    expect(root.querySelector('[data-xm-diagnostics-empty]')?.textContent)
-      .toContain('No diagnostics');
-  });
-
-  it('maps unsupported diagram errors without treating them as parse errors', async () => {
-    const root = document.createElement('div');
-    const editor = new XMermaidLiveEditor({
-      root,
-      initialText: 'graph TD\n  A --> B',
-      renderDiagram: vi.fn(async () => {
-        throw new XMermaidError('UNSUPPORTED_DIAGRAM', 'sequence diagrams are not supported');
-      }),
-    });
-
-    await editor.mount();
-
-    const diagnostic = root.querySelector<HTMLElement>('[data-xm-diagnostic-item]');
-    expect(diagnostic?.getAttribute('data-xm-diagnostic-code')).toBe('unsupported_diagram_type');
-    expect(diagnostic?.textContent).not.toContain('parse_error');
-  });
-
   it('shows a high-confidence repair suggestion and applies it to the selected source', async () => {
     const root = document.createElement('div');
     const rendered: string[] = [];
@@ -575,6 +682,33 @@ describe('XMermaidLiveEditor', () => {
     expect(root.querySelector('[data-xm-diagnostic-item]')).toBeNull();
   });
 
+  it('commits applied repairs back to the document text', async () => {
+    const root = document.createElement('div');
+    const editor = new XMermaidLiveEditor({
+      root,
+      initialText: [
+        'Intro',
+        '```mermaid',
+        'flowchart TD',
+        '  A ==> B',
+        '```',
+      ].join('\n'),
+      renderDiagram: vi.fn(async ({ source, container }) => {
+        if (source.includes('==>')) {
+          throw new XMermaidError('PARSE_ERROR', 'bad arrow');
+        }
+        container.textContent = source;
+      }),
+    });
+
+    await editor.mount();
+    root.querySelector<HTMLButtonElement>('[data-xm-repair-apply]')?.click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(root.querySelector<HTMLTextAreaElement>('[data-xm-document-input]')?.value)
+      .toContain('A --> B');
+  });
+
   it('does not render an apply button for unsupported diagram hints', async () => {
     const root = document.createElement('div');
     const editor = new XMermaidLiveEditor({
@@ -590,6 +724,641 @@ describe('XMermaidLiveEditor', () => {
     expect(root.querySelector('[data-xm-repair-suggestion]')?.textContent)
       .toContain('Unsupported diagram type');
     expect(root.querySelector('[data-xm-repair-apply]')).toBeNull();
+  });
+
+  it('shares the current document state through location hash', async () => {
+    const root = document.createElement('div');
+    const editor = new XMermaidLiveEditor({
+      root,
+      initialText: markdownWithTwoDiagrams,
+      renderDiagram: vi.fn(async ({ container }) => {
+        container.textContent = 'rendered';
+      }),
+    });
+
+    await editor.mount();
+    const selectedSource = root.querySelector<HTMLTextAreaElement>('[data-xm-selected-source]')!;
+    selectedSource.value = 'graph TD\n  Shared[Shared] --> B[End]';
+    selectedSource.dispatchEvent(new Event('input', { bubbles: true }));
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    root.querySelector<HTMLButtonElement>('[data-xm-share-link]')?.click();
+
+    const decoded = decodeShareState(window.location.hash);
+    expect(decoded?.documentText).toContain('Shared[Shared]');
+    expect(decoded?.selectedDiagramId).toBe('diagram-1');
+  });
+
+  it('restores document text and selected diagram from a share hash on mount', async () => {
+    const root = document.createElement('div');
+    window.location.hash = encodeShareState(markdownWithTwoDiagrams, 'diagram-2');
+    const editor = new XMermaidLiveEditor({
+      root,
+      initialText: 'graph TD\n  Placeholder --> Ignored',
+      renderDiagram: vi.fn(async ({ source, container }) => {
+        container.textContent = source;
+      }),
+    });
+
+    try {
+      await editor.mount();
+
+      expect(root.querySelector<HTMLTextAreaElement>('[data-xm-document-input]')?.value)
+        .toBe(markdownWithTwoDiagrams);
+      expect(root.querySelector<HTMLButtonElement>('[data-xm-diagram-item].is-selected')?.textContent)
+        .toContain('Diagram 2');
+      expect(root.querySelector<HTMLTextAreaElement>('[data-xm-selected-source]')?.value)
+        .toBe('flowchart LR\n  C[Client] --> D[Server]');
+    } finally {
+      window.location.hash = '';
+    }
+  });
+
+  it('exports the current rendered SVG from the toolbar', async () => {
+    const root = document.createElement('div');
+    const originalCreateObjectUrl = URL.createObjectURL;
+    const originalRevokeObjectUrl = URL.revokeObjectURL;
+    URL.createObjectURL = vi.fn(() => 'blob:current-preview');
+    URL.revokeObjectURL = vi.fn();
+    const editor = new XMermaidLiveEditor({
+      root,
+      initialText: 'graph TD\n  A --> B',
+      renderDiagram: vi.fn(async ({ container }) => {
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.textContent = 'current preview';
+        container.appendChild(svg);
+      }),
+    });
+
+    try {
+      await editor.mount();
+      const exported = new Promise<void>(resolve => {
+        root.addEventListener('xmermaid:exported', () => resolve(), { once: true });
+      });
+      root.querySelector<HTMLButtonElement>('[data-xm-export-svg]')?.click();
+      await exported;
+
+      const link = root.querySelector<HTMLAnchorElement>('[data-xm-download-link]');
+      expect(URL.createObjectURL).toHaveBeenCalledWith(expect.objectContaining({ type: 'image/svg+xml' }));
+      expect(link?.download).toBe('diagram-1.svg');
+      expect(link?.href).toBe('blob:current-preview');
+    } finally {
+      URL.createObjectURL = originalCreateObjectUrl;
+      URL.revokeObjectURL = originalRevokeObjectUrl;
+    }
+  });
+
+  it('exports the current rendered SVG as PNG from the toolbar', async () => {
+    const root = document.createElement('div');
+    const originalCreateObjectUrl = URL.createObjectURL;
+    const originalRevokeObjectUrl = URL.revokeObjectURL;
+    const originalImage = globalThis.Image;
+    const originalCreateElement = document.createElement.bind(document);
+    URL.createObjectURL = vi.fn(() => 'blob:png-preview');
+    URL.revokeObjectURL = vi.fn();
+    globalThis.Image = class FakeImage {
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      naturalWidth = 16;
+      naturalHeight = 16;
+      set src(_value: string) {
+        queueMicrotask(() => this.onload?.());
+      }
+    } as unknown as typeof Image;
+    document.createElement = ((tagName: string, options?: ElementCreationOptions) => {
+      if (tagName === 'canvas') {
+        return {
+          width: 0,
+          height: 0,
+          getContext: () => ({ drawImage: vi.fn() }),
+          toBlob: (callback: (blob: Blob | null) => void) => callback(new Blob(['png'], { type: 'image/png' })),
+        } as unknown as HTMLCanvasElement;
+      }
+      return originalCreateElement(tagName, options);
+    }) as typeof document.createElement;
+    const editor = new XMermaidLiveEditor({
+      root,
+      initialText: 'graph TD\n  A --> B',
+      renderDiagram: vi.fn(async ({ container }) => {
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('width', '16');
+        svg.setAttribute('height', '16');
+        container.appendChild(svg);
+      }),
+    });
+
+    try {
+      await editor.mount();
+      const exported = new Promise<void>(resolve => {
+        root.addEventListener('xmermaid:exported', () => resolve(), { once: true });
+      });
+      root.querySelector<HTMLButtonElement>('[data-xm-export-png]')?.click();
+      await exported;
+
+      const link = root.querySelector<HTMLAnchorElement>('[data-xm-download-link]');
+      expect(URL.createObjectURL).toHaveBeenLastCalledWith(expect.objectContaining({ type: 'image/png' }));
+      expect(link?.download).toBe('diagram-1.png');
+    } finally {
+      URL.createObjectURL = originalCreateObjectUrl;
+      URL.revokeObjectURL = originalRevokeObjectUrl;
+      globalThis.Image = originalImage;
+      document.createElement = originalCreateElement;
+    }
+  });
+
+  it('copies the selected source and full document from toolbar buttons', async () => {
+    const root = document.createElement('div');
+    const writeText = vi.fn(async () => {});
+    const originalClipboard = navigator.clipboard;
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    const editor = new XMermaidLiveEditor({
+      root,
+      initialText: markdownWithTwoDiagrams,
+      renderDiagram: vi.fn(async ({ container }) => {
+        container.textContent = 'rendered';
+      }),
+    });
+
+    try {
+      await editor.mount();
+      root.querySelector<HTMLButtonElement>('[data-xm-copy-source]')?.click();
+      root.querySelector<HTMLButtonElement>('[data-xm-copy-document]')?.click();
+      await new Promise(resolve => setTimeout(resolve, 0));
+
+      expect(writeText).toHaveBeenNthCalledWith(1, 'graph TD\n  A[Start] --> B[End]');
+      expect(writeText).toHaveBeenNthCalledWith(2, markdownWithTwoDiagrams);
+    } finally {
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: originalClipboard,
+      });
+    }
+  });
+
+  it('applies theme and layout controls to subsequent renders', async () => {
+    const root = document.createElement('div');
+    const renderDiagram = vi.fn(async ({ container }) => {
+      container.textContent = 'rendered';
+    });
+    const editor = new XMermaidLiveEditor({
+      root,
+      initialText: 'flowchart TD\n  A --> B',
+      parseFlowchartDsl: parseFlowchartDslForTest,
+      renderFlowchartDsl: renderFlowchartDslForTest,
+      renderDiagram,
+    });
+
+    await editor.mount();
+    const themeSelect = root.querySelector<HTMLSelectElement>('[data-xm-theme-select]')!;
+    const directionSelect = root.querySelector<HTMLSelectElement>('[data-xm-layout-direction]')!;
+    themeSelect.value = 'dark';
+    themeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    directionSelect.value = 'LR';
+    directionSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(renderDiagram).toHaveBeenLastCalledWith(expect.objectContaining({
+      themeId: 'dark',
+      layoutConfig: expect.objectContaining({ direction: 'LR' }),
+      source: expect.stringContaining('flowchart TD'),
+    }));
+    expect(root.querySelector<HTMLTextAreaElement>('[data-xm-selected-source]')?.value)
+      .toContain('flowchart TD');
+    expect(root.querySelector<HTMLTextAreaElement>('[data-xm-document-input]')?.value)
+      .toContain('flowchart TD');
+  });
+
+  it('applies the current layout direction to source only through the explicit source direction control', async () => {
+    const root = document.createElement('div');
+    const renderDiagram = vi.fn(async ({ container }) => {
+      container.textContent = 'rendered';
+    });
+    const editor = new XMermaidLiveEditor({
+      root,
+      initialText: 'flowchart TD\n  A --> B',
+      parseFlowchartDsl: parseFlowchartDslForTest,
+      renderFlowchartDsl: renderFlowchartDslForTest,
+      renderDiagram,
+    });
+
+    await editor.mount();
+    const directionSelect = root.querySelector<HTMLSelectElement>('[data-xm-layout-direction]')!;
+    directionSelect.value = 'LR';
+    directionSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(root.querySelector<HTMLTextAreaElement>('[data-xm-selected-source]')?.value)
+      .toContain('flowchart TD');
+
+    root.querySelector<HTMLButtonElement>('[data-xm-apply-source-direction]')?.click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(root.querySelector<HTMLTextAreaElement>('[data-xm-selected-source]')?.value)
+      .toContain('flowchart LR');
+    expect(root.querySelector<HTMLTextAreaElement>('[data-xm-document-input]')?.value)
+      .toContain('flowchart LR');
+  });
+
+  it('blocks source direction edits for unsupported visual sources', async () => {
+    const root = document.createElement('div');
+    const editor = new XMermaidLiveEditor({
+      root,
+      initialText: 'flowchart TD\n  A --> B\n  classDef hot fill:#fff',
+      parseFlowchartDsl: parseFlowchartDslForTest,
+      renderFlowchartDsl: renderFlowchartDslForTest,
+      renderDiagram: vi.fn(async ({ container }) => {
+        container.textContent = 'rendered';
+      }),
+    });
+
+    await editor.mount();
+    const directionSelect = root.querySelector<HTMLSelectElement>('[data-xm-layout-direction]')!;
+    directionSelect.value = 'LR';
+    directionSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    root.querySelector<HTMLButtonElement>('[data-xm-apply-source-direction]')?.click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    const source = root.querySelector<HTMLTextAreaElement>('[data-xm-selected-source]')?.value ?? '';
+    expect(source).toContain('flowchart TD');
+    expect(source).toContain('classDef hot fill:#fff');
+    expect(root.querySelector<HTMLElement>('[data-xm-diagnostic-item]')?.getAttribute('data-xm-diagnostic-code'))
+      .toBe('visual_unsupported_syntax');
+  });
+
+  it('renames nodes through the visual flowchart editor and writes Mermaid back', async () => {
+    const root = document.createElement('div');
+    const editor = new XMermaidLiveEditor({
+      root,
+      initialText: 'flowchart TD\n  A[Start] --> B[End]',
+      parseFlowchartDsl: parseFlowchartDslForTest,
+      renderFlowchartDsl: renderFlowchartDslForTest,
+      renderDiagram: vi.fn(async ({ container }) => {
+        container.textContent = 'rendered';
+      }),
+    });
+
+    await editor.mount();
+    root.querySelector<HTMLButtonElement>('[data-xm-visual-toggle]')?.click();
+    const nodeId = root.querySelector<HTMLInputElement>('[data-xm-visual-node-id]')!;
+    const nodeLabel = root.querySelector<HTMLInputElement>('[data-xm-visual-node-label]')!;
+    nodeId.value = 'A';
+    nodeLabel.value = 'Begin';
+    root.querySelector<HTMLButtonElement>('[data-xm-visual-rename-node]')?.click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(root.querySelector<HTMLTextAreaElement>('[data-xm-selected-source]')?.value)
+      .toContain('A[Begin]');
+    expect(root.querySelector<HTMLTextAreaElement>('[data-xm-document-input]')?.value)
+      .toContain('A[Begin]');
+  });
+
+  it('adds nodes and edges through the visual flowchart editor', async () => {
+    const root = document.createElement('div');
+    const editor = new XMermaidLiveEditor({
+      root,
+      initialText: 'flowchart TD\n  A[Start] --> B[End]',
+      parseFlowchartDsl: parseFlowchartDslForTest,
+      renderFlowchartDsl: renderFlowchartDslForTest,
+      renderDiagram: vi.fn(async ({ container }) => {
+        container.textContent = 'rendered';
+      }),
+    });
+
+    await editor.mount();
+    root.querySelector<HTMLButtonElement>('[data-xm-visual-toggle]')?.click();
+    root.querySelector<HTMLInputElement>('[data-xm-visual-node-id]')!.value = 'C';
+    root.querySelector<HTMLInputElement>('[data-xm-visual-node-label]')!.value = 'Done';
+    root.querySelector<HTMLButtonElement>('[data-xm-visual-add-node]')?.click();
+    root.querySelector<HTMLInputElement>('[data-xm-visual-edge-from]')!.value = 'B';
+    root.querySelector<HTMLInputElement>('[data-xm-visual-edge-to]')!.value = 'C';
+    root.querySelector<HTMLInputElement>('[data-xm-visual-edge-label]')!.value = 'next';
+    root.querySelector<HTMLButtonElement>('[data-xm-visual-add-edge]')?.click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    const source = root.querySelector<HTMLTextAreaElement>('[data-xm-selected-source]')?.value ?? '';
+    expect(source).toContain('C[Done]');
+    expect(source).toContain('B -->|next| C');
+  });
+
+  it('removes nodes and edges through the visual flowchart editor', async () => {
+    const root = document.createElement('div');
+    const editor = new XMermaidLiveEditor({
+      root,
+      initialText: 'flowchart TD\n  A --> B\n  B --> C',
+      parseFlowchartDsl: parseFlowchartDslForTest,
+      renderFlowchartDsl: renderFlowchartDslForTest,
+      renderDiagram: vi.fn(async ({ container }) => {
+        container.textContent = 'rendered';
+      }),
+    });
+
+    await editor.mount();
+    root.querySelector<HTMLButtonElement>('[data-xm-visual-toggle]')?.click();
+    root.querySelector<HTMLInputElement>('[data-xm-visual-edge-id]')!.value = 'A-B-1';
+    root.querySelector<HTMLButtonElement>('[data-xm-visual-remove-edge]')?.click();
+    root.querySelector<HTMLInputElement>('[data-xm-visual-node-id]')!.value = 'B';
+    root.querySelector<HTMLButtonElement>('[data-xm-visual-remove-node]')?.click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    const source = root.querySelector<HTMLTextAreaElement>('[data-xm-selected-source]')?.value ?? '';
+    expect(source).not.toContain('A --> B');
+    expect(source).not.toContain('B --> C');
+    expect(source).toContain('A');
+    expect(source).toContain('C');
+  });
+
+  it('blocks visual edits for unsupported flowchart source without changing document text', async () => {
+    const root = document.createElement('div');
+    const editor = new XMermaidLiveEditor({
+      root,
+      initialText: 'flowchart TD\n  A --> B\n  classDef hot fill:#fff',
+      parseFlowchartDsl: parseFlowchartDslForTest,
+      renderFlowchartDsl: renderFlowchartDslForTest,
+      renderDiagram: vi.fn(async ({ container }) => {
+        container.textContent = 'rendered';
+      }),
+    });
+
+    await editor.mount();
+    root.querySelector<HTMLButtonElement>('[data-xm-visual-toggle]')?.click();
+    root.querySelector<HTMLInputElement>('[data-xm-visual-node-id]')!.value = 'A';
+    root.querySelector<HTMLInputElement>('[data-xm-visual-node-label]')!.value = 'Begin';
+    root.querySelector<HTMLButtonElement>('[data-xm-visual-rename-node]')?.click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    const source = root.querySelector<HTMLTextAreaElement>('[data-xm-selected-source]')?.value ?? '';
+    const documentText = root.querySelector<HTMLTextAreaElement>('[data-xm-document-input]')?.value ?? '';
+    expect(source).toBe('flowchart TD\n  A --> B\n  classDef hot fill:#fff');
+    expect(documentText).toBe('flowchart TD\n  A --> B\n  classDef hot fill:#fff');
+    expect(root.querySelector<HTMLElement>('[data-xm-diagnostic-item]')?.getAttribute('data-xm-diagnostic-code'))
+      .toBe('visual_unsupported_syntax');
+  });
+});
+
+describe('share and export helpers', () => {
+  it('roundtrips share state through a URL-hash-safe string', () => {
+    const encoded = encodeShareState('# Doc\n\n```mermaid\ngraph TD\n  A --> B\n```', 'diagram-1');
+    const decoded = decodeShareState(encoded);
+
+    expect(decoded).toEqual({
+      documentText: '# Doc\n\n```mermaid\ngraph TD\n  A --> B\n```',
+      selectedDiagramId: 'diagram-1',
+    });
+    expect(decodeShareState('#not-valid-json')).toBeNull();
+  });
+
+  it('exports the provided current SVG without re-rendering', async () => {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 10 10');
+    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    text.textContent = 'Current Preview';
+    svg.appendChild(text);
+
+    const blob = await exportDiagram({
+      diagramId: 'diagram-1',
+      source: 'graph TD\n  A --> B',
+      svg,
+      format: 'svg',
+      fileName: 'diagram.svg',
+    });
+
+    expect(blob.type).toBe('image/svg+xml');
+    await expect(blob.text()).resolves.toContain('Current Preview');
+  });
+});
+
+describe('flowchart graph model helpers', () => {
+  it('derives graph model from AST without dropping shapes, edge metadata, or subgraphs', () => {
+    const model = flowchartAstToGraph({
+      type: 'flowchart',
+      direction: 'LR',
+      nodes: [
+        { id: 'A', label: 'Start', shape: 'rounded', classes: [], styles: [] },
+        { id: 'B', label: null, shape: 'diamond', classes: [], styles: [] },
+      ],
+      edges: [
+        { from: 'A', to: 'B', style: 'thick', label: 'yes', min_length: 2 },
+      ],
+      subgraphs: [
+        { title: 'Decision path', nodes: ['A', 'B'], subgraphs: [] },
+      ],
+    });
+
+    expect(model).toEqual({
+      direction: 'LR',
+      nodes: [
+        { id: 'A', label: 'Start', shape: 'rounded' },
+        { id: 'B', label: 'B', shape: 'diamond' },
+      ],
+      edges: [
+        { id: 'A-B-1', from: 'A', to: 'B', label: 'yes', style: 'thick', min_length: 2 },
+      ],
+      subgraphs: [
+        { title: 'Decision path', nodes: ['A', 'B'], subgraphs: [] },
+      ],
+    });
+  });
+
+  it('serializes supported shapes, edge styles, labels, and subgraphs', () => {
+    const serialized = serializeFlowchart({
+      direction: 'LR',
+      nodes: [
+        { id: 'A', label: 'Start', shape: 'rounded' },
+        { id: 'B', label: 'Decision', shape: 'diamond' },
+        { id: 'C', label: 'Check', shape: 'circle' },
+      ],
+      edges: [
+        { id: 'A-B-1', from: 'A', to: 'B', label: 'yes', style: 'thick', min_length: 1 },
+        { id: 'B-C-2', from: 'B', to: 'C', style: 'dotted', min_length: 1 },
+      ],
+      subgraphs: [
+        { title: 'Decision path', nodes: ['A', 'B'], subgraphs: [] },
+      ],
+    });
+
+    expect(serialized).toContain('flowchart LR');
+    expect(serialized).toContain('subgraph Decision path');
+    expect(serialized).toContain('A(Start) ==>|yes| B{Decision}');
+    expect(serialized).toContain('B -.-> C((Check))');
+  });
+
+  it('analyzes flowchart source through an injected AST parser', async () => {
+    const parseDsl = vi.fn(() => JSON.stringify({
+      type: 'flowchart',
+      direction: 'TD',
+      nodes: [
+        { id: 'A', label: 'Start', shape: 'rect', classes: [], styles: [] },
+        { id: 'B', label: 'End', shape: 'rect', classes: [], styles: [] },
+      ],
+      edges: [
+        { from: 'A', to: 'B', style: 'arrow', label: null, min_length: 1 },
+      ],
+      subgraphs: [],
+    }));
+
+    const analysis = await analyzeFlowchartForVisualEdit('flowchart TD\n  A --> B', { parseDsl });
+
+    expect(parseDsl).toHaveBeenCalledWith('flowchart TD\n  A --> B');
+    expect(analysis.capability).toBe('editable');
+    expect(analysis.model).toMatchObject({
+      direction: 'TD',
+      nodes: [
+        { id: 'A', label: 'Start', shape: 'rect' },
+        { id: 'B', label: 'End', shape: 'rect' },
+      ],
+    });
+    expect(analysis.diagnostics).toEqual([]);
+  });
+
+  it('blocks unsupported source before invoking the AST parser', async () => {
+    const parseDsl = vi.fn(() => {
+      throw new Error('parse should not run for unsupported visual source');
+    });
+
+    const analysis = await analyzeFlowchartForVisualEdit(
+      'flowchart TD\n  A --> B\n  classDef hot fill:#fff',
+      { parseDsl },
+    );
+
+    expect(parseDsl).not.toHaveBeenCalled();
+    expect(analysis).toEqual(expect.objectContaining({
+      capability: 'read-only',
+      model: null,
+      diagnostics: [expect.objectContaining({
+        code: 'visual_unsupported_syntax',
+        range: expect.objectContaining({ startLine: 3 }),
+      })],
+    }));
+  });
+
+  it('reports analysis and validation diagnostics when parsing fails', async () => {
+    const parseDsl = vi.fn(() => {
+      throw new Error('bad flowchart');
+    });
+
+    await expect(analyzeFlowchartForVisualEdit('flowchart TD\n  A -->', { parseDsl }))
+      .resolves.toEqual(expect.objectContaining({
+        capability: 'read-only',
+        model: null,
+        diagnostics: [expect.objectContaining({ code: 'visual_parse_failed' })],
+      }));
+
+    await expect(validateVisualEditResult('flowchart TD\n  A -->', { parseDsl }))
+      .resolves.toEqual(expect.objectContaining({
+        status: 'blocked',
+        source: 'flowchart TD\n  A -->',
+        model: null,
+        diagnostics: [expect.objectContaining({ code: 'visual_roundtrip_failed' })],
+      }));
+  });
+
+  it('blocks visual validation when render/layout validation fails after parse succeeds', async () => {
+    const parseDsl = vi.fn(() => JSON.stringify({
+      type: 'flowchart',
+      direction: 'TD',
+      nodes: [
+        { id: 'A', label: null, shape: 'rect', classes: [], styles: [] },
+        { id: 'B', label: null, shape: 'rect', classes: [], styles: [] },
+      ],
+      edges: [
+        { from: 'A', to: 'B', style: 'arrow', label: null, min_length: 1 },
+      ],
+      subgraphs: [],
+    }));
+    const renderDsl = vi.fn(() => {
+      throw new Error('layout failed');
+    });
+
+    await expect(validateVisualEditResult('flowchart TD\n  A --> B', { parseDsl, renderDsl }))
+      .resolves.toEqual(expect.objectContaining({
+        status: 'blocked',
+        source: 'flowchart TD\n  A --> B',
+        model: null,
+        diagnostics: [expect.objectContaining({
+          code: 'visual_render_failed',
+          message: 'layout failed',
+        })],
+      }));
+  });
+
+  it('keeps shape and edge style when visual rename writes source through AST analysis', async () => {
+    const root = document.createElement('div');
+    const parseFlowchartDsl = vi.fn(() => JSON.stringify({
+      type: 'flowchart',
+      direction: 'TD',
+      nodes: [
+        { id: 'A', label: 'Start', shape: 'rounded', classes: [], styles: [] },
+        { id: 'B', label: 'End', shape: 'diamond', classes: [], styles: [] },
+      ],
+      edges: [
+        { from: 'A', to: 'B', style: 'thick', label: 'yes', min_length: 1 },
+      ],
+      subgraphs: [],
+    }));
+    const editor = new XMermaidLiveEditor({
+      root,
+      initialText: 'flowchart TD\n  A(Start) ==>|yes| B{End}',
+      parseFlowchartDsl,
+      renderFlowchartDsl: renderFlowchartDslForTest,
+      renderDiagram: vi.fn(async ({ container }) => {
+        container.textContent = 'rendered';
+      }),
+    });
+
+    await editor.mount();
+    root.querySelector<HTMLButtonElement>('[data-xm-visual-toggle]')?.click();
+    root.querySelector<HTMLInputElement>('[data-xm-visual-node-id]')!.value = 'A';
+    root.querySelector<HTMLInputElement>('[data-xm-visual-node-label]')!.value = 'Begin';
+    root.querySelector<HTMLButtonElement>('[data-xm-visual-rename-node]')?.click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    const source = root.querySelector<HTMLTextAreaElement>('[data-xm-selected-source]')?.value ?? '';
+    expect(source).toContain('A(Begin) ==>|yes| B{End}');
+    expect(source).not.toContain('A[Begin]');
+  });
+
+  it('parses and serializes a simple flowchart model', () => {
+    const model = parseFlowchartToGraph('flowchart LR\n  A[Start] --> B[End]');
+
+    expect(model.direction).toBe('LR');
+    expect(model.nodes).toEqual([
+      expect.objectContaining({ id: 'A', label: 'Start' }),
+      expect.objectContaining({ id: 'B', label: 'End' }),
+    ]);
+    expect(model.edges).toEqual([
+      expect.objectContaining({ from: 'A', to: 'B' }),
+    ]);
+    expect(serializeFlowchart(model)).toContain('flowchart LR');
+  });
+
+  it('applies visual edits to nodes, edges, and direction', () => {
+    let model = parseFlowchartToGraph('flowchart TD\n  A[Start] --> B[End]');
+    model = applyVisualEdit(model, { type: 'rename-node', nodeId: 'A', label: 'Begin' });
+    model = applyVisualEdit(model, { type: 'add-node', nodeId: 'C', label: 'Done' });
+    model = applyVisualEdit(model, { type: 'add-edge', from: 'B', to: 'C', label: 'next' });
+    model = applyVisualEdit(model, { type: 'set-direction', direction: 'LR' });
+
+    expect(model.direction).toBe('LR');
+    expect(model.nodes).toContainEqual(expect.objectContaining({ id: 'A', label: 'Begin' }));
+    expect(model.edges).toContainEqual(expect.objectContaining({ from: 'B', to: 'C', label: 'next' }));
+
+    const serialized = serializeFlowchart(model);
+    expect(serialized).toContain('A[Begin]');
+    expect(serialized).toContain('B -->|next| C');
+  });
+
+  it('removes incident edges when removing a node', () => {
+    const model = applyVisualEdit(
+      parseFlowchartToGraph('flowchart TD\n  A --> B\n  B --> C'),
+      { type: 'remove-node', nodeId: 'B' },
+    );
+
+    expect(model.nodes.map(node => node.id)).toEqual(['A', 'C']);
+    expect(model.edges).toEqual([]);
   });
 });
 
@@ -613,6 +1382,13 @@ describe('examples/live-editor.html', () => {
 
     expect(html).toContain('[data-xm-repair-suggestion]');
     expect(html).toContain('[data-xm-repair-apply]');
+  });
+
+  it('includes styles for toolbar and visual editor controls', () => {
+    const html = readFileSync('examples/live-editor.html', 'utf8');
+
+    expect(html).toContain('[data-xm-toolbar]');
+    expect(html).toContain('[data-xm-visual-editor]');
   });
 });
 
@@ -678,4 +1454,177 @@ function applyRepair(source: string, suggestion: RepairSuggestion): string {
   expect(applyFn, 'applyRepair should be exported from src/index')
     .toBeTypeOf('function');
   return applyFn!(source, suggestion);
+}
+
+type ExportDiagram = (request: {
+  diagramId: string;
+  source: string;
+  svg: SVGSVGElement;
+  format: 'svg' | 'png';
+  fileName?: string;
+}) => Promise<Blob>;
+
+function exportDiagram(request: Parameters<ExportDiagram>[0]): Promise<Blob> {
+  const exportFn = (publicApi as typeof publicApi & {
+    exportDiagram?: ExportDiagram;
+  }).exportDiagram;
+  expect(exportFn, 'exportDiagram should be exported from src/index')
+    .toBeTypeOf('function');
+  return exportFn!(request);
+}
+
+type EncodeShareState = (documentText: string, selectedDiagramId: string | null) => string;
+type DecodeShareState = (hash: string) => { documentText: string; selectedDiagramId: string | null } | null;
+
+function encodeShareState(documentText: string, selectedDiagramId: string | null): string {
+  const encodeFn = (publicApi as typeof publicApi & {
+    encodeShareState?: EncodeShareState;
+  }).encodeShareState;
+  expect(encodeFn, 'encodeShareState should be exported from src/index')
+    .toBeTypeOf('function');
+  return encodeFn!(documentText, selectedDiagramId);
+}
+
+function decodeShareState(hash: string): ReturnType<DecodeShareState> {
+  const decodeFn = (publicApi as typeof publicApi & {
+    decodeShareState?: DecodeShareState;
+  }).decodeShareState;
+  expect(decodeFn, 'decodeShareState should be exported from src/index')
+    .toBeTypeOf('function');
+  return decodeFn!(hash);
+}
+
+type FlowchartGraphModel = {
+  direction: 'TD' | 'TB' | 'BT' | 'LR' | 'RL';
+  nodes: Array<{ id: string; label: string; shape: string }>;
+  edges: Array<{ id: string; from: string; to: string; label?: string; style: string; min_length: number }>;
+  subgraphs: Array<{ title: string; nodes: string[]; subgraphs: Array<{ title: string; nodes: string[]; subgraphs: unknown[] }> }>;
+};
+
+type FlowchartAst = {
+  type: 'flowchart';
+  direction: FlowchartGraphModel['direction'];
+  nodes: Array<{ id: string; label: string | null; shape: string; classes: string[]; styles: string[] }>;
+  edges: Array<{ from: string; to: string; style: string; label: string | null; min_length: number }>;
+  subgraphs: FlowchartGraphModel['subgraphs'];
+};
+
+type VisualSourceAnalysis = {
+  capability: 'editable' | 'read-only' | 'unsupported';
+  model: FlowchartGraphModel | null;
+  diagnostics: Array<{ code: string; message: string; severity: string; range: null }>;
+};
+
+type VisualEditApplyResult = {
+  status: 'applied' | 'blocked';
+  source: string;
+  model: FlowchartGraphModel | null;
+  diagnostics: Array<{ code: string; message: string; severity: string; range: null }>;
+};
+
+type VisualParseOptions = {
+  parseDsl?: (source: string) => string | Promise<string>;
+  renderDsl?: (source: string) => unknown | Promise<unknown>;
+  detectUnsupportedFeatures?: (source: string) => Array<{
+    id: string;
+    message: string;
+    severity: 'warning' | 'error';
+    range: ReturnType<typeof extractDiagrams>['diagrams'][number]['range'] | null;
+  }>;
+};
+
+type VisualEdit =
+  | { type: 'rename-node'; nodeId: string; label: string }
+  | { type: 'add-node'; nodeId: string; label: string }
+  | { type: 'remove-node'; nodeId: string }
+  | { type: 'add-edge'; from: string; to: string; label?: string }
+  | { type: 'remove-edge'; edgeId: string }
+  | { type: 'set-direction'; direction: FlowchartGraphModel['direction'] };
+
+type ParseFlowchartToGraph = (source: string) => FlowchartGraphModel;
+type ApplyVisualEdit = (model: FlowchartGraphModel, edit: VisualEdit) => FlowchartGraphModel;
+type SerializeFlowchart = (model: FlowchartGraphModel) => string;
+type FlowchartAstToGraph = (ast: FlowchartAst) => FlowchartGraphModel;
+type AnalyzeFlowchartForVisualEdit = (source: string, options?: VisualParseOptions) => Promise<VisualSourceAnalysis>;
+type ValidateVisualEditResult = (source: string, options?: VisualParseOptions) => Promise<VisualEditApplyResult>;
+
+function parseFlowchartToGraph(source: string): FlowchartGraphModel {
+  const parseFn = (publicApi as typeof publicApi & {
+    parseFlowchartToGraph?: ParseFlowchartToGraph;
+  }).parseFlowchartToGraph;
+  expect(parseFn, 'parseFlowchartToGraph should be exported from src/index')
+    .toBeTypeOf('function');
+  return parseFn!(source);
+}
+
+function applyVisualEdit(model: FlowchartGraphModel, edit: VisualEdit): FlowchartGraphModel {
+  const applyFn = (publicApi as typeof publicApi & {
+    applyVisualEdit?: ApplyVisualEdit;
+  }).applyVisualEdit;
+  expect(applyFn, 'applyVisualEdit should be exported from src/index')
+    .toBeTypeOf('function');
+  return applyFn!(model, edit);
+}
+
+function serializeFlowchart(model: FlowchartGraphModel): string {
+  const serializeFn = (publicApi as typeof publicApi & {
+    serializeFlowchart?: SerializeFlowchart;
+  }).serializeFlowchart;
+  expect(serializeFn, 'serializeFlowchart should be exported from src/index')
+    .toBeTypeOf('function');
+  return serializeFn!(model);
+}
+
+function parseFlowchartDslForTest(source: string): string {
+  const model = parseFlowchartToGraph(source);
+  return JSON.stringify({
+    type: 'flowchart',
+    direction: model.direction,
+    nodes: model.nodes.map(node => ({
+      id: node.id,
+      label: node.label,
+      shape: node.shape,
+      classes: [],
+      styles: [],
+    })),
+    edges: model.edges.map(edge => ({
+      from: edge.from,
+      to: edge.to,
+      style: edge.style,
+      label: edge.label ?? null,
+      min_length: edge.min_length,
+    })),
+    subgraphs: model.subgraphs,
+  });
+}
+
+function renderFlowchartDslForTest(): { nodes: unknown[]; edges: unknown[] } {
+  return { nodes: [], edges: [] };
+}
+
+function flowchartAstToGraph(ast: FlowchartAst): FlowchartGraphModel {
+  const convertFn = (publicApi as typeof publicApi & {
+    flowchartAstToGraph?: FlowchartAstToGraph;
+  }).flowchartAstToGraph;
+  expect(convertFn, 'flowchartAstToGraph should be exported from src/index')
+    .toBeTypeOf('function');
+  return convertFn!(ast);
+}
+
+function analyzeFlowchartForVisualEdit(source: string, options?: VisualParseOptions): Promise<VisualSourceAnalysis> {
+  const analyzeFn = (publicApi as typeof publicApi & {
+    analyzeFlowchartForVisualEdit?: AnalyzeFlowchartForVisualEdit;
+  }).analyzeFlowchartForVisualEdit;
+  expect(analyzeFn, 'analyzeFlowchartForVisualEdit should be exported from src/index')
+    .toBeTypeOf('function');
+  return analyzeFn!(source, options);
+}
+
+function validateVisualEditResult(source: string, options?: VisualParseOptions): Promise<VisualEditApplyResult> {
+  const validateFn = (publicApi as typeof publicApi & {
+    validateVisualEditResult?: ValidateVisualEditResult;
+  }).validateVisualEditResult;
+  expect(validateFn, 'validateVisualEditResult should be exported from src/index')
+    .toBeTypeOf('function');
+  return validateFn!(source, options);
 }

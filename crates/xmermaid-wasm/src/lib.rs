@@ -84,7 +84,7 @@ pub fn compute_layout(ast_json: &str) -> Result<String, JsValue> {
     let ast: DiagramAst = serde_json::from_str(ast_json)
         .map_err(|e| JsValue::from_str(&format!("Invalid AST JSON: {}", e)))?;
 
-    let config = xmermaid_layout::LayoutConfig::default();
+    let config = build_config(&ast, None)?;
     let result = xmermaid_layout::compute_layout(&ast, &config);
 
     serde_json::to_string(&result)
@@ -155,5 +155,21 @@ mod tests {
         let config = build_config(&ast, Some(r#"{"direction":"TB"}"#.to_string())).unwrap();
 
         assert_eq!(config.direction, xmermaid_layout::FlowDirection::TB);
+    }
+
+    #[test]
+    fn compute_layout_compat_preserves_ast_direction() {
+        let ast = xmermaid_parser::parse("graph LR\n  A-->B").unwrap();
+        let ast_json = serde_json::to_string(&ast).unwrap();
+        let layout_json = compute_layout(&ast_json).unwrap();
+        let layout: xmermaid_layout::LayoutResult = serde_json::from_str(&layout_json).unwrap();
+        let a = layout.nodes.iter().find(|node| node.id == "A").unwrap();
+        let b = layout.nodes.iter().find(|node| node.id == "B").unwrap();
+
+        assert!(
+            b.center.x > a.center.x,
+            "LR flowcharts should place B to the right of A in the compatibility compute_layout API"
+        );
+        assert_eq!(a.center.y, b.center.y);
     }
 }

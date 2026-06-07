@@ -3,7 +3,7 @@ doc_type: requirement
 slug: production-support-contract
 pitch: 让用户在安装前就知道 xmermaid 当前支持什么、不支持什么
 status: current
-last_reviewed: 2026-06-02
+last_reviewed: 2026-06-07
 implemented_by:
   - ARCHITECTURE
   - 2026-06-02-release-support-matrix
@@ -13,6 +13,9 @@ implemented_by:
   - 2026-06-02-structured-diagnostics-v1
   - 2026-06-02-security-policy-v1
   - 2026-06-02-production-docs-release-checklist
+  - 2026-06-07-visual-flowchart-ast-contract
+  - 2026-06-07-visual-edit-safety-gate
+  - 2026-06-07-visual-roundtrip-contract-tests
 tags: [production, support, release]
 ---
 
@@ -25,6 +28,10 @@ tags: [production, support, release]
 - 作为遇到不支持语法的用户，我希望系统明确告诉我这是当前不支持，而不是把它包装成普通解析失败。
 - 作为遇到不支持语法的用户，我希望系统指出具体不支持的是哪个 feature，并尽量告诉我在哪一行，而不是只说“partial support”。
 - 作为 live editor 用户，我希望即使图还能渲染，也能看到当前 partial support 下不支持语法的 warning，而不是看到“没有诊断”。
+- 作为 live editor 可视化编辑用户，我希望系统保留 Rust parser 已支持的 flowchart shape、edge style、label、direction 和 subgraph 语义，而不是因为 visual editor 自己的简化 parser 静默丢失这些内容。
+- 作为 live editor 可视化编辑用户，我希望遇到当前明确 unsupported 的语法时系统阻断 visual rewrite 并告诉我原因，而不是把不认识的语法悄悄删掉。
+- 作为 live editor 可视化编辑用户，我希望编辑后的源码在提交前通过 parse 和 render/layout validation，而不是 parse 过了但渲染炸了才污染文档。
+- 作为维护者，我希望 visual edit 的回归测试使用真实 Rust/WASM parse/render 证明源码能闭环，而不是只相信 mock AST helper。
 - 作为把 Mermaid 输入嵌入同源应用的开发者，我希望默认安全策略把 click callback、HTML label 和危险 URL 明确阻断，而不是默认信任输入。
 - 作为发布维护者，我希望 release gate 用真实 packed tarball 证明安装、类型解析、WASM 加载和浏览器最小渲染路径能跑，而不是只相信仓库内测试。
 - 作为发布维护者，我希望 README、package 描述、support matrix、安全说明和 release checklist 不同步时发布失败，而不是靠人工记忆发现漂移。
@@ -56,3 +63,6 @@ tags: [production, support, release]
 - 2026-06-02：新增 structured diagnostics v1，覆盖 `XMermaidDiagnosticCode`、`SourceRange`、render preflight diagnostics、`XMermaidError.diagnostics` 和 live editor diagnostics 消费。
 - 2026-06-02：新增 security policy v1，覆盖默认 strict、有限 loose、URL allowlist、`security_blocked_*` diagnostics 和 packed consumer typecheck。
 - 2026-06-02：新增 production docs / release checklist，覆盖 README 生产用法、`docs/production-release-checklist.md` 和 `docs-support-matrix-sync` release gate。
+- 2026-06-07：新增 visual flowchart AST contract，live editor visual graph model 改由 Rust/WASM flowchart AST 派生，保留当前支持的 shape、edge style、edge label、direction、min_length 和 subgraph 语义。
+- 2026-06-07：新增 visual edit safety gate，visual rewrite 对 support analyzer 命中的 unsupported syntax fail-closed，并把 direction toolbar 拆成 preview-only layout override 与显式 source direction edit。
+- 2026-06-07：新增 visual roundtrip contract tests，使用真实 `pkg/xmermaid_wasm.js` + WASM bytes 证明 supported visual edit 输出可重新 parse/render，blocked unsupported syntax 不产生 rewrite；runtime `validateVisualEditResult()` 同步补齐 render/layout validation gate。

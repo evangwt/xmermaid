@@ -37,31 +37,55 @@ items:
   - slug: share-export-workbench
     description: "支持复制图表、导出 SVG/PNG、URL hash 分享当前文档"
     depends_on: [live-editor-static-mvp]
-    status: planned
-    feature: null
+    status: done
+    feature: 2026-05-29-live-editor-roadmap-completion
     minimal_loop: false
-    notes: null
+    notes: "已新增 toolbar 复制当前图表/文档、SVG/PNG 导出、URL hash share state；导出使用当前 preview SVG"
 
   - slug: visual-flowchart-model-v1
     description: "建立 flowchart graph model 与 Mermaid serialize 协议"
     depends_on: [diagram-source-map-contract]
-    status: planned
-    feature: null
+    status: done
+    feature: 2026-05-29-live-editor-roadmap-completion
     minimal_loop: false
-    notes: "v1 不保证保留原始 Mermaid 格式"
+    notes: "已新增 parseFlowchartToGraph/applyVisualEdit/serializeFlowchart；v1 输出规范 Mermaid 片段，不保留原始格式"
 
   - slug: visual-flowchart-editor-v1
     description: "支持可视化增删节点和边、改 label、改方向，并反写 Mermaid"
     depends_on: [visual-flowchart-model-v1]
-    status: planned
-    feature: null
+    status: done
+    feature: 2026-05-29-live-editor-roadmap-completion
     minimal_loop: false
-    notes: "只支持当前选中 flowchart"
+    notes: "已新增当前选中 flowchart 的表单式 visual editor；支持增删节点/边、重命名节点、改方向并回写文档"
 
   - slug: online-tool-polish
     description: "补齐主题、布局配置、快捷操作、空状态和错误态"
     depends_on: [syntax-repair-rules-v1, share-export-workbench]
-    status: planned
-    feature: null
+    status: done
+    feature: 2026-05-29-live-editor-roadmap-completion
     minimal_loop: false
-    notes: "技术依赖之外的产品优先级待确认"
+    notes: "已新增主题/方向控制、复制快捷按钮、导出错误诊断、异步 render 防 stale 覆盖和失败保留上一张成功 preview"
+
+  - slug: visual-flowchart-ast-contract
+    description: "用 Rust/WASM AST 作为 visual graph model 的唯一语义来源，覆盖已支持 node shape、edge style、direction 和 subgraph 字段"
+    depends_on: [visual-flowchart-editor-v1]
+    status: done
+    feature: 2026-06-07-visual-flowchart-ast-contract
+    minimal_loop: false
+    notes: "已新增 AST-backed visual source analysis、FlowchartAst -> graph model 转换、parser-level validation 和 shape/style/subgraph-preserving serializer；live editor visual rewrite 不再以 regex helper 为语义权威"
+
+  - slug: visual-edit-safety-gate
+    description: "对不能可靠 roundtrip 的源码禁用反写或返回诊断，并区分 preview-only 方向控制与 source direction edit"
+    depends_on: [visual-flowchart-ast-contract]
+    status: done
+    feature: 2026-06-07-visual-edit-safety-gate
+    minimal_loop: false
+    notes: "已接入 support analyzer safety gate；unsupported source 的 visual rewrite 返回 visual_unsupported_syntax 并保留原文；方向下拉改为 preview-only，显式 Apply direction 才改 source"
+
+  - slug: visual-roundtrip-contract-tests
+    description: "建立真实 Rust/WASM parse/render 契约测试，证明 visual edit 后 Mermaid source 能闭环且不丢已支持 AST 语义"
+    depends_on: [visual-flowchart-ast-contract, visual-edit-safety-gate]
+    status: done
+    feature: 2026-06-07-visual-roundtrip-contract-tests
+    minimal_loop: false
+    notes: "已新增 tests/visual-roundtrip.test.ts；真实 pkg WASM parse/render 覆盖 supported shapes、edge styles、labels、subgraph、direction edit 和 blocked classDef safety gate；runtime validateVisualEditResult 补齐 render/layout validation"

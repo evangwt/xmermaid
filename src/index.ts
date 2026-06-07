@@ -1,5 +1,20 @@
 export { XMermaid } from './xmermaid';
-export { XMermaidLiveEditor, extractDiagrams, replaceDiagramSource, suggestRepairs, applyRepair } from './editor';
+export {
+  XMermaidLiveEditor,
+  extractDiagrams,
+  replaceDiagramSource,
+  suggestRepairs,
+  applyRepair,
+  exportDiagram,
+  encodeShareState,
+  decodeShareState,
+  analyzeFlowchartForVisualEdit,
+  parseFlowchartToGraph,
+  flowchartAstToGraph,
+  applyVisualEdit,
+  serializeFlowchart,
+  validateVisualEditResult,
+} from './editor';
 export { SVGRenderer } from './renderer/svg';
 export { computeEdgePath, computeBezierPath, computeStepPath, computeStraightPath, truncateAtBounds, computeArrowPoints } from './renderer/edge';
 export { DEFAULT_THEME, DARK_THEME, MINIMAL_THEME, createTheme } from './types/theme';
@@ -23,5 +38,30 @@ export type {
   UnsupportedFeature,
   UnsupportedFeatureId,
 } from './support';
-export type { DiagramBlock, DiagramDocument, DiagramOrigin, DocumentDiagnostic, RenderDiagnostic, RenderDiagnosticCode, RepairConfidence, RepairSuggestion, ReplaceDiagramSourceResult, XMermaidLiveEditorOptions, LiveEditorRenderRequest } from './editor';
+export type {
+  DiagramBlock,
+  DiagramDocument,
+  DiagramOrigin,
+  DocumentDiagnostic,
+  RenderDiagnostic,
+  RenderDiagnosticCode,
+  RepairConfidence,
+  RepairSuggestion,
+  ReplaceDiagramSourceResult,
+  XMermaidLiveEditorOptions,
+  LiveEditorRenderRequest,
+  ExportRequest,
+  FlowchartGraphModel,
+  FlowchartGraphNode,
+  FlowchartGraphEdge,
+  VisualEdit,
+  VisualEditApplyResult,
+  VisualEditDiagnostic,
+  VisualFlowchartParseOptions,
+  VisualUnsupportedFeatureDetector,
+  VisualSourceAnalysis,
+  VisualSourceCapability,
+  FlowchartDslParser,
+  FlowchartDslRenderer,
+} from './editor';
 export type { DiagramAst, FlowchartAst, SequenceAst, EdgeStyle, FlowchartNode, FlowchartEdge, Subgraph } from './types/ast';

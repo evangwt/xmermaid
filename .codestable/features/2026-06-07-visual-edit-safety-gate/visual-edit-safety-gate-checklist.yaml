@@ -1,0 +1,100 @@
+feature: 2026-06-07-visual-edit-safety-gate
+created: 2026-06-07
+
+steps:
+  - action: "合同红灯：新增 tests 覆盖 unsupported source 阻断和 direction dropdown preview-only"
+    exit_signal: "当前实现会因为 source 被改写或 unsupported 未阻断而失败"
+    status: done
+
+  - action: "Safety gate：接入 detectUnsupportedFeatures 并转为 visual diagnostics"
+    exit_signal: "analysis tests 通过，blocked source 保留原文"
+    status: done
+
+  - action: "Direction split：dropdown 改 preview-only，新增 apply source direction button"
+    exit_signal: "UI tests 证明 dropdown 不改 source，button 才改 source"
+    status: done
+
+  - action: "Diagnostics/queue 联调：blocked edit 显示 diagnostics，source-direction apply 复用 visual edit queue"
+    exit_signal: "live editor tests 通过，连续操作无竞争"
+    status: done
+
+  - action: "验证覆盖：运行 targeted tests、full tests、typecheck、yaml/diff checks"
+    exit_signal: "相关 checks 全部通过"
+    status: done
+
+checks:
+  - item: "analyzeFlowchartForVisualEdit 对 unsupported source 返回 read-only + visual_unsupported_syntax"
+    source: 名词契约
+    status: passed
+
+  - item: "VisualFlowchartParseOptions 支持注入 unsupported detector"
+    source: 名词契约
+    status: passed
+
+  - item: "direction dropdown change 只 rerender preview，不提交 source rewrite"
+    source: 编排骨架
+    status: passed
+
+  - item: "apply source direction button 才触发 set-direction source edit"
+    source: 编排骨架
+    status: passed
+
+  - item: "blocked visual edit 保留 selected source 和 document text"
+    source: 流程级约束
+    status: passed
+
+  - item: "source direction edit 复用 AST analysis + validation"
+    source: 流程级约束
+    status: passed
+
+  - item: "src/editor/index.ts toolbar 新增 data-xm-apply-source-direction 控件"
+    source: 挂载点
+    status: passed
+
+  - item: "src/editor/flowchart.ts analysis 接入 support analyzer safety gate"
+    source: 挂载点
+    status: passed
+
+  - item: "不新增 Mermaid parser 支持面"
+    source: 范围守护
+    status: passed
+
+  - item: "不新增拖拽画布、shape/style 编辑 UI"
+    source: 范围守护
+    status: passed
+
+  - item: "不引入新 dependency、LLM 或网络调用"
+    source: 范围守护
+    status: passed
+
+  - item: "不把完整 render/layout roundtrip fixture 矩阵塞进本 feature"
+    source: 范围守护
+    status: passed
+
+  - item: "不改变手动编辑 selected source textarea 的行为"
+    source: 范围守护
+    status: passed
+
+  - item: "S1：classDef source 的 visual edit 返回 visual_unsupported_syntax"
+    source: 验收场景
+    status: passed
+
+  - item: "S2：unsupported source 被 visual edit 后 selected source 和 document text 保持原文"
+    source: 验收场景
+    status: passed
+
+  - item: "S3：direction dropdown 改 LR 后 render request 用 LR，但 source 仍为 flowchart TD"
+    source: 验收场景
+    status: passed
+
+  - item: "S4：apply source direction 后 selected source/document 变为 flowchart LR"
+    source: 验收场景
+    status: passed
+
+  - item: "S5：apply source direction 遇到 unsupported source 时不改 source 并显示 diagnostic"
+    source: 验收场景
+    status: passed
+
+  - item: "S6：supported source 上普通 visual rename 仍能反写并保留 shape/style"
+    source: 验收场景
+    status: passed
