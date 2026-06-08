@@ -208,6 +208,7 @@ class XMermaidLiveEditor {
   private renderRequestId = 0;
   private visualEditQueue: Promise<void> = Promise.resolve();
   private activeDownloadUrl: string | null = null;
+  private exportablePreview: { diagramId: string; source: string; requestId: number } | null = null;
 
   constructor(options: XMermaidLiveEditorOptions) {
     this.root = options.root;
@@ -551,6 +552,7 @@ class XMermaidLiveEditor {
   private async renderSelected(): Promise<void> {
     const selected = this.selectedDiagram();
     const requestId = ++this.renderRequestId;
+    this.invalidateExportablePreview();
     if (!selected) {
       this.previewEl.innerHTML = '';
       this.renderDiagnostics([]);
@@ -570,6 +572,7 @@ class XMermaidLiveEditor {
       if (requestId !== this.renderRequestId) return;
       this.previewEl.innerHTML = '';
       this.previewEl.append(...Array.from(renderContainer.childNodes));
+      this.exportablePreview = { diagramId: selected.id, source, requestId };
       this.renderDiagnostics(diagnostics ?? []);
     } catch (error) {
       if (requestId !== this.renderRequestId) return;
@@ -630,7 +633,16 @@ class XMermaidLiveEditor {
   private async exportCurrentDiagram(format: 'svg' | 'png'): Promise<void> {
     const selected = this.selectedDiagram();
     const svg = this.previewEl.querySelector('svg');
-    if (!selected || !svg) return;
+    if (!selected) return;
+    if (!svg || !this.canExportCurrentPreview(selected, this.sourceInput.value)) {
+      this.renderDiagnostics([{
+        code: 'render_error',
+        message: 'The current diagram has not rendered successfully; fix diagnostics before exporting.',
+        severity: 'error',
+        range: selected.range,
+      }]);
+      return;
+    }
 
     try {
       const blob = await exportRenderedDiagram({
@@ -654,6 +666,25 @@ class XMermaidLiveEditor {
         severity: 'error',
         range: selected.range,
       }]);
+    }
+  }
+
+  private canExportCurrentPreview(selected: DiagramBlock, source: string): boolean {
+    return this.exportablePreview?.diagramId === selected.id
+      && this.exportablePreview.source === source
+      && this.exportablePreview.requestId === this.renderRequestId;
+  }
+
+  private invalidateExportablePreview(): void {
+    this.exportablePreview = null;
+    if (this.activeDownloadUrl) {
+      URL.revokeObjectURL(this.activeDownloadUrl);
+      this.activeDownloadUrl = null;
+    }
+    if (this.downloadLink) {
+      this.downloadLink.hidden = true;
+      this.downloadLink.removeAttribute('href');
+      this.downloadLink.removeAttribute('download');
     }
   }
 
