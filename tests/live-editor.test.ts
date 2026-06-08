@@ -525,6 +525,36 @@ describe('XMermaidLiveEditor', () => {
     expect(root.querySelector('[data-xm-preview-error]')).toBeNull();
   });
 
+  it('passes SDK render options through the default render path', async () => {
+    const root = document.createElement('div');
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    const renderSpy = vi.spyOn(XMermaid.prototype, 'renderToSVGElement').mockResolvedValue({
+      diagramType: 'flowchart',
+      diagnostics: [],
+      dimensions: { width: 200, height: 120 },
+      svg,
+    });
+    const wasmUrl = new URL('https://cdn.example.com/xmermaid_wasm_bg.wasm');
+    const editor = new XMermaidLiveEditor({
+      root,
+      initialText: 'graph TD\n  A --> B',
+      xmermaidOptions: {
+        wasm: { wasmUrl },
+        securityLevel: 'loose',
+      },
+    });
+
+    try {
+      await editor.mount();
+      expect(renderSpy).toHaveBeenCalledWith('graph TD\n  A --> B', {
+        wasm: { wasmUrl },
+        securityLevel: 'loose',
+      });
+    } finally {
+      renderSpy.mockRestore();
+    }
+  });
+
   it('keeps the last successful preview visible when a later render fails', async () => {
     const root = document.createElement('div');
     const editor = new XMermaidLiveEditor({
