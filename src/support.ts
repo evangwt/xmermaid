@@ -40,6 +40,7 @@ export type UnsupportedFeatureId =
   | 'flowchart.crossEdge'
   | 'flowchart.inlineEdgeLabel'
   | 'flowchart.edgeId'
+  | 'flowchart.edgeToSubgraph'
   | 'flowchart.inlineClass'
   | 'flowchart.linkStyle';
 
@@ -119,6 +120,7 @@ const SUPPORT_MATRIX: SupportMatrix = {
         { id: 'flowchart.crossEdge', label: 'cross edge endings', status: 'unsupported' },
         { id: 'flowchart.inlineEdgeLabel', label: 'inline edge labels', status: 'unsupported' },
         { id: 'flowchart.edgeId', label: 'edge IDs', status: 'unsupported' },
+        { id: 'flowchart.edgeToSubgraph', label: 'edges to subgraph ids', status: 'unsupported' },
         { id: 'flowchart.inlineClass', label: 'inline class assignments', status: 'unsupported' },
         { id: 'flowchart.linkStyle', label: 'linkStyle statements', status: 'unsupported' },
       ],
@@ -176,7 +178,9 @@ export function detectUnsupportedFeatures(source: string): UnsupportedFeature[] 
   }
 
   const features: UnsupportedFeature[] = [];
-  for (const line of linesWithRanges(source)) {
+  const lines = linesWithRanges(source);
+  const subgraphIds = collectSubgraphIds(lines);
+  for (const line of lines) {
     const trimmed = line.text.trimStart();
     if (!trimmed) continue;
 
@@ -279,6 +283,14 @@ export function detectUnsupportedFeatures(source: string): UnsupportedFeature[] 
         'error',
       ));
     }
+    if (subgraphIds.size > 0 && edgeTouchesSubgraphId(line.text, subgraphIds)) {
+      features.push(unsupportedSyntax(
+        'flowchart.edgeToSubgraph',
+        line,
+        'Flowchart edges to subgraph ids are not supported yet.',
+        'error',
+      ));
+    }
 
     if (/^classDef\b/.test(trimmed)) {
       features.push(unsupportedSyntax('flowchart.classDef', line, 'Flowchart classDef statements are not supported yet.'));
@@ -321,6 +333,21 @@ export function detectUnsupportedFeatures(source: string): UnsupportedFeature[] 
   }
 
   return features;
+}
+
+function collectSubgraphIds(lines: SourceLine[]): Set<string> {
+  const ids = new Set<string>();
+  for (const line of lines) {
+    const match = line.text.trimStart().match(/^subgraph\s+([A-Za-z0-9_-]+)(?:\s|$)/i);
+    if (match) ids.add(match[1]);
+  }
+  return ids;
+}
+
+function edgeTouchesSubgraphId(line: string, subgraphIds: Set<string>): boolean {
+  const edgeMatch = line.match(/^\s*([A-Za-z0-9_-]+)(?:\[[^\]\r\n]*\])?\s*(?:--(?:\|[^|\r\n]*\|)?>|---|-.->|==>|~~~)\s*([A-Za-z0-9_-]+)/);
+  if (!edgeMatch) return false;
+  return subgraphIds.has(edgeMatch[1]) || subgraphIds.has(edgeMatch[2]);
 }
 
 function unsupported(diagramType: DiagramType, label: string): DiagramSupportEntry {
