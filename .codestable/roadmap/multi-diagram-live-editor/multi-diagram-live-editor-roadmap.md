@@ -425,7 +425,7 @@ function decodeShareState(hash: string): { documentText: string; selectedDiagram
    - 依赖：`visual-flowchart-ast-contract`, `visual-edit-safety-gate`
    - 状态：done
    - 对应 feature：2026-06-07-visual-roundtrip-contract-tests
-   - 备注：已新增 `tests/visual-roundtrip.test.ts`；真实 `pkg/xmermaid_wasm.js` + `pkg/xmermaid_wasm_bg.wasm` parse/render fixture 覆盖 supported shapes、edge styles、labels、subgraph、direction edit 和 blocked `classDef` safety gate；runtime `validateVisualEditResult()` 补齐 render/layout validation。
+   - 备注：已新增 `tests/visual-roundtrip.test.ts`；真实 `pkg/xmermaid_wasm.js` + `pkg/xmermaid_wasm_bg.wasm` parse/render fixture 覆盖 supported shapes、edge styles、labels、subgraph、direction edit，以及 blocked `classDef` 与 stadium/cylinder shape safety gate；runtime `validateVisualEditResult()` 补齐 render/layout validation。
 
 **最小闭环**：第 1 条 `live-editor-static-mvp` 做完后，用户可以打开静态页面，粘贴一份含多个 flowchart 的 Markdown 文档，选择任意图表并实时预览。
 
