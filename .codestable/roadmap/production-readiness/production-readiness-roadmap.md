@@ -22,7 +22,7 @@ related_architecture: [ARCHITECTURE]
 ### 本 roadmap 覆盖
 
 - 公开支持范围：支持哪些 diagram / syntax、哪些 partial、哪些 unsupported。
-- 真实消费者门禁：`npm pack`、临时项目安装、TypeScript 类型解析、ESM/CJS 入口、浏览器加载 WASM、渲染最小 flowchart，并驱动 live editor 多图切换、visual rename、share hash 和 SVG export readiness。
+- 真实消费者门禁：`npm pack`、临时项目安装、TypeScript 类型解析、ESM/CJS 入口、浏览器加载 WASM、渲染最小 flowchart，并驱动 live editor 多图切换、visual rename、preview-only direction、source direction edit、unsupported visual edit blocking、share hash 和 SVG export readiness。
 - 稳定 SVG 输出 API：从 DOM-only render 收敛出可复用的 SVG element/string API。
 - 支持分析与结构化诊断：unsupported diagram / unsupported syntax 不再靠字符串猜测。
 - 安全策略 v1：strict 默认，明确 URL/click/html label/CSP 相关边界。
@@ -374,7 +374,7 @@ type ProductionVerificationCommandId =
    - 依赖：`release-support-matrix`
    - 状态：done
    - 对应 feature：2026-06-02-pack-install-render-smoke
-   - 备注：已新增 `scripts/consumer-smoke.cjs` 和 `consumer-pack-install` release gate；packed tarball consumer typecheck、Node ESM import、CommonJS require、Chrome/WASM render smoke 和 live editor workflow smoke 已通过。
+   - 备注：已新增 `scripts/consumer-smoke.cjs` 和 `consumer-pack-install` release gate；packed tarball consumer typecheck、Node ESM import、CommonJS require、Chrome/WASM render smoke 和 live editor workflow smoke 已通过，覆盖方向控制和 unsupported visual edit safety gate。
 
 3. **render-svg-api** — 补齐 `renderToSVGElement`、`renderToSVGString` 和 `RenderResult` 公开 API。
    - 所属模块：public-render-api
@@ -411,7 +411,7 @@ type ProductionVerificationCommandId =
    - 对应 feature：2026-06-02-production-docs-release-checklist
    - 备注：README 已覆盖安装、SVG API、support matrix、diagnostics、安全策略、WASM/Chrome smoke 和排错；新增 `docs/production-release-checklist.md`；默认 release matrix 已新增 `docs-support-matrix-sync`。
 
-**最小闭环**：第 2 条 `pack-install-render-smoke` 完成后，真实消费者能安装 packed tarball、TypeScript 能解析类型、ESM/CJS 入口可加载、浏览器能加载 WASM、渲染最小 flowchart，并驱动 live editor 多图切换、visual rename、share hash 和 SVG export readiness。这比“文档写得诚实”更接近生产事实。
+**最小闭环**：第 2 条 `pack-install-render-smoke` 完成后，真实消费者能安装 packed tarball、TypeScript 能解析类型、ESM/CJS 入口可加载、浏览器能加载 WASM、渲染最小 flowchart，并驱动 live editor 多图切换、visual rename、preview-only direction、source direction edit、unsupported visual edit blocking、share hash 和 SVG export readiness。这比“文档写得诚实”更接近生产事实。
 
 ## 6. 排期思路
 

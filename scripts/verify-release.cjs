@@ -230,6 +230,12 @@ function checkDocs() {
         && /share hash/i.test(readme)
         && /SVG export/i.test(readme),
     },
+    {
+      label: 'README documents live editor direction and safety smoke',
+      passed: /preview-only direction/i.test(readme)
+        && /source direction/i.test(readme)
+        && /unsupported visual/i.test(readme),
+    },
     ...matrixIds.map(id => ({
       label: `release checklist mentions ${id}`,
       passed: checklist.includes(id),
