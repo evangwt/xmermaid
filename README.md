@@ -25,6 +25,21 @@ const renderer = new XMermaid({ container });
 await renderer.render(source);
 ```
 
+## Live Editor Usage
+
+The static live editor API is available from the `xmermaid/editor` subpath.
+
+```ts
+import { XMermaidLiveEditor } from 'xmermaid/editor';
+
+const editor = new XMermaidLiveEditor({
+  root: document.getElementById('editor')!,
+  initialText: '```mermaid\nflowchart TD\n  A --> B\n```',
+});
+
+await editor.mount();
+```
+
 ## SVG API
 
 Use `renderToSVGElement()` when the host app owns mounting, serialization, storage, or post-processing.
@@ -107,23 +122,28 @@ await renderer.renderToSVGElement(source, {
 
 `loose` only removes the security blocking for `click` and HTML labels. Those features are still unsupported by the current renderer and remain diagnostics. Dangerous URL protocols such as `javascript:` and `data:` remain blocked.
 
-xmermaid does not execute click callbacks, does not render HTML labels as HTML, and does not provide a sanitizer, CSP, or sandbox.
+The default policy also sets `sanitizeSvg: true`. Generated SVG output is walked before return/mount; `script` and `foreignObject` elements, inline event handler attributes, and dangerous `href` values are removed. xmermaid does not execute click callbacks, does not render HTML labels as HTML, and does not provide CSP or a sandbox.
 
 ## WASM And Packaging
 
 The published package includes the JS bundles, TypeScript declarations, and `dist/xmermaid_wasm_bg.wasm`.
 
-By default, the bundled loader resolves that asset next to the built JS entry. Hosts with a custom asset base path can pass an explicit URL per render:
+By default, the bundled loader resolves that asset next to the built JS entry. Hosts with a custom asset base path can pass an explicit URL on the render that first initializes WASM:
 
 ```ts
 await renderer.renderToSVGElement(source, {
   wasm: {
     wasmUrl: new URL('/assets/xmermaid_wasm_bg.wasm', window.location.href),
+    fetch: window.fetch.bind(window),
   },
 });
 ```
 
-Release verification uses a packed-package consumer smoke test. It runs `npm pack`, installs the tarball into a temporary project, typechecks the public API, imports the installed ESM entry, requires the installed CommonJS entry, and opens headless Chrome to render a minimal SVG with the installed WASM asset. The same Chrome smoke also runs a live editor workflow: multi-diagram selection, visual rename, preview-only direction control, source direction edit, unsupported visual edit blocking, share hash generation, and SVG export readiness.
+WASM initialization is process-global. After the module is initialized, later renders reuse the same WASM instance; change `wasmUrl` / `fetch` before the first render, not between renders.
+
+The package also publishes the `xmermaid/editor` subpath for live editor imports. The packed tarball includes `README.md` and `LICENSE` alongside the runtime bundles.
+
+Release verification uses a packed-package consumer smoke test. It runs `npm pack`, installs the tarball into a temporary project, typechecks the public API and `xmermaid/editor` subpath, imports the installed ESM entries, requires the installed CommonJS entries, and opens headless Chrome to render a minimal SVG with the installed WASM asset. The same Chrome smoke also runs a live editor workflow: multi-diagram selection, visual rename, preview-only direction control, source direction edit, unsupported visual edit blocking, share hash generation, and SVG export readiness.
 
 The browser smoke requires Chrome or Chromium. Set `CHROME_BIN` when CI does not expose a default Chrome executable.
 
@@ -138,6 +158,7 @@ CHROME_BIN=/path/to/chrome npm run smoke:consumer -- --json
 - `unsupported_syntax`: the input uses Mermaid syntax that is known but not implemented in xmermaid yet.
 - `security_blocked_*`: strict security policy blocked a risky construct before rendering.
 - WASM asset load failures: confirm the package tarball includes `dist/xmermaid_wasm_bg.wasm` and the app serves it with the built JS bundle.
+- Missing package metadata: confirm the packed tarball includes `README.md`, `LICENSE`, and the `xmermaid/editor` export.
 
 ## Release Readiness
 

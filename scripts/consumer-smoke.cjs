@@ -29,6 +29,7 @@ const REQUIRED_PACK_FILES = [
   'dist/xmermaid.cjs',
   'dist/xmermaid_wasm_bg.wasm',
   'README.md',
+  'LICENSE',
   'package.json',
 ];
 
@@ -195,6 +196,7 @@ function writeConsumerProject(consumerDir, tarballPath) {
   }, null, 2));
   writeFileSync(join(consumerDir, 'src', 'typecheck.ts'), [
     "import { DEFAULT_SECURITY_POLICY, XMermaid, analyzeSupport, detectUnsupportedFeatures, getSupportMatrix, type RenderOptions, type RenderResult, type SecurityLevel, type SecurityPolicy, type SourceRange, type SupportMatrix, type SupportSourceRange, type UnsupportedFeature, type WasmInitOptions, type XMermaidDiagnostic, type XMermaidDiagnosticCode, type XMermaidOptions } from 'xmermaid';",
+    "import { XMermaidLiveEditor, type XMermaidLiveEditorOptions } from 'xmermaid/editor';",
     '',
     'const matrix: SupportMatrix = getSupportMatrix();',
     "const report = analyzeSupport('graph TD\\n  A-->B');",
@@ -205,11 +207,13 @@ function writeConsumerProject(consumerDir, tarballPath) {
     'const diagnostics: XMermaidDiagnostic[] = [{ code: diagnosticCode, message: \'unsupported\', severity: \'warning\', range: diagnosticRange, featureId: unsupported[0]?.id }];',
     "const container = document.createElement('div');",
     'const options: XMermaidOptions = { container };',
+    "const editorOptions: XMermaidLiveEditorOptions = { root: document.createElement('div'), initialText: 'flowchart TD\\n  A --> B' };",
     "const securityLevel: SecurityLevel = 'loose';",
     'const securityPolicy: SecurityPolicy = { ...DEFAULT_SECURITY_POLICY, securityLevel, allowClickCallbacks: true, allowHtmlLabels: true };',
     'const renderOptions: RenderOptions = { layoutConfig: { direction: \'LR\' }, securityPolicy };',
     'const wasmOptions: WasmInitOptions = { wasmUrl: new URL(\'./xmermaid_wasm_bg.wasm\', import.meta.url) };',
     'const renderer = new XMermaid(options);',
+    'const editor = new XMermaidLiveEditor(editorOptions);',
     "void renderer.render('graph TD\\n  A-->B');",
     "const svgResult: Promise<RenderResult> = renderer.renderToSVGElement('graph TD\\n  A-->B', renderOptions);",
     "const svgString: Promise<string> = renderer.renderToSVGString('graph TD\\n  A-->B', { wasm: wasmOptions });",
@@ -218,15 +222,20 @@ function writeConsumerProject(consumerDir, tarballPath) {
     'void unsupportedRange;',
     'void diagnostics;',
     'void securityPolicy;',
+    'void editor;',
     "if (matrix.entries.length === 0 || report.diagramType !== 'flowchart') {",
     "  throw new Error('xmermaid support API is not available');",
     '}',
   ].join('\n'));
   writeFileSync(join(consumerDir, 'node-import.mjs'), [
     "import { analyzeSupport, getSupportMatrix } from 'xmermaid';",
+    "import { XMermaidLiveEditor } from 'xmermaid/editor';",
     '',
     'const matrix = getSupportMatrix();',
     "const report = analyzeSupport('sequenceDiagram\\n  A->>B: Hi');",
+    "if (typeof XMermaidLiveEditor !== 'function') {",
+    "  throw new Error('editor subpath export is unavailable');",
+    "}",
     "if (!matrix.entries.some(entry => entry.diagramType === 'flowchart')) {",
     "  throw new Error('flowchart support entry missing');",
     '}',
@@ -236,9 +245,10 @@ function writeConsumerProject(consumerDir, tarballPath) {
   ].join('\n'));
   writeFileSync(join(consumerDir, 'cjs-require.cjs'), [
     "const { XMermaid, analyzeSupport } = require('xmermaid');",
+    "const { XMermaidLiveEditor } = require('xmermaid/editor');",
     '',
     "const report = analyzeSupport('graph TD\\n  A-->B');",
-    "if (typeof XMermaid !== 'function' || report.diagramType !== 'flowchart') {",
+    "if (typeof XMermaid !== 'function' || typeof XMermaidLiveEditor !== 'function' || report.diagramType !== 'flowchart') {",
     "  throw new Error('CommonJS package entry is unavailable');",
     '}',
   ].join('\n'));
@@ -582,7 +592,7 @@ async function runSmoke(args) {
   try {
     const packed = packProject(repoRoot, tempRoot);
     checks.push(makeCheck('npm-pack', `Packed ${basename(packed.tarballPath)} (${packed.sizeBytes} bytes)`));
-    checks.push(makeCheck('pack-files', 'Packed package contains runtime bundles, declarations, wasm asset, README, and package.json'));
+    checks.push(makeCheck('pack-files', 'Packed package contains runtime bundles, declarations, wasm asset, README, LICENSE, and package.json'));
 
     const consumerDir = join(tempRoot, 'consumer');
     writeConsumerProject(consumerDir, packed.tarballPath);

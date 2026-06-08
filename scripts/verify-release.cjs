@@ -161,6 +161,7 @@ function checkDocs() {
   const readme = readFileSync('README.md', 'utf8');
   const checklist = readFileSync('docs/production-release-checklist.md', 'utf8');
   const matrixIds = DEFAULT_MATRIX.map(entry => entry.id);
+  const editorExport = packageJson.exports?.['./editor'];
   const requirements = [
     {
       label: 'package description mentions flowchart',
@@ -169,6 +170,18 @@ function checkDocs() {
     {
       label: 'package description mentions partial',
       passed: /partial/i.test(packageJson.description || ''),
+    },
+    {
+      label: 'package exports live editor subpath',
+      passed: Boolean(editorExport?.import)
+        && Boolean(editorExport?.require)
+        && editorExport?.types === './dist/editor/index.d.ts',
+    },
+    {
+      label: 'package files explicitly include README and LICENSE',
+      passed: Array.isArray(packageJson.files)
+        && packageJson.files.includes('README.md')
+        && packageJson.files.includes('LICENSE'),
     },
     {
       label: 'README mentions partial Mermaid support',
@@ -213,9 +226,17 @@ function checkDocs() {
       label: 'README documents strict security policy',
       passed: /security policy/i.test(readme)
         && /strict/i.test(readme)
+        && /sanitizeSvg/.test(readme)
         && /security_blocked_url/.test(readme)
         && /security_blocked_html/.test(readme)
         && /security_blocked_click/.test(readme),
+    },
+    {
+      label: 'README documents editor subpath and custom WASM fetch',
+      passed: /xmermaid\/editor/.test(readme)
+        && /WasmInitOptions|wasm/i.test(readme)
+        && /fetch/.test(readme)
+        && /first initializes WASM|first render|initialized, later renders reuse/i.test(readme),
     },
     {
       label: 'README documents consumer smoke and Chrome configuration',
@@ -235,6 +256,11 @@ function checkDocs() {
       passed: /preview-only direction/i.test(readme)
         && /source direction/i.test(readme)
         && /unsupported visual/i.test(readme),
+    },
+    {
+      label: 'release checklist documents package metadata and editor subpath',
+      passed: /LICENSE/.test(checklist)
+        && /xmermaid\/editor/.test(checklist),
     },
     ...matrixIds.map(id => ({
       label: `release checklist mentions ${id}`,

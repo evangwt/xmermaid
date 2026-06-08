@@ -16,7 +16,7 @@ items:
     status: done
     feature: 2026-06-02-pack-install-render-smoke
     minimal_loop: true
-    notes: 已新增 consumer smoke gate；真实 packed tarball 可安装进临时消费者，TypeScript 可解析类型，root ESM 与 CommonJS require 可用，headless Chrome 可加载 WASM、渲染最小 flowchart SVG，并驱动 live editor 多图切换、visual rename、preview-only direction、source direction edit、unsupported visual edit blocking、share hash 和 SVG export readiness
+    notes: 已新增 consumer smoke gate；真实 packed tarball 可安装进临时消费者，TypeScript 可解析 root 与 xmermaid/editor 类型，root/editor ESM 与 CommonJS require 可用，tarball 显式包含 README 和 LICENSE，headless Chrome 可加载 WASM、渲染最小 flowchart SVG，并驱动 live editor 多图切换、visual rename、preview-only direction、source direction edit、unsupported visual edit blocking、share hash 和 SVG export readiness
 
   - slug: render-svg-api
     description: 补齐 renderToSVGElement、renderToSVGString 和 RenderResult 公开 API
@@ -48,7 +48,7 @@ items:
     status: done
     feature: 2026-06-02-security-policy-v1
     minimal_loop: false
-    notes: 已新增 DEFAULT_SECURITY_POLICY、SecurityLevel、SecurityPolicy；默认 strict 在 render preflight 阶段阻断 click、HTML label 和危险 URL 并输出 security_blocked_* diagnostics；loose 只放宽 click/HTML，不放开危险 URL
+    notes: 已新增 DEFAULT_SECURITY_POLICY、SecurityLevel、SecurityPolicy；默认 strict 在 render preflight 阶段阻断 click、HTML label 和危险 URL 并输出 security_blocked_* diagnostics；默认 sanitizeSvg 清理生成 SVG 的 script/foreignObject、事件属性和危险 href；loose 只放宽 click/HTML，不放开危险 URL
 
   - slug: production-docs-release-checklist
     description: 补齐 README、API 文档、限制清单、排错说明、changelog 和 release checklist

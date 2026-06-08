@@ -13,6 +13,7 @@ export interface XMermaidOptions {
 
 export interface WasmInitOptions {
   wasmUrl?: string | URL;
+  fetch?: typeof globalThis.fetch;
 }
 
 export interface RenderOptions {
