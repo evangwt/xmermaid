@@ -116,10 +116,11 @@ function unsafeUrls(line: SourceLine, policy: SecurityPolicy): UnsafeUrl[] {
 
   while ((match = pattern.exec(line.text)) !== null) {
     const protocol = match[1].toLowerCase();
-    if (allowed.has(protocol)) continue;
     const tokenStart = match.index + match[0].indexOf(match[1]);
     const token = line.text.slice(tokenStart, tokenStart + match[0].length - (tokenStart - match.index));
-    if (!isDangerousProtocol(protocol) && !token.startsWith(`${protocol}//`)) continue;
+    const dangerous = isDangerousProtocol(protocol);
+    if (!dangerous && allowed.has(protocol)) continue;
+    if (!dangerous && !token.startsWith(`${protocol}//`)) continue;
     matches.push({
       protocol,
       range: tokenRange(line, tokenStart, token.length),
