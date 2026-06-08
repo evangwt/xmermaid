@@ -105,6 +105,27 @@ describe('support matrix production contract', () => {
     });
   });
 
+  it('detects flowchart shape syntaxes that the Rust parser cannot roundtrip', () => {
+    const features = detectUnsupportedFeatures([
+      'flowchart TD',
+      '  A([Stadium])',
+      '  B[(Database)]',
+    ].join('\n'));
+
+    expect(features.map(feature => feature.id)).toEqual([
+      'flowchart.stadiumShape',
+      'flowchart.cylinderShape',
+    ]);
+    expect(features[0]).toMatchObject({
+      severity: 'error',
+      range: expect.objectContaining({ startLine: 2, startColumn: 3 }),
+    });
+    expect(features[1]).toMatchObject({
+      severity: 'error',
+      range: expect.objectContaining({ startLine: 3, startColumn: 3 }),
+    });
+  });
+
   it('returns no unsupported features for a basic supported flowchart', () => {
     expect(detectUnsupportedFeatures('flowchart LR\n  A[Start] --> B[End]')).toEqual([]);
   });
