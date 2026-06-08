@@ -149,6 +149,31 @@ describe('support matrix production contract', () => {
     })));
   });
 
+  it('detects additional lossy flowchart syntaxes documented by Rust parser coverage', () => {
+    const features = detectUnsupportedFeatures([
+      'flowchart TD',
+      '  A@{ shape: cloud }',
+      '  B===C',
+      '  D----E',
+      '  F===>G',
+      '  H:::hot-->I',
+      '  linkStyle 0 stroke:#ff3',
+    ].join('\n'));
+
+    expect(features.map(feature => feature.id)).toEqual([
+      'flowchart.expandedShape',
+      'flowchart.thickLineEdge',
+      'flowchart.extendedLineEdge',
+      'flowchart.extendedThickEdge',
+      'flowchart.inlineClass',
+      'flowchart.linkStyle',
+    ]);
+    expect(features).toEqual(features.map((feature, index) => expect.objectContaining({
+      severity: 'error',
+      range: expect.objectContaining({ startLine: index + 2 }),
+    })));
+  });
+
   it('returns no unsupported features for a basic supported flowchart', () => {
     expect(detectUnsupportedFeatures('flowchart LR\n  A[Start] --> B[End]')).toEqual([]);
   });
