@@ -25,6 +25,7 @@ describe('support matrix production contract', () => {
       'flowchart.htmlLabel',
       'flowchart.entityCodeLabel',
       'flowchart.fontAwesomeLabel',
+      'flowchart.edgeToSubgraph',
     ]));
   });
 
@@ -191,6 +192,24 @@ describe('support matrix production contract', () => {
       severity: 'warning',
       range: expect.objectContaining({ startLine: index + 2 }),
     })));
+  });
+
+  it('detects unsupported edges that target a subgraph id as compound edges', () => {
+    const features = detectUnsupportedFeatures([
+      'flowchart TD',
+      '  A-->sub1',
+      '  subgraph sub1',
+      '    B-->C',
+      '  end',
+    ].join('\n'));
+
+    expect(features).toEqual([
+      expect.objectContaining({
+        id: 'flowchart.edgeToSubgraph',
+        severity: 'error',
+        range: expect.objectContaining({ startLine: 2 }),
+      }),
+    ]);
   });
 
   it('returns no unsupported features for a basic supported flowchart', () => {
