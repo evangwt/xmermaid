@@ -111,11 +111,11 @@ interface UnsafeUrl {
 function unsafeUrls(line: SourceLine, policy: SecurityPolicy): UnsafeUrl[] {
   const allowed = new Set(policy.allowedUrlProtocols);
   const matches: UnsafeUrl[] = [];
-  const pattern = /(?:^|[\s"'(<[{|])([A-Za-z][A-Za-z0-9+.-]*:)[^\s"'<>)}\]]*/g;
+  const pattern = /(?:^|[\s"'(<[{|])([A-Za-z][A-Za-z0-9+.\-\t\r\n]*:)[^\s"'<>)}\]]*/g;
   let match: RegExpExecArray | null;
 
   while ((match = pattern.exec(line.text)) !== null) {
-    const protocol = match[1].toLowerCase();
+    const protocol = normalizeProtocol(match[1]);
     const tokenStart = match.index + match[0].indexOf(match[1]);
     const token = line.text.slice(tokenStart, tokenStart + match[0].length - (tokenStart - match.index));
     const dangerous = isDangerousProtocol(protocol);
@@ -132,6 +132,10 @@ function unsafeUrls(line: SourceLine, policy: SecurityPolicy): UnsafeUrl[] {
 
 function isDangerousProtocol(protocol: string): boolean {
   return protocol === 'javascript:' || protocol === 'data:' || protocol === 'vbscript:';
+}
+
+function normalizeProtocol(protocol: string): string {
+  return protocol.replace(/[\t\r\n]/g, '').toLowerCase();
 }
 
 function lineContentRange(line: SourceLine): SourceRange {
