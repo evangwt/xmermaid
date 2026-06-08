@@ -147,7 +147,7 @@ function analyzeSupport(source: string): SupportReport;
 
 - `package.json.description`、README headline 和 support matrix 不能互相矛盾。
 - `unsupported` 不能静默降级为空图或普通 parse error。
-- `partial` 必须列出 unsupported syntax，并在 render diagnostics 中暴露 warning/error。
+- `partial` 必须列出 unsupported syntax；warning-level syntax 可随 render diagnostics 返回，error-level syntax 必须在 render preflight 阶段阻断。
 
 ### 4.2 Public SVG Render API Contract
 

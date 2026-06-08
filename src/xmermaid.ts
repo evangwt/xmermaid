@@ -49,6 +49,17 @@ export class XMermaid {
         diagnostics,
       );
     }
+    const unsupportedSyntaxBlockingDiagnostic = diagnostics.find(
+      diagnostic => diagnostic.code === 'unsupported_syntax' && diagnostic.severity === 'error',
+    );
+    if (unsupportedSyntaxBlockingDiagnostic) {
+      throw new XMermaidError(
+        'RENDER_ERROR',
+        unsupportedSyntaxBlockingDiagnostic.message,
+        { diagnostics },
+        diagnostics,
+      );
+    }
 
     const layout = await this.renderLayout(input, options.layoutConfig ?? this.layoutConfig, options.wasm);
     const renderer = options.theme ? new SVGRenderer(options.theme) : this.renderer;
