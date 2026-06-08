@@ -12,13 +12,15 @@ export interface XMermaidWasmModule {
 }
 
 let wasmModule: XMermaidWasmModule | null = null;
+let wasmModuleLoader: (() => Promise<XMermaidWasmModule>) | null = null;
 
 export async function initWasm(options: WasmInitOptions = {}): Promise<void> {
   if (wasmModule) return;
-  wasmModule = await import(/* @vite-ignore */ '../pkg/xmermaid_wasm.js');
-  if (wasmModule?.default) {
-    await wasmModule.default(options.wasmUrl);
+  const loadedModule = await loadWasmModule();
+  if (loadedModule.default) {
+    await loadedModule.default(options.wasmUrl);
   }
+  wasmModule = loadedModule;
 }
 
 export function isWasmReady(): boolean {
@@ -30,4 +32,15 @@ export function getWasm(): XMermaidWasmModule {
     throw new Error('WASM module not initialized. Call initWasm() first.');
   }
   return wasmModule;
+}
+
+function loadWasmModule(): Promise<XMermaidWasmModule> {
+  return wasmModuleLoader
+    ? wasmModuleLoader()
+    : import(/* @vite-ignore */ '../pkg/xmermaid_wasm.js');
+}
+
+export function __setWasmModuleLoaderForTests(loader: (() => Promise<XMermaidWasmModule>) | null): void {
+  wasmModule = null;
+  wasmModuleLoader = loader;
 }
