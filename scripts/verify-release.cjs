@@ -206,6 +206,13 @@ function checkDocs() {
         && /Chrome|Chromium/.test(readme)
         && /CHROME_BIN/.test(readme),
     },
+    {
+      label: 'README documents live editor workflow smoke',
+      passed: /live editor workflow/i.test(readme)
+        && /visual rename/i.test(readme)
+        && /share hash/i.test(readme)
+        && /SVG export/i.test(readme),
+    },
     ...matrixIds.map(id => ({
       label: `release checklist mentions ${id}`,
       passed: checklist.includes(id),

@@ -20,7 +20,7 @@
 1. **单页面嵌入** — 文档/博客中嵌入基础 flowchart SVG
 2. **浏览器图表应用** — 在 Web 应用中渲染当前支持的 flowchart 子集
 3. **静态 Live Editor** — 文档多图抽取、预览、诊断、修复、分享/导出和表单式 visual edit
-4. **发布验证** — packed browser consumer smoke 验证安装、类型解析、WASM 加载和最小渲染闭环
+4. **发布验证** — packed browser consumer smoke 验证安装、类型解析、WASM 加载、最小渲染和 live editor workflow 闭环
 
 ---
 
@@ -234,9 +234,9 @@ Live editor 的 visual edit path 是异步编排：analysis 成功后应用 edit
 
 `analyzeSupport(source)` 仍不替代 Rust parser，但现在会携带 `unsupportedFeatures`。`detectUnsupportedFeatures(source)` 是轻量 production support analyzer：unsupported diagram family 返回 `diagram.*` feature，flowchart 中的 `class`、`classDef`、`style`、`click`、`linkStyle`、HTML label、Markdown label、invalid direction、expanded/stadium/cylinder shape、thick/extended edge forms、bidirectional/circle/cross edge endings、inline edge labels、edge IDs 和 inline class assignments 返回对应 `flowchart.*` feature。`SupportSourceRange` 使用 JS string offset，line/column 为 1-based，endOffset/endColumn 为 exclusive。Analyzer 只读 source，不调用 WASM，不修改 render path；它的 feature id 必须映射到 support matrix 的 unsupported syntax id，后续 diagnostics/runtime 只能消费这些结构化输出，不能靠字符串猜。
 
-发布门禁现在包含 packed consumer smoke 和 docs support matrix sync。`scripts/verify-release.cjs` 的默认矩阵在 `npm run build` 之后执行 `consumer-pack-install`，命令为 `npm run --silent smoke:consumer -- --json`。该 gate 由 `scripts/consumer-smoke.cjs` 负责：在临时目录运行 `npm pack`、校验 tarball 中存在 `dist/index.d.ts`、`dist/support.d.ts`、ESM/CJS bundle、`dist/xmermaid_wasm_bg.wasm`、README 和 package metadata，再把 tarball 安装进临时消费者项目执行 TypeScript typecheck、root ESM import smoke，并通过 headless Chrome 加载 installed package 的 ESM bundle 与 WASM asset 渲染最小 flowchart SVG。JSON summary 记录 package size 和 browser render duration；第一阶段只记录基线，不设硬阈值。
+发布门禁现在包含 packed consumer smoke 和 docs support matrix sync。`scripts/verify-release.cjs` 的默认矩阵在 `npm run build` 之后执行 `consumer-pack-install`，命令为 `npm run --silent smoke:consumer -- --json`。该 gate 由 `scripts/consumer-smoke.cjs` 负责：在临时目录运行 `npm pack`、校验 tarball 中存在 `dist/index.d.ts`、`dist/support.d.ts`、ESM/CJS bundle、`dist/xmermaid_wasm_bg.wasm`、README 和 package metadata，再把 tarball 安装进临时消费者项目执行 TypeScript typecheck、root ESM import smoke，并通过 headless Chrome 加载 installed package 的 ESM bundle 与 WASM asset 渲染最小 flowchart SVG。Chrome smoke 同时驱动 live editor workflow：多图切换、visual rename 反写、share hash 和 SVG export readiness。JSON summary 记录 package size 和 browser render duration；第一阶段只记录基线，不设硬阈值。
 
-`docs-support-matrix-sync` 命令为 `node scripts/verify-release.cjs --check-docs`，在默认矩阵中紧跟 `consumer-pack-install`。它读取 `README.md`、`package.json` 和 `docs/production-release-checklist.md`，检查 package description 仍声明 flowchart/partial，README 仍说明 partial Mermaid support、unsupported diagram families、diagnostics、默认 strict security、consumer smoke 和 Chrome/`CHROME_BIN`，并检查 release checklist 列出默认矩阵所有 command id。该 gate 不跑 build/test，不访问网络，只防止生产承诺和机器可读支持合同漂移。
+`docs-support-matrix-sync` 命令为 `node scripts/verify-release.cjs --check-docs`，在默认矩阵中紧跟 `consumer-pack-install`。它读取 `README.md`、`package.json` 和 `docs/production-release-checklist.md`，检查 package description 仍声明 flowchart/partial，README 仍说明 partial Mermaid support、unsupported diagram families、diagnostics、默认 strict security、consumer smoke、Chrome/`CHROME_BIN` 和 live editor workflow smoke，并检查 release checklist 列出默认矩阵所有 command id。该 gate 不跑 build/test，不访问网络，只防止生产承诺和机器可读支持合同漂移。
 
 消费者类型声明不能泄漏 `pkg/` 构建目录。`src/wasm.ts` 对外导出 `XMermaidWasmModule` 作为 WASM wrapper 的稳定 TypeScript 边界，`dist/wasm.d.ts` 不再引用 `../pkg/xmermaid_wasm`。root ESM bundle 允许被 Node/SSR/构建工具解析，但不承诺在 Node 环境执行 DOM 渲染；SVG renderer 的 canvas measurement 因此只能懒访问 `document`，不能在模块加载期触碰 browser globals。
 

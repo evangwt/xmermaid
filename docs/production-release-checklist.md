@@ -6,7 +6,7 @@ This checklist is the release-facing contract for xmermaid 0.1.x. It covers the 
 
 - xmermaid is flowchart-focused and provides partial Mermaid support.
 - The release must not claim full Mermaid compatibility.
-- The package must support browser-side SVG rendering for basic flowcharts and mount the live editor in a browser smoke path.
+- The package must support browser-side SVG rendering for basic flowcharts and run the live editor browser smoke path through multi-diagram selection, visual rename, share hash generation, and SVG export readiness.
 - Node/SSR parsing of the root ESM entry and CommonJS `require('xmermaid')` are package compatibility checks, not Node rendering promises.
 
 ## Environment
@@ -57,7 +57,7 @@ The docs support matrix sync gate must pass before release. It checks that:
 - README says partial Mermaid support.
 - README lists unsupported diagram families including `sequenceDiagram`, `classDiagram`, `stateDiagram`, `erDiagram`, `gantt`, `pie`, and `mindmap`.
 - README documents diagnostics and security strict defaults.
-- README documents packed consumer smoke and Chrome/`CHROME_BIN`.
+- README documents packed consumer smoke, Chrome/`CHROME_BIN`, and the live editor workflow smoke.
 - This checklist includes every default release matrix command id.
 
 ## Manual Review
@@ -67,7 +67,7 @@ Before publishing:
 - Confirm README does not claim full Mermaid compatibility.
 - Confirm security policy text says strict is default.
 - Confirm `loose` does not imply dangerous URL protocols are allowed.
-- Confirm package size and browser render duration from consumer smoke are recorded in the JSON summary, and that the smoke includes ESM import, CommonJS require, browser render, and live editor render checks.
+- Confirm package size and browser render duration from consumer smoke are recorded in the JSON summary, and that the smoke includes ESM import, CommonJS require, browser render, live editor render, and live editor workflow checks.
 - Confirm no generated `dist/` or `pkg/` artifacts are staged unless the release process explicitly requires them.
 
 ## Failure Handling
