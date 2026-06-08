@@ -1,5 +1,15 @@
 import { createRequire } from 'node:module';
-import { readFileSync } from 'node:fs';
+import {
+  copyFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
 
 const require = createRequire(import.meta.url);
@@ -14,7 +24,7 @@ describe('consumer smoke helpers', () => {
       'package/dist/index.d.ts',
       'package/dist/support.d.ts',
       'package/dist/xmermaid.esm.js',
-      'package/dist/xmermaid.js',
+      'package/dist/xmermaid.cjs',
       'package/dist/xmermaid_wasm_bg.wasm',
       'package/README.md',
       'package/package.json',
@@ -23,7 +33,7 @@ describe('consumer smoke helpers', () => {
     expect(() => validatePackFiles([
       'package/dist/index.d.ts',
       'package/dist/xmermaid.esm.js',
-      'package/dist/xmermaid.js',
+      'package/dist/xmermaid.cjs',
       'package/dist/xmermaid_wasm_bg.wasm',
       'package/README.md',
       'package/package.json',
@@ -41,6 +51,36 @@ describe('consumer smoke helpers', () => {
 
   it('keeps the built ESM entry importable in Node for bundlers and SSR parsing', async () => {
     await import('../dist/xmermaid.esm.js');
+  });
+
+  it('keeps the declared CommonJS package entry requireable after installation', () => {
+    const packageJson = JSON.parse(readFileSync('package.json', 'utf8')) as {
+      exports?: { '.'?: { require?: string } };
+    };
+    const requirePath = packageJson.exports?.['.']?.require;
+    expect(requirePath).toBeTypeOf('string');
+
+    const tempRoot = mkdtempSync(join(tmpdir(), 'xmermaid-cjs-entry-'));
+    try {
+      const packageRoot = join(tempRoot, 'node_modules', 'xmermaid');
+      mkdirSync(join(packageRoot, dirname(requirePath!)), { recursive: true });
+      copyFileSync('package.json', join(packageRoot, 'package.json'));
+      copyFileSync(requirePath!.replace(/^\.\//, ''), join(packageRoot, requirePath!));
+      writeFileSync(join(tempRoot, 'consumer.cjs'), [
+        "const xmermaid = require('xmermaid');",
+        "if (typeof xmermaid.XMermaid !== 'function') {",
+        "  throw new Error('XMermaid CommonJS export is unavailable');",
+        '}',
+      ].join('\n'));
+
+      const result = spawnSync(process.execPath, [join(tempRoot, 'consumer.cjs')], {
+        encoding: 'utf8',
+      });
+
+      expect(result.status, `${result.stderr}\n${result.stdout}`).toBe(0);
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true });
+    }
   });
 
   it('keeps smoke-test WebSocket tooling out of runtime dependencies', () => {

@@ -7,7 +7,7 @@ This checklist is the release-facing contract for xmermaid 0.1.x. It covers the 
 - xmermaid is flowchart-focused and provides partial Mermaid support.
 - The release must not claim full Mermaid compatibility.
 - The package must support browser-side SVG rendering for basic flowcharts.
-- Node/SSR parsing of the root ESM entry is a package compatibility check, not a Node rendering promise.
+- Node/SSR parsing of the root ESM entry and CommonJS `require('xmermaid')` are package compatibility checks, not Node rendering promises.
 
 ## Environment
 
@@ -37,7 +37,7 @@ The packed tarball must contain:
 - `dist/index.d.ts`
 - `dist/support.d.ts`
 - `dist/xmermaid.esm.js`
-- `dist/xmermaid.js`
+- `dist/xmermaid.cjs`
 - `dist/xmermaid_wasm_bg.wasm`
 - `README.md`
 - `package.json`
@@ -67,7 +67,7 @@ Before publishing:
 - Confirm README does not claim full Mermaid compatibility.
 - Confirm security policy text says strict is default.
 - Confirm `loose` does not imply dangerous URL protocols are allowed.
-- Confirm package size and browser render duration from consumer smoke are recorded in the JSON summary.
+- Confirm package size and browser render duration from consumer smoke are recorded in the JSON summary, and that the smoke includes both ESM import and CommonJS require checks.
 - Confirm no generated `dist/` or `pkg/` artifacts are staged unless the release process explicitly requires them.
 
 ## Failure Handling

@@ -24,7 +24,8 @@ export type UnsupportedFeatureId =
   | 'flowchart.style'
   | 'flowchart.click'
   | 'flowchart.htmlLabel'
-  | 'flowchart.markdownLabel';
+  | 'flowchart.markdownLabel'
+  | 'flowchart.invalidDirection';
 
 export interface SupportSourceRange {
   startOffset: number;
@@ -88,6 +89,7 @@ const SUPPORT_MATRIX: SupportMatrix = {
         { id: 'flowchart.click', label: 'click callbacks and links', status: 'unsupported' },
         { id: 'flowchart.htmlLabel', label: 'HTML labels', status: 'unsupported' },
         { id: 'flowchart.markdownLabel', label: 'Markdown labels', status: 'unsupported' },
+        { id: 'flowchart.invalidDirection', label: 'invalid graph/flowchart directions', status: 'unsupported' },
       ],
     },
     unsupported('sequence', 'sequenceDiagram'),
@@ -146,6 +148,16 @@ export function detectUnsupportedFeatures(source: string): UnsupportedFeature[] 
   for (const line of linesWithRanges(source)) {
     const trimmed = line.text.trimStart();
     if (!trimmed) continue;
+
+    if (/^(graph|flowchart)\b/i.test(trimmed) && !/^(graph|flowchart)\s+(TD|TB|BT|LR|RL)\b/i.test(trimmed)) {
+      features.push(unsupportedSyntax(
+        'flowchart.invalidDirection',
+        line,
+        'Flowchart declarations must use direction TD, TB, BT, LR, or RL.',
+        'error',
+      ));
+      continue;
+    }
 
     if (/^classDef\b/.test(trimmed)) {
       features.push(unsupportedSyntax('flowchart.classDef', line, 'Flowchart classDef statements are not supported yet.'));
@@ -229,11 +241,12 @@ function unsupportedSyntax(
   id: UnsupportedFeatureId,
   line: SourceLine,
   message: string,
+  severity: UnsupportedFeature['severity'] = 'warning',
 ): UnsupportedFeature {
   return {
     id,
     range: lineContentRange(line),
-    severity: 'warning',
+    severity,
     message,
   };
 }

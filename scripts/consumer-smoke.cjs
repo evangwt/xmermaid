@@ -26,7 +26,7 @@ const REQUIRED_PACK_FILES = [
   'dist/index.d.ts',
   'dist/support.d.ts',
   'dist/xmermaid.esm.js',
-  'dist/xmermaid.js',
+  'dist/xmermaid.cjs',
   'dist/xmermaid_wasm_bg.wasm',
   'README.md',
   'package.json',
@@ -72,7 +72,7 @@ function printHelp() {
     'Usage: node scripts/consumer-smoke.cjs [--json] [--keep-temp] [--chrome-bin <path>] [--timeout-ms <ms>]',
     '',
     'Packs xmermaid, installs the tarball into a temporary consumer project, typechecks the package,',
-    'imports the installed ESM entry, and renders a minimal flowchart in headless Chrome.',
+    'imports the installed ESM entry, requires the installed CommonJS entry, and renders a minimal flowchart in headless Chrome.',
   ].join('\n'));
 }
 
@@ -234,6 +234,14 @@ function writeConsumerProject(consumerDir, tarballPath) {
     "  throw new Error('support analyzer import smoke failed');",
     '}',
   ].join('\n'));
+  writeFileSync(join(consumerDir, 'cjs-require.cjs'), [
+    "const { XMermaid, analyzeSupport } = require('xmermaid');",
+    '',
+    "const report = analyzeSupport('graph TD\\n  A-->B');",
+    "if (typeof XMermaid !== 'function' || report.diagramType !== 'flowchart') {",
+    "  throw new Error('CommonJS package entry is unavailable');",
+    '}',
+  ].join('\n'));
 }
 
 function installConsumer(consumerDir) {
@@ -255,6 +263,13 @@ function runNodeImport(consumerDir) {
   runChecked(process.execPath, ['node-import.mjs'], {
     cwd: consumerDir,
     label: 'consumer Node import',
+  });
+}
+
+function runCommonJsRequire(consumerDir) {
+  runChecked(process.execPath, ['cjs-require.cjs'], {
+    cwd: consumerDir,
+    label: 'consumer CommonJS require',
   });
 }
 
@@ -510,6 +525,9 @@ async function runSmoke(args) {
 
     runNodeImport(consumerDir);
     checks.push(makeCheck('node-import', 'Temporary consumer imported the installed package ESM entry'));
+
+    runCommonJsRequire(consumerDir);
+    checks.push(makeCheck('cjs-require', 'Temporary consumer required the installed package CommonJS entry'));
 
     const chromeExecutable = args.chromeBin || resolveChromeExecutable(process.env);
     const browser = await runBrowserSmoke(consumerDir, chromeExecutable, args.timeoutMs);
