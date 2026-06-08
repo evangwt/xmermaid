@@ -288,4 +288,33 @@ describe('XMermaid', () => {
 
     expect(initWasm).toHaveBeenCalledWith({ wasmUrl });
   });
+
+  it('passes SDK render options through the DOM scan run helper', async () => {
+    document.body.innerHTML = '<div class="mermaid">graph TD\n  A-->B</div>';
+    const renderSpy = vi.spyOn(XMermaid.prototype, 'renderToSVGElement').mockResolvedValue({
+      diagramType: 'flowchart',
+      diagnostics: [],
+      dimensions: { width: 200, height: 240 },
+      svg: document.createElementNS('http://www.w3.org/2000/svg', 'svg'),
+    });
+    const container = document.createElement('div');
+    const wasmUrl = new URL('https://cdn.example.com/xmermaid_wasm_bg.wasm');
+
+    try {
+      await XMermaid.run({
+        container,
+        wasm: { wasmUrl },
+        securityLevel: 'loose',
+      });
+
+      expect(renderSpy).toHaveBeenCalledWith('graph TD\n  A-->B', {
+        wasm: { wasmUrl },
+        securityLevel: 'loose',
+      });
+      expect(document.querySelector('.mermaid svg')).not.toBeNull();
+    } finally {
+      renderSpy.mockRestore();
+      document.body.innerHTML = '';
+    }
+  });
 });
