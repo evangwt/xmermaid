@@ -26,6 +26,7 @@ export type UnsupportedFeatureId =
   | 'flowchart.click'
   | 'flowchart.htmlLabel'
   | 'flowchart.markdownLabel'
+  | 'flowchart.quotedLabel'
   | 'flowchart.entityCodeLabel'
   | 'flowchart.fontAwesomeLabel'
   | 'flowchart.invalidDirection'
@@ -106,6 +107,7 @@ const SUPPORT_MATRIX: SupportMatrix = {
         { id: 'flowchart.click', label: 'click callbacks and links', status: 'unsupported' },
         { id: 'flowchart.htmlLabel', label: 'HTML labels', status: 'unsupported' },
         { id: 'flowchart.markdownLabel', label: 'Markdown labels', status: 'unsupported' },
+        { id: 'flowchart.quotedLabel', label: 'quoted labels', status: 'unsupported' },
         { id: 'flowchart.entityCodeLabel', label: 'HTML entity code labels', status: 'unsupported' },
         { id: 'flowchart.fontAwesomeLabel', label: 'FontAwesome icon labels', status: 'unsupported' },
         { id: 'flowchart.invalidDirection', label: 'invalid graph/flowchart directions', status: 'unsupported' },
@@ -323,6 +325,9 @@ export function detectUnsupportedFeatures(source: string): UnsupportedFeature[] 
     }
     if (/`[^`]+`/.test(line.text)) {
       features.push(unsupportedSyntax('flowchart.markdownLabel', line, 'Flowchart Markdown labels are not supported yet.'));
+    }
+    if (!/`[^`]+`/.test(line.text) && /\[[^\]\r\n]*"[^"\]\r\n]+"[^\]\r\n]*\]/.test(line.text)) {
+      features.push(unsupportedSyntax('flowchart.quotedLabel', line, 'Flowchart quoted labels are not supported yet.'));
     }
     if (/\[[^\]\r\n]*#\d+;[^\]\r\n]*\]/.test(line.text)) {
       features.push(unsupportedSyntax('flowchart.entityCodeLabel', line, 'Flowchart entity-code labels are not supported yet.'));

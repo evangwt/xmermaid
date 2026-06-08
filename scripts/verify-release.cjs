@@ -198,6 +198,10 @@ function checkDocs() {
         && /FontAwesome/i.test(readme),
     },
     {
+      label: 'README documents quoted label limitation',
+      passed: /quoted labels/i.test(readme),
+    },
+    {
       label: 'README documents subgraph edge limitation',
       passed: /edges?\s+to\s+subgraph/i.test(readme),
     },

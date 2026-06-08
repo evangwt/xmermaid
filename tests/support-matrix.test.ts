@@ -23,6 +23,7 @@ describe('support matrix production contract', () => {
       'flowchart.classDef',
       'flowchart.click',
       'flowchart.htmlLabel',
+      'flowchart.quotedLabel',
       'flowchart.entityCodeLabel',
       'flowchart.fontAwesomeLabel',
       'flowchart.edgeToSubgraph',
@@ -180,11 +181,13 @@ describe('support matrix production contract', () => {
   it('detects unsupported special label syntaxes that the Rust parser preserves literally', () => {
     const features = detectUnsupportedFeatures([
       'flowchart TD',
+      '  A["Quoted"]',
       '  A[#35;]',
       '  B[fa:fa-car Text]',
     ].join('\n'));
 
     expect(features.map(feature => feature.id)).toEqual([
+      'flowchart.quotedLabel',
       'flowchart.entityCodeLabel',
       'flowchart.fontAwesomeLabel',
     ]);
