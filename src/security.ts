@@ -7,6 +7,7 @@ export interface SecurityPolicy {
   allowedUrlProtocols: string[];
   allowHtmlLabels: boolean;
   allowClickCallbacks: boolean;
+  sanitizeSvg: boolean;
 }
 
 export interface SecurityPolicyOptions {
@@ -19,6 +20,7 @@ export const DEFAULT_SECURITY_POLICY: SecurityPolicy = {
   allowedUrlProtocols: ['http:', 'https:', 'mailto:'],
   allowHtmlLabels: false,
   allowClickCallbacks: false,
+  sanitizeSvg: true,
 };
 
 export function resolveSecurityPolicy(options: SecurityPolicyOptions = {}): SecurityPolicy {

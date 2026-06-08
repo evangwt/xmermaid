@@ -27,9 +27,10 @@ export class XMermaid {
   }
 
   async renderToSVGElement(input: string, options: RenderOptions = {}): Promise<RenderResult> {
+    const securityPolicy = resolveSecurityPolicy(options);
     const support = analyzeSupport(input);
     const supportDiagnostics = support.unsupportedFeatures.map(unsupportedFeatureToDiagnostic);
-    const securityDiagnostics = detectSecurityDiagnostics(input, resolveSecurityPolicy(options));
+    const securityDiagnostics = detectSecurityDiagnostics(input, securityPolicy);
     const diagnostics = [...supportDiagnostics, ...securityDiagnostics];
     const unsupportedDiagramDiagnostic = diagnostics.find(diagnostic => diagnostic.code === 'unsupported_diagram_type');
     if (unsupportedDiagramDiagnostic) {
@@ -64,6 +65,9 @@ export class XMermaid {
     const layout = await this.renderLayout(input, options.layoutConfig ?? this.layoutConfig, options.wasm);
     const renderer = options.theme ? new SVGRenderer(options.theme) : this.renderer;
     const svg = renderer.render(layout);
+    if (securityPolicy.sanitizeSvg) {
+      sanitizeSvgElement(svg);
+    }
 
     return {
       diagramType: support.diagramType,
@@ -192,6 +196,33 @@ function unsupportedFeatureToDiagnostic(feature: UnsupportedFeature): XMermaidDi
     range: feature.range,
     featureId: feature.id,
   };
+}
+
+function sanitizeSvgElement(svg: SVGSVGElement): void {
+  for (const element of Array.from(svg.querySelectorAll('script, foreignObject'))) {
+    element.remove();
+  }
+
+  for (const element of [svg, ...Array.from(svg.querySelectorAll('*'))]) {
+    for (const attribute of Array.from(element.attributes)) {
+      const name = attribute.name.toLowerCase();
+      if (name.startsWith('on')) {
+        element.removeAttribute(attribute.name);
+        continue;
+      }
+      if ((name === 'href' || name === 'xlink:href') && hasDangerousProtocol(attribute.value)) {
+        element.removeAttribute(attribute.name);
+        continue;
+      }
+      if (name === 'style' && /url\s*\(\s*['"]?\s*(?:javascript|data|vbscript):/i.test(attribute.value)) {
+        element.removeAttribute(attribute.name);
+      }
+    }
+  }
+}
+
+function hasDangerousProtocol(value: string): boolean {
+  return /^(?:javascript|data|vbscript):/i.test(value.trim().replace(/[\t\r\n]/g, ''));
 }
 
 function normalizeWasmRenderError(error: unknown): XMermaidError {

@@ -2,7 +2,7 @@ import type { WasmInitOptions } from './types/options';
 
 export interface XMermaidWasmModule {
   compute_layout(astJson: string): string;
-  default?: (moduleOrPath?: string | URL | { module_or_path?: string | URL }) => Promise<unknown> | unknown;
+  default?: (moduleOrPath?: WasmPackInitInput | { module_or_path?: WasmPackInitInput }) => Promise<unknown> | unknown;
   default_config(): string;
   get_diagram_type(astJson: string): string;
   init?: () => void;
@@ -11,6 +11,15 @@ export interface XMermaidWasmModule {
   render_with_config(input: string, configJson?: string | null): unknown;
 }
 
+type WasmPackInitInput =
+  | string
+  | URL
+  | Request
+  | Response
+  | BufferSource
+  | WebAssembly.Module
+  | Promise<Response>;
+
 let wasmModule: XMermaidWasmModule | null = null;
 let wasmModuleLoader: (() => Promise<XMermaidWasmModule>) | null = null;
 
@@ -18,7 +27,7 @@ export async function initWasm(options: WasmInitOptions = {}): Promise<void> {
   if (wasmModule) return;
   const loadedModule = await loadWasmModule();
   if (loadedModule.default) {
-    await loadedModule.default(options.wasmUrl);
+    await loadedModule.default(resolveWasmInitInput(options));
   }
   wasmModule = loadedModule;
 }
@@ -38,6 +47,13 @@ function loadWasmModule(): Promise<XMermaidWasmModule> {
   return wasmModuleLoader
     ? wasmModuleLoader()
     : import(/* @vite-ignore */ '../pkg/xmermaid_wasm.js');
+}
+
+function resolveWasmInitInput(options: WasmInitOptions): WasmPackInitInput | undefined {
+  if (options.fetch && options.wasmUrl) {
+    return options.fetch(options.wasmUrl);
+  }
+  return options.wasmUrl;
 }
 
 export function __setWasmModuleLoaderForTests(loader: (() => Promise<XMermaidWasmModule>) | null): void {
