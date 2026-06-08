@@ -42,6 +42,7 @@ export type UnsupportedFeatureId =
   | 'flowchart.inlineEdgeLabel'
   | 'flowchart.edgeId'
   | 'flowchart.edgeToSubgraph'
+  | 'flowchart.hyphenatedNodeId'
   | 'flowchart.inlineClass'
   | 'flowchart.linkStyle';
 
@@ -123,6 +124,7 @@ const SUPPORT_MATRIX: SupportMatrix = {
         { id: 'flowchart.inlineEdgeLabel', label: 'inline edge labels', status: 'unsupported' },
         { id: 'flowchart.edgeId', label: 'edge IDs', status: 'unsupported' },
         { id: 'flowchart.edgeToSubgraph', label: 'edges to subgraph ids', status: 'unsupported' },
+        { id: 'flowchart.hyphenatedNodeId', label: 'hyphenated node ids', status: 'unsupported' },
         { id: 'flowchart.inlineClass', label: 'inline class assignments', status: 'unsupported' },
         { id: 'flowchart.linkStyle', label: 'linkStyle statements', status: 'unsupported' },
       ],
@@ -293,6 +295,14 @@ export function detectUnsupportedFeatures(source: string): UnsupportedFeature[] 
         'error',
       ));
     }
+    if (edgeContainsHyphenatedNodeId(line.text)) {
+      features.push(unsupportedSyntax(
+        'flowchart.hyphenatedNodeId',
+        line,
+        'Flowchart hyphenated node ids are not supported yet.',
+        'error',
+      ));
+    }
 
     if (/^classDef\b/.test(trimmed)) {
       features.push(unsupportedSyntax('flowchart.classDef', line, 'Flowchart classDef statements are not supported yet.'));
@@ -353,6 +363,13 @@ function edgeTouchesSubgraphId(line: string, subgraphIds: Set<string>): boolean 
   const edgeMatch = line.match(/^\s*([A-Za-z0-9_-]+)(?:\[[^\]\r\n]*\])?\s*(?:--(?:\|[^|\r\n]*\|)?>|---|-.->|==>|~~~)\s*([A-Za-z0-9_-]+)/);
   if (!edgeMatch) return false;
   return subgraphIds.has(edgeMatch[1]) || subgraphIds.has(edgeMatch[2]);
+}
+
+function edgeContainsHyphenatedNodeId(line: string): boolean {
+  const endpoint = '[A-Za-z0-9_]+(?:-[A-Za-z0-9_]+)*';
+  const edgeMatch = line.match(new RegExp(`^\\s*(${endpoint})(?:\\[[^\\]\\r\\n]*\\])?\\s*(?:--(?:\\|[^|\\r\\n]*\\|)?>|---|-.->|==>|~~~)\\s*(${endpoint})`));
+  if (!edgeMatch) return false;
+  return edgeMatch[1].includes('-') || edgeMatch[2].includes('-');
 }
 
 function unsupported(diagramType: DiagramType, label: string): DiagramSupportEntry {
