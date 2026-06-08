@@ -231,6 +231,25 @@ describe('XMermaid', () => {
       });
   });
 
+  it('does not let a custom URL allowlist permit dangerous protocols', async () => {
+    const container = document.createElement('div');
+    const xm = new XMermaid({ container });
+
+    await expect(xm.renderToSVGElement('graph TD\n  A-->B\n  click A javascript:alert(1)', {
+      securityLevel: 'loose',
+      securityPolicy: { allowedUrlProtocols: ['javascript:', 'https:'] },
+    }))
+      .rejects.toMatchObject<XMermaidError>({
+        code: 'RENDER_ERROR',
+        diagnostics: expect.arrayContaining([
+          expect.objectContaining({
+            code: 'security_blocked_url',
+            message: expect.stringContaining('javascript:'),
+          }),
+        ]),
+      });
+  });
+
   it('serializes SVG output through renderToSVGString', async () => {
     const container = document.createElement('div');
     const xm = new XMermaid({ container });
