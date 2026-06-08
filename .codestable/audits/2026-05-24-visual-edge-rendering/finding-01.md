@@ -6,7 +6,8 @@ nature: bug
 severity: P1
 confidence: high
 suggested_action: cs-issue
-status: open
+status: resolved
+resolved_by: 2026-05-25-edge-geometry-boundary-contract, 2026-05-25-svg-geometry-regression-suite
 ---
 
 # Finding 01: 箭头尖端被 `edgeGap` 推离目标节点边界
