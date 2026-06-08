@@ -838,6 +838,49 @@ describe('XMermaidLiveEditor', () => {
     }
   });
 
+  it('does not export a stale preview after the current source fails to render', async () => {
+    const root = document.createElement('div');
+    const originalCreateObjectUrl = URL.createObjectURL;
+    const originalRevokeObjectUrl = URL.revokeObjectURL;
+    URL.createObjectURL = vi.fn(() => 'blob:stale-preview');
+    URL.revokeObjectURL = vi.fn();
+    const editor = new XMermaidLiveEditor({
+      root,
+      initialText: 'graph TD\n  A --> B',
+      renderDiagram: vi.fn(async ({ source, container }) => {
+        if (source.includes('BROKEN')) {
+          throw new Error('parse failed');
+        }
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.textContent = source;
+        container.appendChild(svg);
+      }),
+    });
+
+    try {
+      await editor.mount();
+      const selectedSource = root.querySelector<HTMLTextAreaElement>('[data-xm-selected-source]')!;
+      selectedSource.value = 'graph TD\n  A --> BROKEN';
+      selectedSource.dispatchEvent(new Event('input', { bubbles: true }));
+      await new Promise(resolve => setTimeout(resolve, 0));
+
+      const exported = vi.fn();
+      root.addEventListener('xmermaid:exported', exported);
+      root.querySelector<HTMLButtonElement>('[data-xm-export-svg]')?.click();
+      await new Promise(resolve => setTimeout(resolve, 0));
+
+      const link = root.querySelector<HTMLAnchorElement>('[data-xm-download-link]');
+      expect(exported).not.toHaveBeenCalled();
+      expect(URL.createObjectURL).not.toHaveBeenCalled();
+      expect(link?.hidden).toBe(true);
+      expect(root.querySelector<HTMLElement>('[data-xm-diagnostic-item]')?.textContent)
+        .toContain('current diagram has not rendered successfully');
+    } finally {
+      URL.createObjectURL = originalCreateObjectUrl;
+      URL.revokeObjectURL = originalRevokeObjectUrl;
+    }
+  });
+
   it('exports the current rendered SVG as PNG from the toolbar', async () => {
     const root = document.createElement('div');
     const originalCreateObjectUrl = URL.createObjectURL;
