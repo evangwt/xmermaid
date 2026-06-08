@@ -199,7 +199,8 @@ type UnsupportedFeatureId =
   | 'flowchart.style'
   | 'flowchart.click'
   | 'flowchart.htmlLabel'
-  | 'flowchart.markdownLabel';
+  | 'flowchart.markdownLabel'
+  | 'flowchart.invalidDirection';
 
 interface UnsupportedFeature {
   id: UnsupportedFeatureId;
@@ -278,7 +279,7 @@ function isWasmReady(): boolean;
 ```json
 {
   "exports": {
-    ".": { "import": "./dist/xmermaid.esm.js", "require": "./dist/xmermaid.js", "types": "./dist/index.d.ts" },
+    ".": { "import": "./dist/xmermaid.esm.js", "require": "./dist/xmermaid.cjs", "types": "./dist/index.d.ts" },
     "./editor": { "import": "./dist/editor/index.js", "types": "./dist/editor/index.d.ts" }
   },
   "files": ["dist", "README.md", "LICENSE"]

@@ -91,6 +91,26 @@ describe('support matrix production contract', () => {
     expect(detectUnsupportedFeatures('flowchart LR\n  A[Start] --> B[End]')).toEqual([]);
   });
 
+  it('reports flowchart declarations with invalid directions before the parser fails', () => {
+    const report = analyzeSupport('graph XXX\n  A-->B');
+
+    expect(report).toMatchObject({
+      diagramType: 'flowchart',
+      status: 'partial',
+      unsupportedFeatures: [
+        expect.objectContaining({
+          id: 'flowchart.invalidDirection',
+          severity: 'error',
+          range: expect.objectContaining({
+            startLine: 1,
+            startColumn: 1,
+            endLine: 1,
+          }),
+        }),
+      ],
+    });
+  });
+
   it('keeps package metadata and README aligned with the support matrix', () => {
     const packageJson = JSON.parse(readFileSync('package.json', 'utf8')) as { description: string };
     const readme = readFileSync('README.md', 'utf8');

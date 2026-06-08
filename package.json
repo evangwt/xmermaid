@@ -3,13 +3,13 @@
   "version": "0.1.0",
   "description": "Flowchart-focused Mermaid renderer with partial Mermaid support powered by Rust WASM",
   "type": "module",
-  "main": "dist/xmermaid.js",
+  "main": "dist/xmermaid.cjs",
   "module": "dist/xmermaid.esm.js",
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
       "import": "./dist/xmermaid.esm.js",
-      "require": "./dist/xmermaid.js",
+      "require": "./dist/xmermaid.cjs",
       "types": "./dist/index.d.ts"
     }
   },
