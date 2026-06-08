@@ -85,6 +85,8 @@ Unsupported flowchart syntax is reported as `unsupported_syntax` warnings when r
 
 WASM parse/layout/render failures are normalized into `XMermaidError` with structured diagnostics. Rust parser errors do not yet expose token-accurate offset/column ranges, so those diagnostics may have `range: null`.
 
+The DOM scan helper `XMermaid.run()` keeps its compatibility behavior of writing an error message into failed `.mermaid` elements, and also exposes `data-xmermaid-error-code` plus JSON `data-xmermaid-diagnostics` on that element.
+
 ## Security Policy
 
 The default security policy is `strict` for untrusted Mermaid input embedded in a same-origin app.

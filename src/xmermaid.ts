@@ -133,10 +133,12 @@ export class XMermaid {
         if (dsl) {
           xm.container = el;
           el.textContent = '';
+          clearDomRunDiagnostics(el);
           try {
             const result = await xm.renderToSVGElement(dsl, renderOptions);
             el.appendChild(result.svg);
           } catch (e) {
+            exposeDomRunDiagnostics(el, e);
             el.textContent = `Error: ${e instanceof Error ? e.message : String(e)}`;
           }
         }
@@ -153,6 +155,22 @@ function renderOptionsFrom(options: RenderOptions): RenderOptions {
     securityPolicy: options.securityPolicy,
     wasm: options.wasm,
   };
+}
+
+function clearDomRunDiagnostics(element: HTMLElement): void {
+  element.removeAttribute('data-xmermaid-error-code');
+  element.removeAttribute('data-xmermaid-diagnostics');
+}
+
+function exposeDomRunDiagnostics(element: HTMLElement, error: unknown): void {
+  if (error instanceof XMermaidError) {
+    element.dataset.xmermaidErrorCode = error.code;
+    element.dataset.xmermaidDiagnostics = JSON.stringify(error.diagnostics);
+    return;
+  }
+
+  element.dataset.xmermaidErrorCode = 'RENDER_ERROR';
+  element.dataset.xmermaidDiagnostics = '[]';
 }
 
 function unsupportedFeatureToDiagnostic(feature: UnsupportedFeature): XMermaidDiagnostic {
