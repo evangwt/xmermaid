@@ -58,9 +58,10 @@ async function exportPng(svg: SVGSVGElement): Promise<Blob> {
     image.src = url;
     await loaded;
 
+    const dimensions = pngDimensions(svg, image);
     const canvas = document.createElement('canvas');
-    canvas.width = Math.max(1, image.naturalWidth || Number(svg.getAttribute('width')) || 1);
-    canvas.height = Math.max(1, image.naturalHeight || Number(svg.getAttribute('height')) || 1);
+    canvas.width = dimensions.width;
+    canvas.height = dimensions.height;
     const context = canvas.getContext('2d');
     if (!context) throw new Error('Canvas 2D context is unavailable.');
     context.drawImage(image, 0, 0);
@@ -74,4 +75,27 @@ async function exportPng(svg: SVGSVGElement): Promise<Blob> {
   } finally {
     URL.revokeObjectURL(url);
   }
+}
+
+function pngDimensions(svg: SVGSVGElement, image: HTMLImageElement): { width: number; height: number } {
+  return {
+    width: firstPositiveNumber(image.naturalWidth, parseSvgLength(svg.getAttribute('width')), viewBoxSize(svg, 2), 1),
+    height: firstPositiveNumber(image.naturalHeight, parseSvgLength(svg.getAttribute('height')), viewBoxSize(svg, 3), 1),
+  };
+}
+
+function firstPositiveNumber(...values: number[]): number {
+  return Math.max(1, values.find(value => Number.isFinite(value) && value > 0) ?? 1);
+}
+
+function parseSvgLength(value: string | null): number {
+  if (!value) return Number.NaN;
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : Number.NaN;
+}
+
+function viewBoxSize(svg: SVGSVGElement, index: 2 | 3): number {
+  const parts = (svg.getAttribute('viewBox') ?? '').trim().split(/[\s,]+/).map(Number);
+  const value = parts[index];
+  return Number.isFinite(value) && value > 0 ? value : Number.NaN;
 }
