@@ -82,6 +82,9 @@ describe('consumer smoke helpers', () => {
 
       expect(page).toContain('liveEditorWorkflow');
       expect(page).toContain('visualRenameApplied');
+      expect(page).toContain('previewDirectionPreservesSource');
+      expect(page).toContain('sourceDirectionApplied');
+      expect(page).toContain('unsupportedVisualEditBlocked');
       expect(page).toContain('shareHashNamespaced');
       expect(page).toContain('svgExportReady');
     } finally {

@@ -330,6 +330,18 @@ function writeBrowserSmokePage(consumerDir) {
     "  await waitFor(() => editorRoot.querySelector('[data-xm-document-input]')?.value.includes('Second[Renamed]'), 'visual rename document');",
     "  await waitFor(() => editorRoot.querySelector('[data-xm-preview]')?.textContent.includes('Renamed'), 'visual rename preview');",
     '  liveEditorWorkflow.visualRenameApplied = true;',
+    "  const directionSelect = await waitFor(() => editorRoot.querySelector('[data-xm-layout-direction]'), 'layout direction select');",
+    "  const applySourceDirection = await waitFor(() => editorRoot.querySelector('[data-xm-apply-source-direction]'), 'apply source direction button');",
+    '  const sourceAfterRename = selectedSource.value;',
+    "  directionSelect.value = 'TD';",
+    "  directionSelect.dispatchEvent(new Event('change', { bubbles: true }));",
+    "  await waitFor(() => editorRoot.querySelector('[data-xm-preview] svg'), 'preview-only direction render');",
+    '  liveEditorWorkflow.previewDirectionPreservesSource = selectedSource.value === sourceAfterRename;',
+    '  applySourceDirection.click();',
+    "  await waitFor(() => selectedSource.value.startsWith('flowchart TD'), 'source direction applied');",
+    "  await waitFor(() => editorRoot.querySelector('[data-xm-document-input]')?.value.includes('flowchart TD'), 'source direction document');",
+    "  await waitFor(() => editorRoot.querySelector('[data-xm-preview]')?.textContent.includes('Renamed'), 'source direction preview');",
+    "  liveEditorWorkflow.sourceDirectionApplied = selectedSource.value.startsWith('flowchart TD') && editorRoot.querySelector('[data-xm-document-input]')?.value.includes('Second[Renamed]');",
     "  await waitFor(() => editorRoot.querySelector('[data-xm-share-link]'), 'share link button').then(button => button.click());",
     "  liveEditorWorkflow.shareHashNamespaced = window.location.hash.startsWith('#xm=') && decodeURIComponent(window.location.hash).includes('Second[Renamed]');",
     '  const exported = new Promise(resolve => {',
@@ -339,6 +351,14 @@ function writeBrowserSmokePage(consumerDir) {
     '  const exportDetail = await exported;',
     "  const downloadLink = editorRoot.querySelector('[data-xm-download-link]');",
     "  liveEditorWorkflow.svgExportReady = exportDetail.format === 'svg' && Boolean(downloadLink?.href) && downloadLink.download.endsWith('.svg');",
+    "  const unsupportedSource = `${selectedSource.value}\\n  classDef hot fill:#fff`;",
+    '  selectedSource.value = unsupportedSource;',
+    "  selectedSource.dispatchEvent(new Event('input', { bubbles: true }));",
+    "  await waitFor(() => editorRoot.querySelector('[data-xm-document-input]')?.value.includes('classDef hot'), 'unsupported source committed');",
+    "  visualNodeLabel.value = 'Blocked';",
+    "  await waitFor(() => editorRoot.querySelector('[data-xm-visual-rename-node]'), 'blocked visual rename button').then(button => button.click());",
+    "  await waitFor(() => editorRoot.querySelector('[data-xm-diagnostic-code=\"visual_unsupported_syntax\"]'), 'unsupported visual edit diagnostic');",
+    "  liveEditorWorkflow.unsupportedVisualEditBlocked = selectedSource.value === unsupportedSource && !selectedSource.value.includes('Blocked');",
     '  const liveEditorWorkflowOk = Object.values(liveEditorWorkflow).every(Boolean);',
     '  window.__xmermaidSmoke = {',
     '    done: true,',
@@ -582,7 +602,7 @@ async function runSmoke(args) {
     const browser = await runBrowserSmoke(consumerDir, chromeExecutable, args.timeoutMs);
     checks.push(makeCheck('browser-render', `Headless Chrome rendered an SVG in ${browser.durationMs}ms`));
     checks.push(makeCheck('live-editor-render', `Headless Chrome mounted the live editor with ${browser.smoke.liveEditorSvgCount} preview SVG(s)`));
-    checks.push(makeCheck('live-editor-workflow', 'Headless Chrome switched diagrams, applied a visual rename, shared state, and prepared SVG export'));
+    checks.push(makeCheck('live-editor-workflow', 'Headless Chrome switched diagrams, applied visual edits, verified direction controls, blocked unsupported visual edits, shared state, and prepared SVG export'));
 
     const record = {
       passed: true,

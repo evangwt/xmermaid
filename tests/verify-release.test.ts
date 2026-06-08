@@ -124,6 +124,7 @@ describe('verify-release script', () => {
     expect(record.missing).toContain('README documents subgraph edge limitation');
     expect(record.missing).toContain('README documents hyphenated node id limitation');
     expect(record.missing).toContain('README documents live editor workflow smoke');
+    expect(record.missing).toContain('README documents live editor direction and safety smoke');
     expect(record.missing).toContain('release checklist mentions consumer-pack-install');
   });
 });
