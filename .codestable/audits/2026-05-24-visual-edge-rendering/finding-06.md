@@ -6,7 +6,8 @@ nature: maintainability
 severity: P2
 confidence: high
 suggested_action: cs-refactor
-status: open
+status: resolved
+resolved_by: 2026-05-25-svg-geometry-regression-suite
 ---
 
 # Finding 06: 测试没有锁定真实 SVG 几何输出

@@ -244,7 +244,7 @@ interface RenderedEdgeGeometry {
 
 ## 7. 观察项
 
-- `.codestable/` 目前整体未跟踪，但里面已有架构、审计、roadmap 资料；这和 CodeStable 长期使用方式冲突。
-- `.omx/plans/test-spec-visual-edge-rendering.md` 要求 `npm run build`，但最近 Ralph completion audit 未记录 build 成功。
-- `src/wasm-types.d.ts` 和 `src/xmermaid.ts` 的 `any` 边界是长期类型债，可在 `edge-geometry-boundary-contract` 后另拆 WASM type-hardening feature。
-- `.codestable/audits/2026-05-24-visual-edge-rendering/index.md` 状态仍是 `active`，需要后续 acceptance 或 governance 决定如何闭合。
+- `.codestable/**` 已作为 repo-spec 进入 git 追踪，`.omx/**` / `.codegraph/**` / 临时截图和 CDP 脚本仍按 evidence governance 默认忽略。
+- `npm run build` 已进入 `npm run verify:release`，当前 release gate 覆盖 build、packed consumer smoke、docs sync、JS tests、typecheck、Rust tests 和 whitespace check。
+- `src/wasm-types.d.ts` 和 `src/xmermaid.ts` 的 `any` 边界是长期类型债；如要收紧，另拆 WASM type-hardening feature，不并入已完成 rendering roadmap。
+- `.codestable/audits/2026-05-24-visual-edge-rendering/` 已标记 resolved；完整 routing rewrite、obstacle avoidance、port routing、parallel edge bundling 和截图 pixel diff 不属于本 roadmap。

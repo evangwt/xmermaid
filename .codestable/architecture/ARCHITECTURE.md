@@ -117,36 +117,31 @@ SVG renderer 的主题合同是 `RenderTheme`，当前内置 `DEFAULT_THEME`、`
 输出: LayoutResult { positions: {A: {x,y}, B: {x,y}}, dimensions: {width, height} }
 ```
 
-### 核心模块
+### 当前核心模块
 
 | 模块 | 功能 | 说明 |
 |------|------|------|
-| `GraphLayoutEngine` | 图结构布局 | flowchart、class、state 等图结构，处理节点定位、边路径 |
-| `SequenceLayout` | 时序图布局 | 特殊的垂直布局，处理生命线、消息箭头 |
-| `TimelineLayout` | 时间轴布局 | gantt、timeline 等时间相关的水平布局 |
-| `GeometryUtils` | 几何计算 | 线段交叉检测、箭头路径计算、文本尺寸估算 |
-| `ConstraintSolver` | 约束求解 | 处理对齐、间距、避免重叠等布局约束 |
+| `compute_layout()` | layout dispatcher | 当前只对 `DiagramAst::Flowchart` 调用 flowchart layout；其他 AST 返回空 layout result |
+| `flowchart::layout()` | flowchart 布局 | Sugiyama-style layered graph drawing，支持 TB/BT/LR/RL 方向 |
+| `LayoutConfig` | 布局输入配置 | 节点尺寸、水平/垂直间距、padding、direction |
+| `LayoutResult` | 布局输出合同 | nodes、edges、dimensions；edge 携带 geometry v1 字段供 SVG renderer 消费 |
 
 ### 布局算法策略
 
-**流程图/图结构：**
-- 改进的分层布局算法（类似 dagre）
-- 支持方向：TB/TD（从上到下）、BT（从下到上）、LR/RL（从左到右/从右到左）
-- 子图嵌套布局支持
+**Flowchart：**
+- 使用当前 Rust flowchart layout engine 计算 node center/bounds、edge waypoints 和 geometry v1 字段。
+- 支持方向：TB/TD（从上到下）、BT（从下到上）、LR/RL（从左到右/从右到左）。
+- 子图当前保留在 AST / visual model 合同中；布局能力以现有 tests 和 release gate 为准，不承诺完整 Mermaid subgraph layout 语义。
 
-**时序图：**
-- 垂直生命线 + 水平消息
-- 处理：参与者顺序、消息序号、激活框位置、循环/条件框嵌套
-
-**特殊图表：**
-- gantt：水平时间轴 + 任务条
-- mindmap：树状放射布局
-- pie：圆形分布
+**当前不做：**
+- 不提供 sequence/class/state/gantt/mindmap/pie 等专用 layout。
+- 不提供 constraint solver、obstacle avoidance、port routing 或 parallel edge bundling。
+- 不承诺 layout 性能 SLA 或增量布局。
 
 ### 技术选型
 
-- 使用 Rust 的几何计算库处理坐标运算
-- 可选集成 `petgraph` 作为图数据结构基础
+- Rust layout crate 当前不引入额外图布局依赖。
+- Rust/TS 共享 `LayoutResult` 字段合同，靠 roundtrip tests 和 SVG regression tests 守住边界。
 
 ### 性能目标
 

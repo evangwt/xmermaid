@@ -3,8 +3,9 @@ doc_type: audit-index
 audit: 2026-05-24-visual-edge-rendering
 scope: SVG visual rendering, edge routing, arrow drawing, layout edge contracts, and related tests
 created: 2026-05-24
-status: active
+status: resolved
 total_findings: 6
+resolved_at: 2026-06-08
 ---
 
 # visual-edge-rendering 审计报告
@@ -49,8 +50,13 @@ total_findings: 6
 | arch-drift | 0 | 1 | 0 | 1 |
 | **合计** | **0** | **4** | **2** | **6** |
 
-## 下一步建议
+## 关闭记录
 
-- **P1 本迭代修**：finding-01、finding-02、finding-03 建议走 `cs-issue`，先修用户可见的箭头和连线错误。
-- **P1 架构修正**：finding-04 建议走 `cs-refactor`，把 layout / renderer 的职责边界重新收紧。
-- **P2 后续补强**：finding-05、finding-06 建议随修复一起补测试，避免视觉细节继续靠人工观察回归。
+本审计的 6 条 finding 已由 `visual-rendering-readiness` roadmap 的后续 feature 收敛：
+
+- `edge-geometry-boundary-contract`：新增 layout edge geometry v1 字段，renderer 优先消费 explicit geometry，保留 fallback。
+- `svg-geometry-regression-suite`：新增 DOM 级 SVG 几何回归，覆盖 complex path、label fallback、shape boundary 和 arrow styles。
+- `release-verification-contract`：把 `npm run build` 纳入 `npm run verify:release`。
+- `codestable-evidence-governance`：确认 `.codestable/**` 属于 repo-spec 并被提交管理。
+
+当前剩余边界：仍不做完整 routing rewrite、obstacle avoidance、port routing、parallel edge bundling 或截图 pixel diff；这些已明确留给后续独立 roadmap，而不是本审计未完成项。

@@ -6,7 +6,8 @@ nature: maintainability
 severity: P2
 confidence: medium
 suggested_action: cs-refactor
-status: open
+status: resolved
+resolved_by: 2026-05-25-edge-geometry-boundary-contract, 2026-05-25-svg-geometry-regression-suite
 ---
 
 # Finding 05: 边标签定位基于未渲染路径，容易与实际连线错位
