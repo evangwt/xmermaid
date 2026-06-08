@@ -53,6 +53,23 @@ describe('consumer smoke helpers', () => {
     await import('../dist/xmermaid.esm.js');
   });
 
+  it('includes the live editor in the real browser smoke page', () => {
+    const { writeBrowserSmokePage } = require('../scripts/consumer-smoke.cjs') as {
+      writeBrowserSmokePage(consumerDir: string): void;
+    };
+    const tempRoot = mkdtempSync(join(tmpdir(), 'xmermaid-browser-smoke-page-'));
+
+    try {
+      writeBrowserSmokePage(tempRoot);
+      const page = readFileSync(join(tempRoot, 'smoke.html'), 'utf8');
+
+      expect(page).toContain('XMermaidLiveEditor');
+      expect(page).toContain('liveEditorSvgCount');
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true });
+    }
+  });
+
   it('keeps the declared CommonJS package entry requireable after installation', () => {
     const packageJson = JSON.parse(readFileSync('package.json', 'utf8')) as {
       exports?: { '.'?: { require?: string } };
