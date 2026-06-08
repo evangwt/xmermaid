@@ -123,7 +123,7 @@ await renderer.renderToSVGElement(source, {
 });
 ```
 
-Release verification uses a packed-package consumer smoke test. It runs `npm pack`, installs the tarball into a temporary project, typechecks the public API, imports the installed ESM entry, requires the installed CommonJS entry, and opens headless Chrome to render a minimal SVG and mount the live editor with the installed WASM asset.
+Release verification uses a packed-package consumer smoke test. It runs `npm pack`, installs the tarball into a temporary project, typechecks the public API, imports the installed ESM entry, requires the installed CommonJS entry, and opens headless Chrome to render a minimal SVG with the installed WASM asset. The same Chrome smoke also runs a live editor workflow: multi-diagram selection, visual rename, share hash generation, and SVG export readiness.
 
 The browser smoke requires Chrome or Chromium. Set `CHROME_BIN` when CI does not expose a default Chrome executable.
 
