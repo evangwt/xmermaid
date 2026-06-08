@@ -108,6 +108,35 @@ describe('visual flowchart real WASM roundtrip contract', () => {
       }),
     ]);
   });
+
+  it('blocks parser-unsupported visual shape syntax before accepting a lossy roundtrip', async () => {
+    for (const [shape, expectedSyntax] of [
+      ['stadium', 'A([Start])'],
+      ['cylinder', 'A[(Start)]'],
+    ] as const) {
+      const source = serializeFlowchart({
+        direction: 'TD',
+        nodes: [
+          { id: 'A', label: 'Start', shape },
+        ],
+        edges: [],
+        subgraphs: [],
+      });
+
+      expect(source).toContain(expectedSyntax);
+
+      await expect(validateVisualEditResult(source, realWasmVisualOptions))
+        .resolves.toEqual(expect.objectContaining({
+          status: 'blocked',
+          diagnostics: [
+            expect.objectContaining({
+              code: 'visual_unsupported_syntax',
+              range: expect.objectContaining({ startLine: 2 }),
+            }),
+          ],
+        }));
+    }
+  });
 });
 
 function parseWithRealWasm(source: string): string {

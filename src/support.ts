@@ -26,7 +26,9 @@ export type UnsupportedFeatureId =
   | 'flowchart.click'
   | 'flowchart.htmlLabel'
   | 'flowchart.markdownLabel'
-  | 'flowchart.invalidDirection';
+  | 'flowchart.invalidDirection'
+  | 'flowchart.stadiumShape'
+  | 'flowchart.cylinderShape';
 
 export interface SupportSourceRange {
   startOffset: number;
@@ -91,6 +93,8 @@ const SUPPORT_MATRIX: SupportMatrix = {
         { id: 'flowchart.htmlLabel', label: 'HTML labels', status: 'unsupported' },
         { id: 'flowchart.markdownLabel', label: 'Markdown labels', status: 'unsupported' },
         { id: 'flowchart.invalidDirection', label: 'invalid graph/flowchart directions', status: 'unsupported' },
+        { id: 'flowchart.stadiumShape', label: 'stadium shape syntax', status: 'unsupported' },
+        { id: 'flowchart.cylinderShape', label: 'cylinder/database shape syntax', status: 'unsupported' },
       ],
     },
     unsupported('sequence', 'sequenceDiagram'),
@@ -158,6 +162,23 @@ export function detectUnsupportedFeatures(source: string): UnsupportedFeature[] 
         'error',
       ));
       continue;
+    }
+
+    if (/\b[A-Za-z0-9_]+\(\[[^\]\r\n]*\]\)/.test(line.text)) {
+      features.push(unsupportedSyntax(
+        'flowchart.stadiumShape',
+        line,
+        'Flowchart stadium shape syntax is not supported yet.',
+        'error',
+      ));
+    }
+    if (/\b[A-Za-z0-9_]+\[\([^\)\r\n]*\)\]/.test(line.text)) {
+      features.push(unsupportedSyntax(
+        'flowchart.cylinderShape',
+        line,
+        'Flowchart cylinder/database shape syntax is not supported yet.',
+        'error',
+      ));
     }
 
     if (/^classDef\b/.test(trimmed)) {
