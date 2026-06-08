@@ -23,6 +23,8 @@ describe('support matrix production contract', () => {
       'flowchart.classDef',
       'flowchart.click',
       'flowchart.htmlLabel',
+      'flowchart.entityCodeLabel',
+      'flowchart.fontAwesomeLabel',
     ]));
   });
 
@@ -170,6 +172,23 @@ describe('support matrix production contract', () => {
     ]);
     expect(features).toEqual(features.map((feature, index) => expect.objectContaining({
       severity: 'error',
+      range: expect.objectContaining({ startLine: index + 2 }),
+    })));
+  });
+
+  it('detects unsupported special label syntaxes that the Rust parser preserves literally', () => {
+    const features = detectUnsupportedFeatures([
+      'flowchart TD',
+      '  A[#35;]',
+      '  B[fa:fa-car Text]',
+    ].join('\n'));
+
+    expect(features.map(feature => feature.id)).toEqual([
+      'flowchart.entityCodeLabel',
+      'flowchart.fontAwesomeLabel',
+    ]);
+    expect(features).toEqual(features.map((feature, index) => expect.objectContaining({
+      severity: 'warning',
       range: expect.objectContaining({ startLine: index + 2 }),
     })));
   });
