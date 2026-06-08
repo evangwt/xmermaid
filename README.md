@@ -63,7 +63,7 @@ Unsupported diagram families currently include:
 - `pie`
 - `mindmap`
 
-Unsupported or partial flowchart syntax includes invalid `graph` / `flowchart` directions, `class`, `classDef`, `style`, `click`, HTML labels, Markdown labels, and stadium/cylinder shape syntax. Use `getSupportMatrix()` or `analyzeSupport(source)` to inspect the current production support contract from code.
+Unsupported or partial flowchart syntax includes invalid `graph` / `flowchart` directions, `class`, `classDef`, `style`, `click`, HTML labels, Markdown labels, stadium/cylinder shape syntax, bidirectional/circle/cross edge endings, inline edge labels, and edge IDs. Use `getSupportMatrix()` or `analyzeSupport(source)` to inspect the current production support contract from code.
 
 ## Diagnostics
 

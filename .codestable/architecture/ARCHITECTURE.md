@@ -94,7 +94,7 @@ SVG renderer 的主题合同是 `RenderTheme`，当前内置 `DEFAULT_THEME`、`
 
 - `graph` / `flowchart`：partial support，覆盖基础节点、边、常见 label、核心 shape 和部分 subgraph。
 - `sequenceDiagram`、`classDiagram`、`stateDiagram`、`erDiagram`、`gantt`、`pie`、`mindmap`：当前 unsupported，通过 support matrix / diagnostics 暴露。
-- `class`、`classDef`、`style`、`click`、HTML label、Markdown label、stadium / cylinder shape syntax：当前 unsupported 或安全阻断；不能把跳过解析或误解析当成完整支持。
+- `class`、`classDef`、`style`、`click`、HTML label、Markdown label、stadium / cylinder shape syntax、bidirectional / circle / cross edge endings、inline edge labels、edge IDs：当前 unsupported 或安全阻断；不能把跳过解析或误解析当成完整支持。
 
 ### 技术选型
 
@@ -230,9 +230,9 @@ Live editor 的 visual edit path 是异步编排：analysis 成功后应用 edit
 
 源码中当前已落地 `src/support.ts`，并通过 `src/index.ts` 公开导出 `getSupportMatrix()`、`getDiagramSupport(diagramType)` 和 `analyzeSupport(source)`。这组 API 是生产发布合同的机器可读入口：它描述当前支持范围，而不是增加新的 parser/render 能力。
 
-当前合同把 `flowchart` 标为 `partial`：基础 `graph` / `flowchart` 声明、基础节点和有向边、常见标签、核心 shape 和部分 subgraph parse 属于支持范围；`class`、`classDef`、`style`、`click`、HTML label、Markdown label、stadium / cylinder shape syntax 明确列为 unsupported 或 partial。`sequenceDiagram`、`classDiagram`、`stateDiagram`、`erDiagram`、`gantt`、`pie` 和 `mindmap` 当前仍是 unsupported diagram family。
+当前合同把 `flowchart` 标为 `partial`：基础 `graph` / `flowchart` 声明、基础节点和有向边、常见标签、核心 shape 和部分 subgraph parse 属于支持范围；`class`、`classDef`、`style`、`click`、HTML label、Markdown label、stadium / cylinder shape syntax、bidirectional / circle / cross edge endings、inline edge labels、edge IDs 明确列为 unsupported 或 partial。`sequenceDiagram`、`classDiagram`、`stateDiagram`、`erDiagram`、`gantt`、`pie` 和 `mindmap` 当前仍是 unsupported diagram family。
 
-`analyzeSupport(source)` 仍不替代 Rust parser，但现在会携带 `unsupportedFeatures`。`detectUnsupportedFeatures(source)` 是轻量 production support analyzer：unsupported diagram family 返回 `diagram.*` feature，flowchart 中的 `class`、`classDef`、`style`、`click`、HTML label、Markdown label、invalid direction、stadium shape 和 cylinder/database shape 返回对应 `flowchart.*` feature。`SupportSourceRange` 使用 JS string offset，line/column 为 1-based，endOffset/endColumn 为 exclusive。Analyzer 只读 source，不调用 WASM，不修改 render path；它的 feature id 必须映射到 support matrix 的 unsupported syntax id，后续 diagnostics/runtime 只能消费这些结构化输出，不能靠字符串猜。
+`analyzeSupport(source)` 仍不替代 Rust parser，但现在会携带 `unsupportedFeatures`。`detectUnsupportedFeatures(source)` 是轻量 production support analyzer：unsupported diagram family 返回 `diagram.*` feature，flowchart 中的 `class`、`classDef`、`style`、`click`、HTML label、Markdown label、invalid direction、stadium/cylinder shape、bidirectional/circle/cross edge endings、inline edge labels 和 edge IDs 返回对应 `flowchart.*` feature。`SupportSourceRange` 使用 JS string offset，line/column 为 1-based，endOffset/endColumn 为 exclusive。Analyzer 只读 source，不调用 WASM，不修改 render path；它的 feature id 必须映射到 support matrix 的 unsupported syntax id，后续 diagnostics/runtime 只能消费这些结构化输出，不能靠字符串猜。
 
 发布门禁现在包含 packed consumer smoke 和 docs support matrix sync。`scripts/verify-release.cjs` 的默认矩阵在 `npm run build` 之后执行 `consumer-pack-install`，命令为 `npm run --silent smoke:consumer -- --json`。该 gate 由 `scripts/consumer-smoke.cjs` 负责：在临时目录运行 `npm pack`、校验 tarball 中存在 `dist/index.d.ts`、`dist/support.d.ts`、ESM/CJS bundle、`dist/xmermaid_wasm_bg.wasm`、README 和 package metadata，再把 tarball 安装进临时消费者项目执行 TypeScript typecheck、root ESM import smoke，并通过 headless Chrome 加载 installed package 的 ESM bundle 与 WASM asset 渲染最小 flowchart SVG。JSON summary 记录 package size 和 browser render duration；第一阶段只记录基线，不设硬阈值。
 

@@ -28,7 +28,12 @@ export type UnsupportedFeatureId =
   | 'flowchart.markdownLabel'
   | 'flowchart.invalidDirection'
   | 'flowchart.stadiumShape'
-  | 'flowchart.cylinderShape';
+  | 'flowchart.cylinderShape'
+  | 'flowchart.bidirectionalEdge'
+  | 'flowchart.circleEdge'
+  | 'flowchart.crossEdge'
+  | 'flowchart.inlineEdgeLabel'
+  | 'flowchart.edgeId';
 
 export interface SupportSourceRange {
   startOffset: number;
@@ -95,6 +100,11 @@ const SUPPORT_MATRIX: SupportMatrix = {
         { id: 'flowchart.invalidDirection', label: 'invalid graph/flowchart directions', status: 'unsupported' },
         { id: 'flowchart.stadiumShape', label: 'stadium shape syntax', status: 'unsupported' },
         { id: 'flowchart.cylinderShape', label: 'cylinder/database shape syntax', status: 'unsupported' },
+        { id: 'flowchart.bidirectionalEdge', label: 'bidirectional edge arrows', status: 'unsupported' },
+        { id: 'flowchart.circleEdge', label: 'circle edge endings', status: 'unsupported' },
+        { id: 'flowchart.crossEdge', label: 'cross edge endings', status: 'unsupported' },
+        { id: 'flowchart.inlineEdgeLabel', label: 'inline edge labels', status: 'unsupported' },
+        { id: 'flowchart.edgeId', label: 'edge IDs', status: 'unsupported' },
       ],
     },
     unsupported('sequence', 'sequenceDiagram'),
@@ -177,6 +187,47 @@ export function detectUnsupportedFeatures(source: string): UnsupportedFeature[] 
         'flowchart.cylinderShape',
         line,
         'Flowchart cylinder/database shape syntax is not supported yet.',
+        'error',
+      ));
+    }
+
+    if (/\b[A-Za-z0-9_]+\s*<[-=.]+>\s*[A-Za-z0-9_]+\b/.test(line.text)) {
+      features.push(unsupportedSyntax(
+        'flowchart.bidirectionalEdge',
+        line,
+        'Flowchart bidirectional edge arrows are not supported yet.',
+        'error',
+      ));
+    }
+    if (/\b[A-Za-z0-9_]+\s*--o\s*[A-Za-z0-9_]+\b/.test(line.text)) {
+      features.push(unsupportedSyntax(
+        'flowchart.circleEdge',
+        line,
+        'Flowchart circle edge endings are not supported yet.',
+        'error',
+      ));
+    }
+    if (/\b[A-Za-z0-9_]+\s*--x\s*[A-Za-z0-9_]+\b/.test(line.text)) {
+      features.push(unsupportedSyntax(
+        'flowchart.crossEdge',
+        line,
+        'Flowchart cross edge endings are not supported yet.',
+        'error',
+      ));
+    }
+    if (/\b[A-Za-z0-9_]+\s*--\s+[^\s|<>\-\r\n][^-\r\n]*\s+--?>\s*[A-Za-z0-9_]+\b/.test(line.text)) {
+      features.push(unsupportedSyntax(
+        'flowchart.inlineEdgeLabel',
+        line,
+        'Flowchart inline edge labels are not supported yet; use pipe-delimited edge labels.',
+        'error',
+      ));
+    }
+    if (/\b[A-Za-z0-9_]+@\s*(?:--|==|-\.)[->=.~]*/.test(line.text)) {
+      features.push(unsupportedSyntax(
+        'flowchart.edgeId',
+        line,
+        'Flowchart edge IDs are not supported yet.',
         'error',
       ));
     }
