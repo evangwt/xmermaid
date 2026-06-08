@@ -118,6 +118,27 @@ describe('XMermaid', () => {
     }));
   });
 
+  it('rejects error-severity unsupported flowchart syntax before WASM render', async () => {
+    const container = document.createElement('div');
+    const xm = new XMermaid({ container });
+
+    await expect(xm.renderToSVGElement('graph XXX\n  A-->B'))
+      .rejects.toMatchObject<XMermaidError>({
+        code: 'RENDER_ERROR',
+        diagnostics: [
+          expect.objectContaining({
+            code: 'unsupported_syntax',
+            severity: 'error',
+            featureId: 'flowchart.invalidDirection',
+            range: expect.objectContaining({
+              startLine: 1,
+              startColumn: 1,
+            }),
+          }),
+        ],
+      });
+  });
+
   it('rejects unsupported diagrams before WASM render with structured diagnostics', async () => {
     const container = document.createElement('div');
     const xm = new XMermaid({ container });
