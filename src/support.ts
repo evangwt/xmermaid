@@ -19,6 +19,7 @@ export type UnsupportedFeatureId =
   | 'diagram.gantt'
   | 'diagram.pie'
   | 'diagram.mindmap'
+  | 'diagram.unknown'
   | 'flowchart.class'
   | 'flowchart.classDef'
   | 'flowchart.style'
@@ -99,6 +100,7 @@ const SUPPORT_MATRIX: SupportMatrix = {
     unsupported('gantt', 'gantt'),
     unsupported('pie', 'pie'),
     unsupported('mindmap', 'mindmap'),
+    unsupported('unknown', 'unknown diagram type'),
   ],
 };
 
@@ -132,7 +134,7 @@ export function analyzeSupport(source: string): SupportReport {
     status: support.status,
     message: support.status === 'partial'
       ? 'Flowchart rendering has partial Mermaid support. Check the support matrix for unsupported syntax.'
-      : `${diagramType} diagrams are not supported yet.`,
+      : unsupportedDiagramMessage(diagramType),
     unsupportedFeatures,
   };
 }
@@ -140,8 +142,7 @@ export function analyzeSupport(source: string): SupportReport {
 export function detectUnsupportedFeatures(source: string): UnsupportedFeature[] {
   const diagramType = detectDiagramType(source);
   if (diagramType !== 'flowchart') {
-    const diagramFeature = unsupportedDiagramFeature(diagramType);
-    return diagramFeature ? [diagramFeature(source, diagramType)] : [];
+    return [unsupportedDiagramFeature(source, diagramType)];
   }
 
   const features: UnsupportedFeature[] = [];
@@ -225,16 +226,19 @@ interface SourceLine {
   lineNumber: number;
 }
 
-function unsupportedDiagramFeature(
-  diagramType: DiagramType,
-): ((source: string, diagramType: DiagramType) => UnsupportedFeature) | null {
-  if (diagramType === 'unknown') return null;
-  return (source, type) => ({
-    id: `diagram.${type}` as UnsupportedFeatureId,
+function unsupportedDiagramFeature(source: string, diagramType: DiagramType): UnsupportedFeature {
+  return {
+    id: `diagram.${diagramType}` as UnsupportedFeatureId,
     range: firstLineRange(source),
     severity: 'error',
-    message: `${type} diagrams are not supported yet.`,
-  });
+    message: unsupportedDiagramMessage(diagramType),
+  };
+}
+
+function unsupportedDiagramMessage(diagramType: DiagramType): string {
+  return diagramType === 'unknown'
+    ? 'Unknown diagram type is not supported yet.'
+    : `${diagramType} diagrams are not supported yet.`;
 }
 
 function unsupportedSyntax(

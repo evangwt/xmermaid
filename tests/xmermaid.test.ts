@@ -161,6 +161,40 @@ describe('XMermaid', () => {
       });
   });
 
+  it('rejects unknown diagram sources before WASM render with structured diagnostics', async () => {
+    const wasm = {
+      render: vi.fn(() => mockLayoutResult),
+      render_with_config: vi.fn(() => mockLayoutResult),
+      default_config: vi.fn(),
+      parse_dsl: vi.fn(),
+      get_diagram_type: vi.fn(),
+      compute_layout: vi.fn(),
+      default: vi.fn(),
+    };
+    vi.mocked(getWasm).mockReturnValue(wasm as unknown as ReturnType<typeof getWasm>);
+    const container = document.createElement('div');
+    const xm = new XMermaid({ container });
+
+    await expect(xm.renderToSVGElement('not a diagram'))
+      .rejects.toMatchObject<XMermaidError>({
+        code: 'UNSUPPORTED_DIAGRAM',
+        diagnostics: [
+          expect.objectContaining({
+            code: 'unsupported_diagram_type',
+            severity: 'error',
+            featureId: 'diagram.unknown',
+            range: expect.objectContaining({
+              startLine: 1,
+              startColumn: 1,
+              endLine: 1,
+            }),
+          }),
+        ],
+      });
+    expect(wasm.render).not.toHaveBeenCalled();
+    expect(wasm.render_with_config).not.toHaveBeenCalled();
+  });
+
   it('attaches structured diagnostics when WASM parse errors are normalized', async () => {
     vi.mocked(getWasm).mockReturnValueOnce({
       render: vi.fn(() => {
