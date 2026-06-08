@@ -6,7 +6,8 @@ nature: arch-drift
 severity: P1
 confidence: high
 suggested_action: cs-refactor
-status: open
+status: resolved
+resolved_by: 2026-05-25-edge-geometry-boundary-contract
 ---
 
 # Finding 04: layout 仍输出粗粒度中心点，renderer 承担路由几何

@@ -6,7 +6,8 @@ nature: bug
 severity: P1
 confidence: high
 suggested_action: cs-issue
-status: open
+status: resolved
+resolved_by: 2026-05-25-svg-geometry-regression-suite
 ---
 
 # Finding 03: `open` / `circle` / `cross` 箭头样式都被错误渲染为 polygon

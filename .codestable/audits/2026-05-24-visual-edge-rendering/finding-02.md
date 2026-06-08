@@ -6,7 +6,8 @@ nature: bug
 severity: P1
 confidence: high
 suggested_action: cs-issue
-status: open
+status: resolved
+resolved_by: 2026-05-25-svg-geometry-regression-suite
 ---
 
 # Finding 02: step 连线路径没有真正截短到箭头尾部
