@@ -51,6 +51,24 @@ describe('support matrix production contract', () => {
     });
   });
 
+  it('reports unknown sources as unsupported with a structured diagram feature', () => {
+    expect(analyzeSupport('not a diagram')).toMatchObject({
+      diagramType: 'unknown',
+      status: 'unsupported',
+      unsupportedFeatures: [
+        expect.objectContaining({
+          id: 'diagram.unknown',
+          severity: 'error',
+          range: expect.objectContaining({
+            startLine: 1,
+            startColumn: 1,
+            endLine: 1,
+          }),
+        }),
+      ],
+    });
+  });
+
   it('detects unsupported flowchart syntax with line and column ranges', () => {
     const features = detectUnsupportedFeatures([
       'graph TD',
