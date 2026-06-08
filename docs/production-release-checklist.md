@@ -56,7 +56,7 @@ The docs support matrix sync gate must pass before release. It checks that:
 - `package.json.description` says flowchart and partial.
 - README says partial Mermaid support.
 - README lists unsupported diagram families including `sequenceDiagram`, `classDiagram`, `stateDiagram`, `erDiagram`, `gantt`, `pie`, and `mindmap`.
-- README documents diagnostics, quoted/entity-code/FontAwesome label limitations, edges to subgraph ids limitations, and security strict defaults.
+- README documents diagnostics, quoted/entity-code/FontAwesome label limitations, edges to subgraph ids and hyphenated node ids limitations, and security strict defaults.
 - README documents packed consumer smoke, Chrome/`CHROME_BIN`, and the live editor workflow smoke.
 - This checklist includes every default release matrix command id.
 
