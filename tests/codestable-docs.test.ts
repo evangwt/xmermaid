@@ -39,6 +39,27 @@ describe('CodeStable current evidence docs', () => {
     expect(roadmap).toMatch(/sanitizeSvg: true/);
   });
 
+  it('keeps future planning artifacts out of the current architecture map', () => {
+    const architecture = readFileSync('.codestable/architecture/ARCHITECTURE.md', 'utf8');
+    const forbiddenCurrentFacts = [
+      /历史规划附录/,
+      /XMermaid\.registerPlugin/,
+      /XMermaid\.registerDSLExtension/,
+      /PluginDefinition/,
+      /renderToCanvas/,
+      /xmermaid\/server/,
+      /xmermaid-cli/,
+      /支持 10\+ 图表类型/,
+      /v1\.0\.0 — 全功能版本/,
+    ];
+
+    for (const forbidden of forbiddenCurrentFacts) {
+      expect(architecture).not.toMatch(forbidden);
+    }
+    expect(architecture).toMatch(/## 当前架构边界/);
+    expect(architecture).toMatch(/必须另起 roadmap \/ feature/);
+  });
+
   it('does not leave fixed CodeStable issue reports in confirmed status', () => {
     const issueDirs = readdirSync('.codestable/issues', { withFileTypes: true })
       .filter(entry => entry.isDirectory())

@@ -374,7 +374,7 @@ type ProductionVerificationCommandId =
    - 依赖：`release-support-matrix`
    - 状态：done
    - 对应 feature：2026-06-02-pack-install-render-smoke
-   - 备注：已新增 `scripts/consumer-smoke.cjs` 和 `consumer-pack-install` release gate；packed tarball consumer typecheck、root/editor Node ESM import、root/editor CommonJS require、Chrome/WASM render smoke 和 live editor workflow smoke 已通过，覆盖方向控制和 unsupported visual edit safety gate。
+   - 备注：已新增 `scripts/consumer-smoke.cjs` 和 `consumer-pack-install` release gate；packed tarball consumer typecheck、root/editor Node ESM import、root/editor CommonJS require、Chrome 默认 bundle-relative WASM render smoke 和 `xmermaid/editor` browser live editor workflow smoke 已通过，覆盖方向控制和 unsupported visual edit safety gate。
 
 3. **render-svg-api** — 补齐 `renderToSVGElement`、`renderToSVGString` 和 `RenderResult` 公开 API。
    - 所属模块：public-render-api
