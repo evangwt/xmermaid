@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 describe('CodeStable current evidence docs', () => {
@@ -37,5 +37,22 @@ describe('CodeStable current evidence docs', () => {
     expect(roadmap).toMatch(/fetch\?: typeof globalThis\.fetch/);
     expect(roadmap).toMatch(/首次初始化后后续 render 复用同一个 module/);
     expect(roadmap).toMatch(/sanitizeSvg: true/);
+  });
+
+  it('does not leave fixed CodeStable issue reports in confirmed status', () => {
+    const issueDirs = readdirSync('.codestable/issues', { withFileTypes: true })
+      .filter(entry => entry.isDirectory())
+      .map(entry => `.codestable/issues/${entry.name}`);
+    const staleReports = issueDirs.flatMap(dir => {
+      const reportPath = readdirSync(dir)
+        .find(file => file.endsWith('-report.md'));
+      if (!reportPath || !existsSync(`${dir}/${reportPath.replace(/-report\.md$/, '-fix-note.md')}`)) {
+        return [];
+      }
+      const report = readFileSync(`${dir}/${reportPath}`, 'utf8');
+      return /^status:\s*confirmed$/m.test(report) ? [`${dir}/${reportPath}`] : [];
+    });
+
+    expect(staleReports).toEqual([]);
   });
 });

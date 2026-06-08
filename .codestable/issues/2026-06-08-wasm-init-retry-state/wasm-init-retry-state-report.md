@@ -1,7 +1,7 @@
 ---
 doc_type: issue-report
 issue: 2026-06-08-wasm-init-retry-state
-status: confirmed
+status: fixed
 severity: P1
 summary: Failed WASM initialization could poison loader readiness state.
 tags: [production, wasm, sdk]

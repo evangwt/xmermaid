@@ -1,7 +1,7 @@
 ---
 doc_type: issue-report
 issue: 2026-06-08-security-url-delimiters
-status: confirmed
+status: fixed
 severity: P1
 summary: Security URL preflight missed dangerous protocols inside Mermaid label delimiters.
 tags: [production, security, url-policy]

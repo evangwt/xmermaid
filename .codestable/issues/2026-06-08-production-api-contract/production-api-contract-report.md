@@ -1,7 +1,7 @@
 ---
 doc_type: issue-report
 issue: 2026-06-08-production-api-contract
-status: confirmed
+status: fixed
 severity: P1
 summary: Public production API claims exceeded the implementation and package dependency boundary.
 tags: [production, api-contract, packaging, wasm]

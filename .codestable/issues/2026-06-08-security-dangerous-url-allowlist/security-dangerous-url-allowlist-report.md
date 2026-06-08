@@ -1,7 +1,7 @@
 ---
 doc_type: issue-report
 issue: 2026-06-08-security-dangerous-url-allowlist
-status: confirmed
+status: fixed
 severity: P1
 summary: Custom URL allowlists could permit dangerous protocols that the security contract says remain blocked.
 tags: [production, security, url-policy]

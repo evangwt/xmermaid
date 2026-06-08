@@ -1,7 +1,7 @@
 ---
 doc_type: issue-report
 issue: 2026-06-08-run-render-options
-status: confirmed
+status: fixed
 severity: P1
 summary: XMermaid.run dropped SDK render options during DOM scan rendering.
 tags: [production, sdk, wasm, security]
