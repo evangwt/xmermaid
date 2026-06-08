@@ -100,6 +100,8 @@ describe('consumer smoke helpers', () => {
       writeBrowserSmokePage(tempRoot);
       const page = readFileSync(join(tempRoot, 'smoke.html'), 'utf8');
 
+      expect(page).toContain('"xmermaid/editor"');
+      expect(page).toContain("import { XMermaidLiveEditor } from 'xmermaid/editor';");
       expect(page).toContain('XMermaidLiveEditor');
       expect(page).toContain('liveEditorSvgCount');
     } finally {
@@ -117,6 +119,8 @@ describe('consumer smoke helpers', () => {
       writeBrowserSmokePage(tempRoot);
       const page = readFileSync(join(tempRoot, 'smoke.html'), 'utf8');
 
+      expect(page).toContain("await renderer.renderToSVGElement('graph TD\\n  A-->B');");
+      expect(page).not.toContain('wasmUrl');
       expect(page).toContain('liveEditorWorkflow');
       expect(page).toContain('visualRenameApplied');
       expect(page).toContain('previewDirectionPreservesSource');

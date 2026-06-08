@@ -6,7 +6,7 @@ This checklist is the release-facing contract for xmermaid 0.1.x. It covers the 
 
 - xmermaid is flowchart-focused and provides partial Mermaid support.
 - The release must not claim full Mermaid compatibility.
-- The package must support browser-side SVG rendering for basic flowcharts, publish the `xmermaid/editor` live editor subpath, and run the live editor browser smoke path through multi-diagram selection, visual rename, preview-only direction control, source direction edit, unsupported visual edit blocking, share hash generation, and SVG export readiness.
+- The package must support browser-side SVG rendering for basic flowcharts, publish the `xmermaid/editor` live editor subpath, verify default bundle-relative WASM asset loading in Chrome, and run the live editor browser smoke path through the `xmermaid/editor` subpath with multi-diagram selection, visual rename, preview-only direction control, source direction edit, unsupported visual edit blocking, share hash generation, and SVG export readiness.
 - Node/SSR parsing of the root ESM entry and CommonJS `require('xmermaid')` are package compatibility checks, not Node rendering promises.
 
 ## Environment
@@ -72,7 +72,7 @@ Before publishing:
 - Confirm `loose` does not imply dangerous URL protocols are allowed.
 - Confirm `sanitizeSvg: true` is the default and generated SVG sanitization is not represented as a CSP or sandbox.
 - Confirm custom `wasmUrl` / `fetch` guidance says WASM is initialized once and reused after first render.
-- Confirm package size and browser render duration from consumer smoke are recorded in the JSON summary, and that the smoke includes ESM import, CommonJS require, `xmermaid/editor` subpath import/require, browser render, live editor render, and live editor workflow checks including direction controls and unsupported visual edit blocking.
+- Confirm package size and browser render duration from consumer smoke are recorded in the JSON summary, and that the smoke includes ESM import, CommonJS require, `xmermaid/editor` subpath import/require, browser render through default bundle-relative WASM loading, live editor browser import through `xmermaid/editor`, live editor render, and live editor workflow checks including direction controls and unsupported visual edit blocking.
 - Confirm no generated `dist/` or `pkg/` artifacts are staged unless the release process explicitly requires them.
 
 ## Failure Handling

@@ -16,7 +16,7 @@ items:
     status: done
     feature: 2026-06-02-pack-install-render-smoke
     minimal_loop: true
-    notes: 已新增 consumer smoke gate；真实 packed tarball 可安装进临时消费者，TypeScript 可解析 root 与 xmermaid/editor 类型，root/editor ESM 与 CommonJS require 可用，tarball 显式包含 README 和 LICENSE，headless Chrome 可加载 WASM、渲染最小 flowchart SVG，并驱动 live editor 多图切换、visual rename、preview-only direction、source direction edit、unsupported visual edit blocking、share hash 和 SVG export readiness
+    notes: 已新增 consumer smoke gate；真实 packed tarball 可安装进临时消费者，TypeScript 可解析 root 与 xmermaid/editor 类型，root/editor ESM 与 CommonJS require 可用，tarball 显式包含 README 和 LICENSE，headless Chrome 通过默认 bundle-relative WASM asset resolution 渲染最小 flowchart SVG，并通过 xmermaid/editor 浏览器导入驱动 live editor 多图切换、visual rename、preview-only direction、source direction edit、unsupported visual edit blocking、share hash 和 SVG export readiness
 
   - slug: render-svg-api
     description: 补齐 renderToSVGElement、renderToSVGString 和 RenderResult 公开 API
