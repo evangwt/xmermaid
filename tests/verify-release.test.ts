@@ -119,6 +119,7 @@ describe('verify-release script', () => {
     const record = JSON.parse(result.stdout);
     expect(record.passed).toBe(false);
     expect(record.missing).toContain('README mentions partial Mermaid support');
+    expect(record.missing).toContain('README documents special label limitations');
     expect(record.missing).toContain('README documents live editor workflow smoke');
     expect(record.missing).toContain('release checklist mentions consumer-pack-install');
   });

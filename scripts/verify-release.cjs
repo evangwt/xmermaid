@@ -193,6 +193,11 @@ function checkDocs() {
         && /unsupported_diagram_type/.test(readme),
     },
     {
+      label: 'README documents special label limitations',
+      passed: /entity[- ]code/i.test(readme)
+        && /FontAwesome/i.test(readme),
+    },
+    {
       label: 'README documents strict security policy',
       passed: /security policy/i.test(readme)
         && /strict/i.test(readme)
