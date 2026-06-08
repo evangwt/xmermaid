@@ -48,7 +48,7 @@ tags: [production, support, release]
 ## 边界
 
 - 它不新增任何图表渲染能力，只说明当前能力。
-- support analyzer 是轻量扫描器，不替代完整 parser；v1 只覆盖当前 support matrix 声明的 unsupported diagram family 和常见 flowchart syntax，包括当前按 literal text 降级的 entity-code / FontAwesome label，以及当前没有 compound edge 语义的 edges to subgraph ids。
+- support analyzer 是轻量扫描器，不替代完整 parser；v1 只覆盖当前 support matrix 声明的 unsupported diagram family 和常见 flowchart syntax，包括当前按 literal text 降级的 quoted/entity-code/FontAwesome label，以及当前没有 compound edge 语义的 edges to subgraph ids。
 - structured diagnostics 不替代 Rust parser 的完整错误定位；当前 parser 未输出结构化 offset/column 时，WASM parse error 的 range 保持 `null`。
 - security policy v1 只做 source-level diagnostics，不执行 click callback、不渲染 HTML label、不实现 sanitizer/CSP/sandbox。
 - consumer smoke 只承诺 browser SDK 最小路径；root ESM 可被 Node/SSR/构建工具解析，但不承诺 Node DOM 渲染。
@@ -68,3 +68,4 @@ tags: [production, support, release]
 - 2026-06-07：新增 visual roundtrip contract tests，使用真实 `pkg/xmermaid_wasm.js` + WASM bytes 证明 supported visual edit 输出可重新 parse/render，blocked unsupported syntax 不产生 rewrite；runtime `validateVisualEditResult()` 同步补齐 render/layout validation gate。
 - 2026-06-08：补齐 entity-code / FontAwesome label 的 support analyzer diagnostics 和 README docs-sync gate；它们仍按 unsupported syntax 暴露，不新增图标或实体渲染能力。
 - 2026-06-08：补齐 edges to subgraph ids 的 support analyzer error diagnostics 和 README docs-sync gate；当前只承诺 partial subgraph parse，不承诺 Mermaid compound edge 语义。
+- 2026-06-08：补齐 quoted label 的 support analyzer diagnostics 和 README docs-sync gate；当前 parser 会保留引号字面量，不承诺 Mermaid quoted label 语义。
