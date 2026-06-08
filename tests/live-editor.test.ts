@@ -1202,6 +1202,59 @@ describe('share and export helpers', () => {
     expect(blob.type).toBe('image/svg+xml');
     await expect(blob.text()).resolves.toContain('Current Preview');
   });
+
+  it('uses viewBox dimensions for PNG export when image natural size is unavailable', async () => {
+    const originalCreateObjectUrl = URL.createObjectURL;
+    const originalRevokeObjectUrl = URL.revokeObjectURL;
+    const originalImage = globalThis.Image;
+    const originalCreateElement = document.createElement.bind(document);
+    const canvases: Array<{ width: number; height: number }> = [];
+    URL.createObjectURL = vi.fn(() => 'blob:viewbox-preview');
+    URL.revokeObjectURL = vi.fn();
+    globalThis.Image = class FakeImage {
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      naturalWidth = 0;
+      naturalHeight = 0;
+      set src(_value: string) {
+        queueMicrotask(() => this.onload?.());
+      }
+    } as unknown as typeof Image;
+    document.createElement = ((tagName: string, options?: ElementCreationOptions) => {
+      if (tagName === 'canvas') {
+        const canvas = {
+          width: 0,
+          height: 0,
+          getContext: () => ({ drawImage: vi.fn() }),
+          toBlob: (callback: (blob: Blob | null) => void) => {
+            canvases.push({ width: canvas.width, height: canvas.height });
+            callback(new Blob(['png'], { type: 'image/png' }));
+          },
+        };
+        return canvas as unknown as HTMLCanvasElement;
+      }
+      return originalCreateElement(tagName, options);
+    }) as typeof document.createElement;
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 640 360');
+
+    try {
+      const blob = await exportDiagram({
+        diagramId: 'diagram-1',
+        source: 'graph TD\n  A --> B',
+        svg,
+        format: 'png',
+      });
+
+      expect(blob.type).toBe('image/png');
+      expect(canvases).toEqual([{ width: 640, height: 360 }]);
+    } finally {
+      URL.createObjectURL = originalCreateObjectUrl;
+      URL.revokeObjectURL = originalRevokeObjectUrl;
+      globalThis.Image = originalImage;
+      document.createElement = originalCreateElement;
+    }
+  });
 });
 
 describe('flowchart graph model helpers', () => {
