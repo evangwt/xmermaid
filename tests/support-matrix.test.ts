@@ -27,6 +27,7 @@ describe('support matrix production contract', () => {
       'flowchart.entityCodeLabel',
       'flowchart.fontAwesomeLabel',
       'flowchart.edgeToSubgraph',
+      'flowchart.hyphenatedNodeId',
     ]));
   });
 
@@ -211,6 +212,27 @@ describe('support matrix production contract', () => {
         id: 'flowchart.edgeToSubgraph',
         severity: 'error',
         range: expect.objectContaining({ startLine: 2 }),
+      }),
+    ]);
+  });
+
+  it('detects unsupported hyphenated node ids before they split into wrong nodes', () => {
+    const features = detectUnsupportedFeatures([
+      'flowchart TD',
+      '  my-node-->B',
+      '  A-->next-node',
+    ].join('\n'));
+
+    expect(features).toEqual([
+      expect.objectContaining({
+        id: 'flowchart.hyphenatedNodeId',
+        severity: 'error',
+        range: expect.objectContaining({ startLine: 2 }),
+      }),
+      expect.objectContaining({
+        id: 'flowchart.hyphenatedNodeId',
+        severity: 'error',
+        range: expect.objectContaining({ startLine: 3 }),
       }),
     ]);
   });

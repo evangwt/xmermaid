@@ -206,6 +206,10 @@ function checkDocs() {
       passed: /edges?\s+to\s+subgraph/i.test(readme),
     },
     {
+      label: 'README documents hyphenated node id limitation',
+      passed: /hyphenated node ids/i.test(readme),
+    },
+    {
       label: 'README documents strict security policy',
       passed: /security policy/i.test(readme)
         && /strict/i.test(readme)
