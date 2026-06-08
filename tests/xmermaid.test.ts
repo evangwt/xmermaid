@@ -372,4 +372,27 @@ describe('XMermaid', () => {
       document.body.innerHTML = '';
     }
   });
+
+  it('exposes structured diagnostics on DOM scan render failures', async () => {
+    document.body.innerHTML = '<div class="mermaid">sequenceDiagram\n  A->>B: Hi</div>';
+    const container = document.createElement('div');
+
+    try {
+      await XMermaid.run({ container });
+
+      const element = document.querySelector<HTMLElement>('.mermaid')!;
+      const diagnostics = JSON.parse(element.dataset.xmermaidDiagnostics ?? '[]');
+      expect(element.dataset.xmermaidErrorCode).toBe('UNSUPPORTED_DIAGRAM');
+      expect(diagnostics).toEqual([
+        expect.objectContaining({
+          code: 'unsupported_diagram_type',
+          severity: 'error',
+          featureId: 'diagram.sequence',
+        }),
+      ]);
+      expect(element.textContent).toContain('sequence diagrams are not supported yet.');
+    } finally {
+      document.body.innerHTML = '';
+    }
+  });
 });

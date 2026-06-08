@@ -382,7 +382,7 @@ type ProductionVerificationCommandId =
    - 依赖：`support-analyzer-v1`, `render-svg-api`
    - 状态：done
    - 对应 feature：2026-06-02-structured-diagnostics-v1
-   - 备注：已新增共享 diagnostics 类型、render preflight diagnostics、`XMermaidError.diagnostics` 和 live editor diagnostics 消费；Rust parser 未输出结构化位置时不伪造 token column。
+   - 备注：已新增共享 diagnostics 类型、render preflight diagnostics、`XMermaidError.diagnostics`、DOM scan failure data attributes 和 live editor diagnostics 消费；Rust parser 未输出结构化位置时不伪造 token column。
 
 6. **security-policy-v1** — 落地 strict/loose 安全策略、URL/click/html label 处理和安全 diagnostics。
    - 所属模块：security-policy
