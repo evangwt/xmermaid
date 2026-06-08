@@ -122,9 +122,10 @@ export class XMermaid {
   }
 
   /** Scan the DOM for elements with class "mermaid" and render them. */
-  static async run(options: XMermaidOptions): Promise<void> {
+  static async run(options: XMermaidOptions & RenderOptions): Promise<void> {
     const xm = new XMermaid(options);
     const elements = Array.from(document.querySelectorAll('.mermaid'));
+    const renderOptions = renderOptionsFrom(options);
 
     for (const el of elements) {
       if (el instanceof HTMLElement) {
@@ -133,7 +134,8 @@ export class XMermaid {
           xm.container = el;
           el.textContent = '';
           try {
-            await xm.render(dsl);
+            const result = await xm.renderToSVGElement(dsl, renderOptions);
+            el.appendChild(result.svg);
           } catch (e) {
             el.textContent = `Error: ${e instanceof Error ? e.message : String(e)}`;
           }
@@ -141,6 +143,16 @@ export class XMermaid {
       }
     }
   }
+}
+
+function renderOptionsFrom(options: RenderOptions): RenderOptions {
+  return {
+    theme: options.theme,
+    layoutConfig: options.layoutConfig,
+    securityLevel: options.securityLevel,
+    securityPolicy: options.securityPolicy,
+    wasm: options.wasm,
+  };
 }
 
 function unsupportedFeatureToDiagnostic(feature: UnsupportedFeature): XMermaidDiagnostic {
