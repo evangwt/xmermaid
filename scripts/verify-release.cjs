@@ -242,14 +242,16 @@ function checkDocs() {
       label: 'README documents consumer smoke and Chrome configuration',
       passed: /consumer smoke/i.test(readme)
         && /Chrome|Chromium/.test(readme)
-        && /CHROME_BIN/.test(readme),
+        && /CHROME_BIN/.test(readme)
+        && /default bundle-relative WASM asset resolution/.test(readme),
     },
     {
       label: 'README documents live editor workflow smoke',
       passed: /live editor workflow/i.test(readme)
         && /visual rename/i.test(readme)
         && /share hash/i.test(readme)
-        && /SVG export/i.test(readme),
+        && /SVG export/i.test(readme)
+        && /through `xmermaid\/editor`/.test(readme),
     },
     {
       label: 'README documents live editor direction and safety smoke',
@@ -260,7 +262,8 @@ function checkDocs() {
     {
       label: 'release checklist documents package metadata and editor subpath',
       passed: /LICENSE/.test(checklist)
-        && /xmermaid\/editor/.test(checklist),
+        && /xmermaid\/editor/.test(checklist)
+        && /default bundle-relative WASM/.test(checklist),
     },
     ...matrixIds.map(id => ({
       label: `release checklist mentions ${id}`,
