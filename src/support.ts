@@ -27,13 +27,19 @@ export type UnsupportedFeatureId =
   | 'flowchart.htmlLabel'
   | 'flowchart.markdownLabel'
   | 'flowchart.invalidDirection'
+  | 'flowchart.expandedShape'
   | 'flowchart.stadiumShape'
   | 'flowchart.cylinderShape'
+  | 'flowchart.thickLineEdge'
+  | 'flowchart.extendedLineEdge'
+  | 'flowchart.extendedThickEdge'
   | 'flowchart.bidirectionalEdge'
   | 'flowchart.circleEdge'
   | 'flowchart.crossEdge'
   | 'flowchart.inlineEdgeLabel'
-  | 'flowchart.edgeId';
+  | 'flowchart.edgeId'
+  | 'flowchart.inlineClass'
+  | 'flowchart.linkStyle';
 
 export interface SupportSourceRange {
   startOffset: number;
@@ -98,13 +104,19 @@ const SUPPORT_MATRIX: SupportMatrix = {
         { id: 'flowchart.htmlLabel', label: 'HTML labels', status: 'unsupported' },
         { id: 'flowchart.markdownLabel', label: 'Markdown labels', status: 'unsupported' },
         { id: 'flowchart.invalidDirection', label: 'invalid graph/flowchart directions', status: 'unsupported' },
+        { id: 'flowchart.expandedShape', label: 'expanded shape syntax', status: 'unsupported' },
         { id: 'flowchart.stadiumShape', label: 'stadium shape syntax', status: 'unsupported' },
         { id: 'flowchart.cylinderShape', label: 'cylinder/database shape syntax', status: 'unsupported' },
+        { id: 'flowchart.thickLineEdge', label: 'thick line edges without arrowheads', status: 'unsupported' },
+        { id: 'flowchart.extendedLineEdge', label: 'extended line edges without arrowheads', status: 'unsupported' },
+        { id: 'flowchart.extendedThickEdge', label: 'extended thick edge arrows', status: 'unsupported' },
         { id: 'flowchart.bidirectionalEdge', label: 'bidirectional edge arrows', status: 'unsupported' },
         { id: 'flowchart.circleEdge', label: 'circle edge endings', status: 'unsupported' },
         { id: 'flowchart.crossEdge', label: 'cross edge endings', status: 'unsupported' },
         { id: 'flowchart.inlineEdgeLabel', label: 'inline edge labels', status: 'unsupported' },
         { id: 'flowchart.edgeId', label: 'edge IDs', status: 'unsupported' },
+        { id: 'flowchart.inlineClass', label: 'inline class assignments', status: 'unsupported' },
+        { id: 'flowchart.linkStyle', label: 'linkStyle statements', status: 'unsupported' },
       ],
     },
     unsupported('sequence', 'sequenceDiagram'),
@@ -190,7 +202,39 @@ export function detectUnsupportedFeatures(source: string): UnsupportedFeature[] 
         'error',
       ));
     }
+    if (/\b[A-Za-z0-9_]+@\{\s*shape\s*:/.test(line.text)) {
+      features.push(unsupportedSyntax(
+        'flowchart.expandedShape',
+        line,
+        'Flowchart expanded shape syntax is not supported yet.',
+        'error',
+      ));
+    }
 
+    if (/\b[A-Za-z0-9_]+\s*={3,}\s*[A-Za-z0-9_]+\b/.test(line.text)) {
+      features.push(unsupportedSyntax(
+        'flowchart.thickLineEdge',
+        line,
+        'Flowchart thick line edges without arrowheads are not supported yet.',
+        'error',
+      ));
+    }
+    if (/\b[A-Za-z0-9_]+\s*-{4,}\s*[A-Za-z0-9_]+\b/.test(line.text)) {
+      features.push(unsupportedSyntax(
+        'flowchart.extendedLineEdge',
+        line,
+        'Flowchart extended line edges without arrowheads are not supported yet.',
+        'error',
+      ));
+    }
+    if (/\b[A-Za-z0-9_]+\s*={3,}>\s*[A-Za-z0-9_]+\b/.test(line.text)) {
+      features.push(unsupportedSyntax(
+        'flowchart.extendedThickEdge',
+        line,
+        'Flowchart extended thick edge arrows are not supported yet.',
+        'error',
+      ));
+    }
     if (/\b[A-Za-z0-9_]+\s*<[-=.]+>\s*[A-Za-z0-9_]+\b/.test(line.text)) {
       features.push(unsupportedSyntax(
         'flowchart.bidirectionalEdge',
@@ -240,6 +284,22 @@ export function detectUnsupportedFeatures(source: string): UnsupportedFeature[] 
       features.push(unsupportedSyntax('flowchart.style', line, 'Flowchart style statements are not supported yet.'));
     } else if (/^click\b/.test(trimmed)) {
       features.push(unsupportedSyntax('flowchart.click', line, 'Flowchart click callbacks and links are not supported yet.'));
+    } else if (/^linkStyle\b/.test(trimmed)) {
+      features.push(unsupportedSyntax(
+        'flowchart.linkStyle',
+        line,
+        'Flowchart linkStyle statements are not supported yet.',
+        'error',
+      ));
+    }
+
+    if (/\b[A-Za-z0-9_]+:::[A-Za-z0-9_-]+/.test(line.text)) {
+      features.push(unsupportedSyntax(
+        'flowchart.inlineClass',
+        line,
+        'Flowchart inline class assignments are not supported yet.',
+        'error',
+      ));
     }
 
     if (/<\/?[A-Za-z][^>]*>/.test(line.text)) {
