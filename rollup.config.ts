@@ -14,7 +14,7 @@ export default [
   {
     input: 'src/index.ts',
     output: {
-      file: 'dist/xmermaid.js',
+      file: 'dist/xmermaid.cjs',
       format: 'cjs',
       sourcemap: true,
       inlineDynamicImports: true,
