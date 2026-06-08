@@ -126,6 +126,29 @@ describe('support matrix production contract', () => {
     });
   });
 
+  it('detects unsupported flowchart edge syntaxes that the Rust parser misparses', () => {
+    const features = detectUnsupportedFeatures([
+      'flowchart TD',
+      '  A<-->B',
+      '  C--oD',
+      '  E--xF',
+      '  G-- inline label -->H',
+      '  I e1@-->J',
+    ].join('\n'));
+
+    expect(features.map(feature => feature.id)).toEqual([
+      'flowchart.bidirectionalEdge',
+      'flowchart.circleEdge',
+      'flowchart.crossEdge',
+      'flowchart.inlineEdgeLabel',
+      'flowchart.edgeId',
+    ]);
+    expect(features).toEqual(features.map((feature, index) => expect.objectContaining({
+      severity: 'error',
+      range: expect.objectContaining({ startLine: index + 2 }),
+    })));
+  });
+
   it('returns no unsupported features for a basic supported flowchart', () => {
     expect(detectUnsupportedFeatures('flowchart LR\n  A[Start] --> B[End]')).toEqual([]);
   });
