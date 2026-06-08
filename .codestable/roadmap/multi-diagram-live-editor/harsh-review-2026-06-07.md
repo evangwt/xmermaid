@@ -47,7 +47,7 @@
 - `npm run typecheck`
 - `cargo test`
 - YAML validate
-- Playwright browser smoke：visual rename、preview-only direction、source direction edit、unsupported safety gate
+- Packed Chrome/CDP consumer smoke：visual rename、preview-only direction、source direction edit、unsupported safety gate
 
 剩余限制：
 
