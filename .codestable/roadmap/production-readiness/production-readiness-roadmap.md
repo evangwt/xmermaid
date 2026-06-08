@@ -3,7 +3,7 @@ doc_type: roadmap
 slug: production-readiness
 status: completed
 created: 2026-06-02
-last_reviewed: 2026-06-02
+last_reviewed: 2026-06-08
 tags: [production, release, compatibility, sdk, security]
 related_requirements: []
 related_architecture: [ARCHITECTURE]
@@ -293,7 +293,7 @@ function isWasmReady(): boolean;
 {
   "exports": {
     ".": { "import": "./dist/xmermaid.esm.js", "require": "./dist/xmermaid.cjs", "types": "./dist/index.d.ts" },
-    "./editor": { "import": "./dist/editor/index.js", "types": "./dist/editor/index.d.ts" }
+    "./editor": { "import": "./dist/xmermaid.esm.js", "require": "./dist/xmermaid.cjs", "types": "./dist/editor/index.d.ts" }
   },
   "files": ["dist", "README.md", "LICENSE"]
 }
@@ -302,8 +302,8 @@ function isWasmReady(): boolean;
 **约束**：
 
 - `npm pack --dry-run` 结果中所有 `.d.ts` 引用路径必须存在于包内。
-- 真实消费者项目必须通过 `npm install <tarball>`、`tsc --noEmit`、浏览器 smoke render。
-- WASM asset resolution 必须支持 bundler 默认路径；自定义 `wasmUrl` 用于 CDN/特殊部署。
+- 真实消费者项目必须通过 `npm install <tarball>`、`tsc --noEmit`、root ESM/CJS、`xmermaid/editor` ESM/CJS 和浏览器 smoke render。
+- WASM asset resolution 必须支持 bundler 默认路径；自定义 `wasmUrl` 用于 CDN/特殊部署。当前 WASM 初始化是进程级单例，首次初始化后后续 render 复用同一个 module，不承诺多次 render 间切换 `wasmUrl` / `fetch`。
 
 ### 4.6 Security Policy Contract
 
@@ -374,7 +374,7 @@ type ProductionVerificationCommandId =
    - 依赖：`release-support-matrix`
    - 状态：done
    - 对应 feature：2026-06-02-pack-install-render-smoke
-   - 备注：已新增 `scripts/consumer-smoke.cjs` 和 `consumer-pack-install` release gate；packed tarball consumer typecheck、Node ESM import、CommonJS require、Chrome/WASM render smoke 和 live editor workflow smoke 已通过，覆盖方向控制和 unsupported visual edit safety gate。
+   - 备注：已新增 `scripts/consumer-smoke.cjs` 和 `consumer-pack-install` release gate；packed tarball consumer typecheck、root/editor Node ESM import、root/editor CommonJS require、Chrome/WASM render smoke 和 live editor workflow smoke 已通过，覆盖方向控制和 unsupported visual edit safety gate。
 
 3. **render-svg-api** — 补齐 `renderToSVGElement`、`renderToSVGString` 和 `RenderResult` 公开 API。
    - 所属模块：public-render-api
@@ -402,7 +402,7 @@ type ProductionVerificationCommandId =
    - 依赖：`structured-diagnostics-v1`
    - 状态：done
    - 对应 feature：2026-06-02-security-policy-v1
-   - 备注：已新增默认 strict security policy、有限 loose、URL allowlist 和 `security_blocked_*` diagnostics；v1 不执行 click、不渲染 HTML label、不实现 sanitizer/CSP。
+   - 备注：已新增默认 strict security policy、有限 loose、URL allowlist、`sanitizeSvg: true` generated SVG sanitization 和 `security_blocked_*` diagnostics；v1 不执行 click、不渲染 HTML label、不实现 CSP/sandbox。
 
 7. **production-docs-release-checklist** — 补齐 README、API 文档、限制清单、排错说明、changelog 和 release checklist。
    - 所属模块：production-docs
@@ -411,7 +411,7 @@ type ProductionVerificationCommandId =
    - 对应 feature：2026-06-02-production-docs-release-checklist
    - 备注：README 已覆盖安装、SVG API、support matrix、diagnostics、安全策略、WASM/Chrome smoke 和排错；新增 `docs/production-release-checklist.md`；默认 release matrix 已新增 `docs-support-matrix-sync`。
 
-**最小闭环**：第 2 条 `pack-install-render-smoke` 完成后，真实消费者能安装 packed tarball、TypeScript 能解析类型、ESM/CJS 入口可加载、浏览器能加载 WASM、渲染最小 flowchart，并驱动 live editor 多图切换、visual rename、preview-only direction、source direction edit、unsupported visual edit blocking、share hash 和 SVG export readiness。这比“文档写得诚实”更接近生产事实。
+**最小闭环**：第 2 条 `pack-install-render-smoke` 完成后，真实消费者能安装 packed tarball、TypeScript 能解析 root 和 `xmermaid/editor` 类型、root/editor ESM/CJS 入口可加载、浏览器能加载 WASM、渲染最小 flowchart，并驱动 live editor 多图切换、visual rename、preview-only direction、source direction edit、unsupported visual edit blocking、share hash 和 SVG export readiness。这比“文档写得诚实”更接近生产事实。
 
 ## 6. 排期思路
 

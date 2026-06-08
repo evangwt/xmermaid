@@ -3,6 +3,8 @@ import { XMermaid } from '../src/xmermaid';
 import { XMermaidError } from '../src/types/error';
 import { DEFAULT_THEME } from '../src/types/theme';
 import { getWasm, initWasm } from '../src/wasm';
+import { DEFAULT_SECURITY_POLICY } from '../src/security';
+import { SVGRenderer } from '../src/renderer/svg';
 
 // Mock WASM module
 const mockLayoutResult = {
@@ -244,6 +246,39 @@ describe('XMermaid', () => {
           }),
         ]),
       });
+  });
+
+  it('declares SVG sanitization as part of the default security policy', () => {
+    expect(DEFAULT_SECURITY_POLICY).toMatchObject({
+      securityLevel: 'strict',
+      sanitizeSvg: true,
+    });
+  });
+
+  it('sanitizes generated SVG output by default', async () => {
+    const renderSpy = vi.spyOn(SVGRenderer.prototype, 'render').mockImplementation(() => {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      const script = document.createElementNS('http://www.w3.org/2000/svg', 'script');
+      const link = document.createElementNS('http://www.w3.org/2000/svg', 'a');
+      link.setAttribute('onclick', 'alert(1)');
+      link.setAttribute('href', 'javascript:alert(1)');
+      svg.setAttribute('onload', 'alert(1)');
+      svg.append(script, link);
+      return svg;
+    });
+    const container = document.createElement('div');
+    const xm = new XMermaid({ container });
+
+    try {
+      const result = await xm.renderToSVGElement('graph TD\n  A-->B');
+
+      expect(result.svg.querySelector('script')).toBeNull();
+      expect(result.svg.getAttribute('onload')).toBeNull();
+      expect(result.svg.querySelector('a')?.getAttribute('onclick')).toBeNull();
+      expect(result.svg.querySelector('a')?.getAttribute('href')).toBeNull();
+    } finally {
+      renderSpy.mockRestore();
+    }
   });
 
   it('blocks HTML labels by default with security diagnostics', async () => {

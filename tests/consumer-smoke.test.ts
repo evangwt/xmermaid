@@ -15,7 +15,7 @@ import { describe, expect, it } from 'vitest';
 const require = createRequire(import.meta.url);
 
 describe('consumer smoke helpers', () => {
-  it('requires the packed package to contain runtime bundles, declarations, wasm, and README', () => {
+  it('requires the packed package to contain runtime bundles, declarations, wasm, README, and LICENSE', () => {
     const { validatePackFiles } = require('../scripts/consumer-smoke.cjs') as {
       validatePackFiles(files: string[]): void;
     };
@@ -27,6 +27,7 @@ describe('consumer smoke helpers', () => {
       'package/dist/xmermaid.cjs',
       'package/dist/xmermaid_wasm_bg.wasm',
       'package/README.md',
+      'package/LICENSE',
       'package/package.json',
     ])).not.toThrow();
 
@@ -36,8 +37,44 @@ describe('consumer smoke helpers', () => {
       'package/dist/xmermaid.cjs',
       'package/dist/xmermaid_wasm_bg.wasm',
       'package/README.md',
+      'package/LICENSE',
       'package/package.json',
     ])).toThrow(/dist\/support\.d\.ts/);
+
+    expect(() => validatePackFiles([
+      'package/dist/index.d.ts',
+      'package/dist/support.d.ts',
+      'package/dist/xmermaid.esm.js',
+      'package/dist/xmermaid.cjs',
+      'package/dist/xmermaid_wasm_bg.wasm',
+      'package/README.md',
+      'package/package.json',
+    ])).toThrow(/LICENSE/);
+  });
+
+  it('exports the live editor package subpath for ESM and CommonJS consumers', () => {
+    const packageJson = JSON.parse(readFileSync('package.json', 'utf8')) as {
+      exports?: Record<string, { import?: string; require?: string; types?: string }>;
+    };
+
+    expect(packageJson.exports?.['./editor']).toMatchObject({
+      import: expect.any(String),
+      require: expect.any(String),
+      types: './dist/editor/index.d.ts',
+    });
+
+    const esm = spawnSync(process.execPath, [
+      '--input-type=module',
+      '-e',
+      "import('xmermaid/editor').then(mod => { if (typeof mod.XMermaidLiveEditor !== 'function') process.exit(2); })",
+    ], { encoding: 'utf8' });
+    expect(esm.status, `${esm.stderr}\n${esm.stdout}`).toBe(0);
+
+    const cjs = spawnSync(process.execPath, [
+      '-e',
+      "const mod = require('xmermaid/editor'); if (typeof mod.XMermaidLiveEditor !== 'function') process.exit(2);",
+    ], { encoding: 'utf8' });
+    expect(cjs.status, `${cjs.stderr}\n${cjs.stdout}`).toBe(0);
   });
 
   it('does not silently fall back to jsdom when Chrome is unavailable', () => {
