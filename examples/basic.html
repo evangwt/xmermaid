@@ -82,7 +82,7 @@
         'ci-cd': `graph LR\n  Code-->Build-->Test-->Deploy`,
         'decision': `graph TD\n  A[Input]-->B{Valid?}\n  B-->|Yes|C[Process]\n  B-->|No|D[Error]\n  C-->E[Output]\n  D-->E`,
         'shapes': `graph TD\n  A[Rectangle]-->B(Rounded)\n  B-->C{Diamond}\n  C-->D((Circle))\n  D-->E[[Subroutine]]\n  E-->F[/Parallelogram/]`,
-        'microservices': `graph LR\n  GW[Gateway]-->Auth((Auth))\n  GW-->Order[Order]\n  GW-->User[User]\n  Order-->DB[(Database)]\n  User-->DB\n  Auth-->Cache[(Cache)]`,
+        'microservices': `graph LR\n  GW[Gateway]-->Auth((Auth))\n  GW-->Order[Order]\n  GW-->User[User]\n  Order-->DB[Database]\n  User-->DB\n  Auth-->Cache[Cache]`,
       };
       document.getElementById('input').value = examples[name] || '';
     };

@@ -1519,6 +1519,17 @@ describe('flowchart graph model helpers', () => {
 });
 
 describe('examples/live-editor.html', () => {
+  it('does not seed browser examples with syntax blocked by the support matrix', () => {
+    for (const file of ['examples/live-editor.html', 'examples/basic.html']) {
+      const html = readFileSync(file, 'utf8');
+
+      expect(html, `${file} should not ship parser-unsupported cylinder shape examples`)
+        .not.toMatch(/\b[A-Za-z0-9_]+\[\([^\)\r\n]*\)\]/);
+      expect(html, `${file} should not ship parser-unsupported stadium shape examples`)
+        .not.toMatch(/\b[A-Za-z0-9_]+\(\[[^\]\r\n]*\]\)/);
+    }
+  });
+
   it('declares an inline favicon to keep browser verification console-clean', () => {
     const html = readFileSync('examples/live-editor.html', 'utf8');
 
