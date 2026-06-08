@@ -81,7 +81,7 @@ try {
 }
 ```
 
-Unsupported flowchart syntax is reported as `unsupported_syntax` warnings when rendering can continue. Unsupported diagram families fail before WASM rendering with `unsupported_diagram_type`.
+Unsupported flowchart syntax is reported as `unsupported_syntax` warnings when rendering can continue. Error-severity unsupported syntax, such as invalid flowchart directions, blocks before WASM rendering. Unsupported diagram families fail before WASM rendering with `unsupported_diagram_type`.
 
 WASM parse/layout/render failures are normalized into `XMermaidError` with structured diagnostics. Rust parser errors do not yet expose token-accurate offset/column ranges, so those diagnostics may have `range: null`.
 
