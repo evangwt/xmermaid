@@ -279,24 +279,35 @@ function writeBrowserSmokePage(consumerDir) {
     '<meta charset="utf-8">',
     '<title>xmermaid consumer smoke</title>',
     '<div id="container"></div>',
+    '<div id="editor"></div>',
     '<script type="importmap">',
     '{"imports":{"xmermaid":"/node_modules/xmermaid/dist/xmermaid.esm.js"}}',
     '</script>',
     '<script type="module">',
-    "import { XMermaid } from 'xmermaid';",
+    "import { XMermaid, XMermaidLiveEditor } from 'xmermaid';",
     "window.__xmermaidSmoke = { done: false, ok: false };",
     'try {',
     "  const container = document.getElementById('container');",
+    "  const wasmUrl = new URL('/node_modules/xmermaid/dist/xmermaid_wasm_bg.wasm', window.location.href);",
     '  const renderer = new XMermaid({ container });',
     "  await renderer.renderToSVGElement('graph TD\\n  A-->B', {",
-    "    wasm: { wasmUrl: new URL('/node_modules/xmermaid/dist/xmermaid_wasm_bg.wasm', window.location.href) }",
+    '    wasm: { wasmUrl }',
     '  });',
     "  await renderer.render('graph TD\\n  A-->B');",
     "  const svg = container.querySelector('svg');",
+    "  const editorRoot = document.getElementById('editor');",
+    '  const editor = new XMermaidLiveEditor({',
+    '    root: editorRoot,',
+    "    initialText: 'graph TD\\n  LiveEditor --> Preview',",
+    '    xmermaidOptions: { wasm: { wasmUrl } }',
+    '  });',
+    '  await editor.mount();',
+    "  const liveEditorSvg = editorRoot.querySelector('[data-xm-preview] svg');",
     '  window.__xmermaidSmoke = {',
     '    done: true,',
-    '    ok: Boolean(svg),',
+    '    ok: Boolean(svg && liveEditorSvg),',
     '    svgCount: container.querySelectorAll("svg").length,',
+    '    liveEditorSvgCount: editorRoot.querySelectorAll("[data-xm-preview] svg").length,',
     '    text: container.textContent || ""',
     '  };',
     '} catch (error) {',
@@ -532,6 +543,7 @@ async function runSmoke(args) {
     const chromeExecutable = args.chromeBin || resolveChromeExecutable(process.env);
     const browser = await runBrowserSmoke(consumerDir, chromeExecutable, args.timeoutMs);
     checks.push(makeCheck('browser-render', `Headless Chrome rendered an SVG in ${browser.durationMs}ms`));
+    checks.push(makeCheck('live-editor-render', `Headless Chrome mounted the live editor with ${browser.smoke.liveEditorSvgCount} preview SVG(s)`));
 
     const record = {
       passed: true,
@@ -580,5 +592,6 @@ if (require.main === module) {
   module.exports = {
     resolveChromeExecutable,
     validatePackFiles,
+    writeBrowserSmokePage,
   };
 }
