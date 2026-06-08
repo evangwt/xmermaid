@@ -1,6 +1,6 @@
 import { XMermaid } from '../xmermaid';
 import { XMermaidError } from '../types/error';
-import type { XMermaidOptions } from '../types/options';
+import type { RenderOptions, XMermaidOptions } from '../types/options';
 import type { SourceRange, XMermaidDiagnostic, XMermaidDiagnosticCode } from '../types/diagnostics';
 import type { LayoutConfig } from '../types/layout';
 import { DARK_THEME, DEFAULT_THEME, MINIMAL_THEME, type RenderTheme } from '../types/theme';
@@ -112,7 +112,7 @@ export interface XMermaidLiveEditorOptions {
   renderDiagram?: (request: LiveEditorRenderRequest) => Promise<RenderDiagnostic[] | void>;
   parseFlowchartDsl?: FlowchartDslParser;
   renderFlowchartDsl?: FlowchartDslRenderer;
-  xmermaidOptions?: Omit<XMermaidOptions, 'container'>;
+  xmermaidOptions?: Omit<XMermaidOptions, 'container'> & RenderOptions;
 }
 
 const FENCE_PATTERN = /```(mermaid|xmermaid)\s*\n([\s\S]*?)\n```/gi;
@@ -190,7 +190,7 @@ class XMermaidLiveEditor {
   private readonly renderDiagram: (request: LiveEditorRenderRequest) => Promise<RenderDiagnostic[] | void>;
   private readonly parseFlowchartDsl?: FlowchartDslParser;
   private readonly renderFlowchartDsl?: FlowchartDslRenderer;
-  private readonly xmermaidOptions?: Omit<XMermaidOptions, 'container'>;
+  private readonly xmermaidOptions?: Omit<XMermaidOptions, 'container'> & RenderOptions;
   private documentText: string;
   private diagramDocument: DiagramDocument;
   private readonly initialSelectedDiagramId: string | null;
@@ -591,7 +591,7 @@ class XMermaidLiveEditor {
       layoutConfig,
       container,
     });
-    const result = await renderer.renderToSVGElement(source);
+    const result = await renderer.renderToSVGElement(source, this.currentRenderOptions());
     container.innerHTML = '';
     container.appendChild(result.svg);
     return result.diagnostics as RenderDiagnostic[];
@@ -607,6 +607,14 @@ class XMermaidLiveEditor {
     return {
       ...this.xmermaidOptions?.layoutConfig,
       direction: layoutDirection(this.layoutDirection),
+    };
+  }
+
+  private currentRenderOptions(): RenderOptions {
+    return {
+      securityLevel: this.xmermaidOptions?.securityLevel,
+      securityPolicy: this.xmermaidOptions?.securityPolicy,
+      wasm: this.xmermaidOptions?.wasm,
     };
   }
 
