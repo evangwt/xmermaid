@@ -202,7 +202,12 @@ type UnsupportedFeatureId =
   | 'flowchart.markdownLabel'
   | 'flowchart.invalidDirection'
   | 'flowchart.stadiumShape'
-  | 'flowchart.cylinderShape';
+  | 'flowchart.cylinderShape'
+  | 'flowchart.bidirectionalEdge'
+  | 'flowchart.circleEdge'
+  | 'flowchart.crossEdge'
+  | 'flowchart.inlineEdgeLabel'
+  | 'flowchart.edgeId';
 
 interface UnsupportedFeature {
   id: UnsupportedFeatureId;
@@ -377,7 +382,7 @@ type ProductionVerificationCommandId =
    - 依赖：`release-support-matrix`
    - 状态：done
    - 对应 feature：2026-06-02-support-analyzer-v1
-   - 备注：已新增 `detectUnsupportedFeatures()`、`UnsupportedFeature`、`SupportSourceRange`，覆盖 unsupported diagram family 与 flowchart class/classDef/style/click/HTML/Markdown label、invalid direction、stadium/cylinder shape syntax 的轻量识别。
+   - 备注：已新增 `detectUnsupportedFeatures()`、`UnsupportedFeature`、`SupportSourceRange`，覆盖 unsupported diagram family 与 flowchart class/classDef/style/click/HTML/Markdown label、invalid direction、stadium/cylinder shape syntax、unsupported edge endings、inline edge labels 和 edge IDs 的轻量识别。
 
 5. **structured-diagnostics-v1** — 从 support analyzer/WASM 到 SDK/live editor 贯通结构化诊断和 line/column range。
    - 所属模块：diagnostics-runtime
