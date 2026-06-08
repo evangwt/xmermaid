@@ -804,6 +804,32 @@ describe('XMermaidLiveEditor', () => {
     }
   });
 
+  it('ignores non-xmermaid hashes when mounting with initial text', async () => {
+    const root = document.createElement('div');
+    window.location.hash = encodeURIComponent(JSON.stringify({
+      documentText: markdownWithTwoDiagrams,
+      selectedDiagramId: 'diagram-2',
+    }));
+    const editor = new XMermaidLiveEditor({
+      root,
+      initialText: 'graph TD\n  Initial --> Text',
+      renderDiagram: vi.fn(async ({ source, container }) => {
+        container.textContent = source;
+      }),
+    });
+
+    try {
+      await editor.mount();
+
+      expect(root.querySelector<HTMLTextAreaElement>('[data-xm-document-input]')?.value)
+        .toBe('graph TD\n  Initial --> Text');
+      expect(root.querySelector<HTMLTextAreaElement>('[data-xm-selected-source]')?.value)
+        .toBe('graph TD\n  Initial --> Text');
+    } finally {
+      window.location.hash = '';
+    }
+  });
+
   it('exports the current rendered SVG from the toolbar', async () => {
     const root = document.createElement('div');
     const originalCreateObjectUrl = URL.createObjectURL;
@@ -1182,6 +1208,10 @@ describe('share and export helpers', () => {
       selectedDiagramId: 'diagram-1',
     });
     expect(decodeShareState('#not-valid-json')).toBeNull();
+    expect(decodeShareState(encodeURIComponent(JSON.stringify({
+      documentText: 'graph TD\n  Wrong --> Hash',
+      selectedDiagramId: 'diagram-1',
+    })))).toBeNull();
   });
 
   it('exports the provided current SVG without re-rendering', async () => {

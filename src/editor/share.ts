@@ -11,7 +11,8 @@ export function encodeShareState(documentText: string, selectedDiagramId: string
 }
 
 export function decodeShareState(hash: string): { documentText: string; selectedDiagramId: string | null } | null {
-  const payload = hash.startsWith('#xm=') ? hash.slice(4) : hash.replace(/^#/, '');
+  if (!hash.startsWith('#xm=')) return null;
+  const payload = hash.slice(4);
   if (!payload) return null;
 
   try {
