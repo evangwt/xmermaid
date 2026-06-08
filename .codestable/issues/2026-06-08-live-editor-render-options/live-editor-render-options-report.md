@@ -1,7 +1,7 @@
 ---
 doc_type: issue-report
 issue: 2026-06-08-live-editor-render-options
-status: confirmed
+status: fixed
 severity: P1
 summary: Live editor default rendering ignored SDK render options.
 tags: [production, live-editor, wasm, sdk]

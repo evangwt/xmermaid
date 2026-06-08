@@ -1,7 +1,7 @@
 ---
 doc_type: issue-report
 issue: 2026-06-08-security-control-char-url
-status: confirmed
+status: fixed
 severity: P1
 summary: Security URL preflight missed dangerous protocols split by ASCII control whitespace.
 tags: [production, security, url-policy]

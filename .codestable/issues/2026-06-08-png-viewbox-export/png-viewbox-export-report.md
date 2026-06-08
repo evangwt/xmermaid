@@ -1,7 +1,7 @@
 ---
 doc_type: issue-report
 issue: 2026-06-08-png-viewbox-export
-status: confirmed
+status: fixed
 severity: P1
 summary: PNG export collapsed viewBox-only SVGs to 1x1 when image natural size was unavailable.
 tags: [production, live-editor, export, png]
