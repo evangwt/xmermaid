@@ -198,6 +198,10 @@ function checkDocs() {
         && /FontAwesome/i.test(readme),
     },
     {
+      label: 'README documents subgraph edge limitation',
+      passed: /edges?\s+to\s+subgraph/i.test(readme),
+    },
+    {
       label: 'README documents strict security policy',
       passed: /security policy/i.test(readme)
         && /strict/i.test(readme)
