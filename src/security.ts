@@ -111,7 +111,7 @@ interface UnsafeUrl {
 function unsafeUrls(line: SourceLine, policy: SecurityPolicy): UnsafeUrl[] {
   const allowed = new Set(policy.allowedUrlProtocols);
   const matches: UnsafeUrl[] = [];
-  const pattern = /(?:^|[\s"'(<])([A-Za-z][A-Za-z0-9+.-]*:)[^\s"'<>)]*/g;
+  const pattern = /(?:^|[\s"'(<[{|])([A-Za-z][A-Za-z0-9+.-]*:)[^\s"'<>)}\]]*/g;
   let match: RegExpExecArray | null;
 
   while ((match = pattern.exec(line.text)) !== null) {

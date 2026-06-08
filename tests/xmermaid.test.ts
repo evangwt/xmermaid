@@ -250,6 +250,23 @@ describe('XMermaid', () => {
       });
   });
 
+  it('blocks dangerous protocols inside Mermaid label delimiters', async () => {
+    const container = document.createElement('div');
+    const xm = new XMermaid({ container });
+
+    await expect(xm.renderToSVGElement('graph TD\n  A[javascript:alert(1)] --> B'))
+      .rejects.toMatchObject<XMermaidError>({
+        code: 'RENDER_ERROR',
+        diagnostics: expect.arrayContaining([
+          expect.objectContaining({
+            code: 'security_blocked_url',
+            message: expect.stringContaining('javascript:'),
+            range: expect.objectContaining({ startLine: 2 }),
+          }),
+        ]),
+      });
+  });
+
   it('serializes SVG output through renderToSVGString', async () => {
     const container = document.createElement('div');
     const xm = new XMermaid({ container });
