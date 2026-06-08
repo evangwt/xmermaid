@@ -50,7 +50,7 @@ export class XMermaid {
       );
     }
 
-    const layout = await this.renderLayout(input, options.layoutConfig ?? this.layoutConfig);
+    const layout = await this.renderLayout(input, options.layoutConfig ?? this.layoutConfig, options.wasm);
     const renderer = options.theme ? new SVGRenderer(options.theme) : this.renderer;
     const svg = renderer.render(layout);
 
@@ -67,9 +67,13 @@ export class XMermaid {
     return new XMLSerializer().serializeToString(result.svg);
   }
 
-  private async renderLayout(input: string, layoutConfig?: Partial<LayoutConfig>): Promise<LayoutResult> {
+  private async renderLayout(
+    input: string,
+    layoutConfig?: Partial<LayoutConfig>,
+    wasmOptions?: RenderOptions['wasm'],
+  ): Promise<LayoutResult> {
     try {
-      await initWasm();
+      await initWasm(wasmOptions);
     } catch (error) {
       throw normalizeWasmInitError(error);
     }

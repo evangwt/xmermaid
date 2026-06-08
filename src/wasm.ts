@@ -1,6 +1,8 @@
+import type { WasmInitOptions } from './types/options';
+
 export interface XMermaidWasmModule {
   compute_layout(astJson: string): string;
-  default?: () => Promise<unknown> | unknown;
+  default?: (moduleOrPath?: string | URL | { module_or_path?: string | URL }) => Promise<unknown> | unknown;
   default_config(): string;
   get_diagram_type(astJson: string): string;
   init?: () => void;
@@ -11,11 +13,11 @@ export interface XMermaidWasmModule {
 
 let wasmModule: XMermaidWasmModule | null = null;
 
-export async function initWasm(): Promise<void> {
+export async function initWasm(options: WasmInitOptions = {}): Promise<void> {
   if (wasmModule) return;
   wasmModule = await import(/* @vite-ignore */ '../pkg/xmermaid_wasm.js');
   if (wasmModule?.default) {
-    await wasmModule.default();
+    await wasmModule.default(options.wasmUrl);
   }
 }
 

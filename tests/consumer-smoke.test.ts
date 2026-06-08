@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 const require = createRequire(import.meta.url);
@@ -40,5 +41,15 @@ describe('consumer smoke helpers', () => {
 
   it('keeps the built ESM entry importable in Node for bundlers and SSR parsing', async () => {
     await import('../dist/xmermaid.esm.js');
+  });
+
+  it('keeps smoke-test WebSocket tooling out of runtime dependencies', () => {
+    const packageJson = JSON.parse(readFileSync('package.json', 'utf8')) as {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    };
+
+    expect(packageJson.dependencies ?? {}).not.toHaveProperty('ws');
+    expect(packageJson.devDependencies ?? {}).toHaveProperty('ws');
   });
 });

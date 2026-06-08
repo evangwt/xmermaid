@@ -111,6 +111,16 @@ xmermaid does not execute click callbacks, does not render HTML labels as HTML, 
 
 The published package includes the JS bundles, TypeScript declarations, and `dist/xmermaid_wasm_bg.wasm`.
 
+By default, the bundled loader resolves that asset next to the built JS entry. Hosts with a custom asset base path can pass an explicit URL per render:
+
+```ts
+await renderer.renderToSVGElement(source, {
+  wasm: {
+    wasmUrl: new URL('/assets/xmermaid_wasm_bg.wasm', window.location.href),
+  },
+});
+```
+
 Release verification uses a packed-package consumer smoke test. It runs `npm pack`, installs the tarball into a temporary project, typechecks the public API, imports the installed ESM entry, and opens headless Chrome to render a minimal SVG with the installed WASM asset.
 
 The browser smoke requires Chrome or Chromium. Set `CHROME_BIN` when CI does not expose a default Chrome executable.
