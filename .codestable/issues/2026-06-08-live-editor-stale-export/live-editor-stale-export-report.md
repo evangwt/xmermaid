@@ -1,7 +1,7 @@
 ---
 doc_type: issue-report
 issue: 2026-06-08-live-editor-stale-export
-status: confirmed
+status: fixed
 severity: P1
 summary: Live editor could export a stale preview after the current source failed to render.
 tags: [production, live-editor, export, diagnostics]

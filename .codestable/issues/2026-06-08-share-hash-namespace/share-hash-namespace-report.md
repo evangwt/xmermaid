@@ -1,7 +1,7 @@
 ---
 doc_type: issue-report
 issue: 2026-06-08-share-hash-namespace
-status: confirmed
+status: fixed
 severity: P1
 summary: Live editor restored state from non-xmermaid URL hashes.
 tags: [production, live-editor, share-state, url-hash]
