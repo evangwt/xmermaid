@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { XMermaid } from '../src/xmermaid';
 import { XMermaidError } from '../src/types/error';
 import { DEFAULT_THEME } from '../src/types/theme';
-import { getWasm } from '../src/wasm';
+import { getWasm, initWasm } from '../src/wasm';
 
 // Mock WASM module
 const mockLayoutResult = {
@@ -275,5 +275,17 @@ describe('XMermaid', () => {
     expect(wasm.render_with_config).toHaveBeenCalledTimes(1);
     expect(wasm.render_with_config).toHaveBeenCalledWith('graph TD\n  A-->B', JSON.stringify({ direction: 'LR' }));
     expect(wasm.render).toHaveBeenCalledTimes(1);
+  });
+
+  it('passes one-shot WASM init options to the loader', async () => {
+    const container = document.createElement('div');
+    const xm = new XMermaid({ container });
+    const wasmUrl = new URL('https://cdn.example.com/xmermaid_wasm_bg.wasm');
+
+    await xm.renderToSVGElement('graph TD\n  A-->B', {
+      wasm: { wasmUrl },
+    });
+
+    expect(initWasm).toHaveBeenCalledWith({ wasmUrl });
   });
 });
