@@ -48,6 +48,38 @@ describe('visual flowchart real WASM roundtrip contract', () => {
     expect(layout.edges.length).toBeGreaterThan(0);
   });
 
+  it('blocks visual validation when real WASM parsing changes intended label semantics', async () => {
+    const cases = [
+      { source: 'flowchart TD\n  A(Start) --> B', label: 'Bad)' },
+      { source: 'flowchart TD\n  A{Start} --> B', label: 'Bad}' },
+      { source: 'flowchart TD\n  A((Start)) --> B', label: 'Bad))' },
+      { source: 'flowchart TD\n  A[Start] --> B', label: 'Bad]' },
+    ];
+    for (const testCase of cases) {
+      const originalAst = parseFlowchartWithRealWasm(testCase.source);
+      const nextModel = applyVisualEdit(flowchartAstToGraph(originalAst), {
+        type: 'rename-node',
+        nodeId: 'A',
+        label: testCase.label,
+      });
+      const nextSource = serializeFlowchart(nextModel);
+      const validation = await validateVisualEditResult(nextSource, realWasmVisualOptions, nextModel);
+      const parsedAst = parseFlowchartWithRealWasm(nextSource);
+
+      expect(findNode(parsedAst, 'A').label).not.toBe(testCase.label);
+      expect(validation).toEqual(expect.objectContaining({
+        status: 'blocked',
+        source: nextSource,
+        model: null,
+        diagnostics: [
+          expect.objectContaining({
+            code: 'visual_roundtrip_failed',
+          }),
+        ],
+      }));
+    }
+  });
+
   it('keeps subgraph syntax roundtrippable after a visual rename', async () => {
     const source = [
       'flowchart TD',

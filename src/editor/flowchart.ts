@@ -72,7 +72,7 @@ export type VisualEdit =
   | { type: 'set-direction'; direction: FlowchartGraphModel['direction'] };
 
 const HEADER_PATTERN = /^\s*(?:graph|flowchart)\s+(TD|TB|BT|LR|RL)\b/i;
-const EDGE_PATTERN = /^\s*([A-Za-z0-9_-]+)(?:\[([^\]]*)\])?\s*--(?:\|([^|]*)\|)?[>-]\s*([A-Za-z0-9_-]+)(?:\[([^\]]*)\])?\s*$/;
+const EDGE_PATTERN = /^\s*([A-Za-z0-9_-]+)(?:\[([^\]]*)\])?\s*--(?:\|([^|]*)\|)?[>-](?:\|([^|]*)\|)?\s*([A-Za-z0-9_-]+)(?:\[([^\]]*)\])?\s*$/;
 const NODE_PATTERN = /^\s*([A-Za-z0-9_-]+)(?:\[([^\]]*)\])?\s*$/;
 
 export function parseFlowchartToGraph(source: string): FlowchartGraphModel {
@@ -87,7 +87,8 @@ export function parseFlowchartToGraph(source: string): FlowchartGraphModel {
 
     const edgeMatch = line.match(EDGE_PATTERN);
     if (edgeMatch) {
-      const [, from, fromLabel, label, to, toLabel] = edgeMatch;
+      const [, from, fromLabel, labelBeforeArrow, labelAfterArrow, to, toLabel] = edgeMatch;
+      const label = labelBeforeArrow ?? labelAfterArrow;
       upsertNode(nodes, from, fromLabel);
       upsertNode(nodes, to, toLabel);
       edges.push({
@@ -178,6 +179,7 @@ export async function analyzeFlowchartForVisualEdit(
 export async function validateVisualEditResult(
   nextSource: string,
   options: VisualFlowchartParseOptions = {},
+  expectedModel?: FlowchartGraphModel,
 ): Promise<VisualEditApplyResult> {
   const unsupportedDiagnostics = visualUnsupportedDiagnostics(nextSource, options);
   if (unsupportedDiagnostics.length > 0) {
@@ -213,6 +215,19 @@ export async function validateVisualEditResult(
     };
   }
 
+  const model = flowchartAstToGraph(ast);
+  if (expectedModel && !flowchartModelsEqual(model, expectedModel)) {
+    return {
+      status: 'blocked',
+      source: nextSource,
+      model: null,
+      diagnostics: [visualDiagnostic(
+        'visual_roundtrip_failed',
+        'Visual edit roundtrip changed parsed diagram semantics; source was not applied.',
+      )],
+    };
+  }
+
   try {
     await renderDiagramLayout(nextSource, options);
   } catch (error) {
@@ -227,7 +242,7 @@ export async function validateVisualEditResult(
   return {
     status: 'applied',
     source: nextSource,
-    model: flowchartAstToGraph(ast),
+    model,
     diagnostics: [],
   };
 }
@@ -456,6 +471,36 @@ function removeNodeFromSubgraphs(subgraphs: Subgraph[], nodeId: string): Subgrap
     ...subgraph,
     nodes: subgraph.nodes.filter(node => node !== nodeId),
     subgraphs: removeNodeFromSubgraphs(subgraph.subgraphs, nodeId),
+  }));
+}
+
+function flowchartModelsEqual(actual: FlowchartGraphModel, expected: FlowchartGraphModel): boolean {
+  return JSON.stringify(normalizeModel(actual)) === JSON.stringify(normalizeModel(expected));
+}
+
+function normalizeModel(model: FlowchartGraphModel): FlowchartGraphModel {
+  return {
+    direction: model.direction,
+    nodes: model.nodes
+      .map(node => ({ id: node.id, label: node.label, shape: node.shape }))
+      .sort((left, right) => left.id.localeCompare(right.id)),
+    edges: model.edges.map(edge => ({
+      id: '',
+      from: edge.from,
+      to: edge.to,
+      ...(edge.label ? { label: edge.label } : {}),
+      style: edge.style,
+      min_length: edge.min_length,
+    })),
+    subgraphs: normalizeSubgraphs(model.subgraphs),
+  };
+}
+
+function normalizeSubgraphs(subgraphs: Subgraph[]): Subgraph[] {
+  return subgraphs.map(subgraph => ({
+    title: subgraph.title,
+    nodes: [...subgraph.nodes],
+    subgraphs: normalizeSubgraphs(subgraph.subgraphs),
   }));
 }
 

@@ -514,7 +514,7 @@ class XMermaidLiveEditor {
     const model = analysis.model;
     const nextModel = applyFlowchartVisualEdit(model, edit);
     const nextSource = serializeFlowchartModel(nextModel);
-    const validation = await validateVisualEditResult(nextSource, parseOptions);
+    const validation = await validateVisualEditResult(nextSource, parseOptions, nextModel);
     if (validation.status === 'blocked') {
       this.renderDiagnostics(validation.diagnostics);
       return;
