@@ -1196,6 +1196,48 @@ describe('XMermaidLiveEditor', () => {
     expect(root.querySelector<HTMLElement>('[data-xm-diagnostic-item]')?.getAttribute('data-xm-diagnostic-code'))
       .toBe('visual_unsupported_syntax');
   });
+
+  it('blocks visual edits that would serialize to different parsed label semantics', async () => {
+    const root = document.createElement('div');
+    const parseFlowchartDsl = vi.fn((source: string) => {
+      const label = source.includes('Bad))') ? 'Bad' : 'Start';
+      return JSON.stringify({
+        type: 'flowchart',
+        direction: 'TD',
+        nodes: [
+          { id: 'A', label, shape: 'rounded', classes: [], styles: [] },
+          { id: 'B', label: 'End', shape: 'rect', classes: [], styles: [] },
+        ],
+        edges: [
+          { from: 'A', to: 'B', style: 'arrow', label: null, min_length: 1 },
+        ],
+        subgraphs: [],
+      });
+    });
+    const editor = new XMermaidLiveEditor({
+      root,
+      initialText: 'flowchart TD\n  A(Start) --> B[End]',
+      parseFlowchartDsl,
+      renderFlowchartDsl: renderFlowchartDslForTest,
+      renderDiagram: vi.fn(async ({ container }) => {
+        container.textContent = 'rendered';
+      }),
+    });
+
+    await editor.mount();
+    root.querySelector<HTMLButtonElement>('[data-xm-visual-toggle]')?.click();
+    root.querySelector<HTMLInputElement>('[data-xm-visual-node-id]')!.value = 'A';
+    root.querySelector<HTMLInputElement>('[data-xm-visual-node-label]')!.value = 'Bad)';
+    root.querySelector<HTMLButtonElement>('[data-xm-visual-rename-node]')?.click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    const source = root.querySelector<HTMLTextAreaElement>('[data-xm-selected-source]')?.value ?? '';
+    const documentText = root.querySelector<HTMLTextAreaElement>('[data-xm-document-input]')?.value ?? '';
+    expect(source).toBe('flowchart TD\n  A(Start) --> B[End]');
+    expect(documentText).toBe('flowchart TD\n  A(Start) --> B[End]');
+    expect(root.querySelector<HTMLElement>('[data-xm-diagnostic-item]')?.getAttribute('data-xm-diagnostic-code'))
+      .toBe('visual_roundtrip_failed');
+  });
 });
 
 describe('share and export helpers', () => {
@@ -1443,18 +1485,21 @@ describe('flowchart graph model helpers', () => {
 
   it('keeps shape and edge style when visual rename writes source through AST analysis', async () => {
     const root = document.createElement('div');
-    const parseFlowchartDsl = vi.fn(() => JSON.stringify({
-      type: 'flowchart',
-      direction: 'TD',
-      nodes: [
-        { id: 'A', label: 'Start', shape: 'rounded', classes: [], styles: [] },
-        { id: 'B', label: 'End', shape: 'diamond', classes: [], styles: [] },
-      ],
-      edges: [
-        { from: 'A', to: 'B', style: 'thick', label: 'yes', min_length: 1 },
-      ],
-      subgraphs: [],
-    }));
+    const parseFlowchartDsl = vi.fn((source: string) => {
+      const label = source.includes('A(Begin)') ? 'Begin' : 'Start';
+      return JSON.stringify({
+        type: 'flowchart',
+        direction: 'TD',
+        nodes: [
+          { id: 'A', label, shape: 'rounded', classes: [], styles: [] },
+          { id: 'B', label: 'End', shape: 'diamond', classes: [], styles: [] },
+        ],
+        edges: [
+          { from: 'A', to: 'B', style: 'thick', label: 'yes', min_length: 1 },
+        ],
+        subgraphs: [],
+      });
+    });
     const editor = new XMermaidLiveEditor({
       root,
       initialText: 'flowchart TD\n  A(Start) ==>|yes| B{End}',
@@ -1713,7 +1758,11 @@ type ApplyVisualEdit = (model: FlowchartGraphModel, edit: VisualEdit) => Flowcha
 type SerializeFlowchart = (model: FlowchartGraphModel) => string;
 type FlowchartAstToGraph = (ast: FlowchartAst) => FlowchartGraphModel;
 type AnalyzeFlowchartForVisualEdit = (source: string, options?: VisualParseOptions) => Promise<VisualSourceAnalysis>;
-type ValidateVisualEditResult = (source: string, options?: VisualParseOptions) => Promise<VisualEditApplyResult>;
+type ValidateVisualEditResult = (
+  source: string,
+  options?: VisualParseOptions,
+  expectedModel?: FlowchartGraphModel,
+) => Promise<VisualEditApplyResult>;
 
 function parseFlowchartToGraph(source: string): FlowchartGraphModel {
   const parseFn = (publicApi as typeof publicApi & {
@@ -1787,11 +1836,15 @@ function analyzeFlowchartForVisualEdit(source: string, options?: VisualParseOpti
   return analyzeFn!(source, options);
 }
 
-function validateVisualEditResult(source: string, options?: VisualParseOptions): Promise<VisualEditApplyResult> {
+function validateVisualEditResult(
+  source: string,
+  options?: VisualParseOptions,
+  expectedModel?: FlowchartGraphModel,
+): Promise<VisualEditApplyResult> {
   const validateFn = (publicApi as typeof publicApi & {
     validateVisualEditResult?: ValidateVisualEditResult;
   }).validateVisualEditResult;
   expect(validateFn, 'validateVisualEditResult should be exported from src/index')
     .toBeTypeOf('function');
-  return validateFn!(source, options);
+  return validateFn!(source, options, expectedModel);
 }
