@@ -24,6 +24,25 @@ const markdownWithTwoDiagrams = [
 ].join('\n');
 
 describe('extractDiagrams', () => {
+  it('indexes source ranges without rescanning every diagram prefix', () => {
+    const text = Array.from({ length: 5_000 }, (_, index) => [
+      '```mermaid',
+      'flowchart TD',
+      `  A${index} --> B${index}`,
+      '```',
+    ].join('\n')).join('\n\n');
+
+    extractDiagrams(text);
+    const startedAt = performance.now();
+    const document = extractDiagrams(text);
+    const elapsedMs = performance.now() - startedAt;
+
+    expect(document.diagrams).toHaveLength(5_000);
+    expect(document.diagrams[0]?.range.startLine).toBe(2);
+    expect(document.diagrams.at(-1)?.range.startLine).toBe(24_997);
+    expect(elapsedMs).toBeLessThan(500);
+  });
+
   it('extracts multiple mermaid fenced blocks from a document', () => {
     const document = extractDiagrams(markdownWithTwoDiagrams);
 
