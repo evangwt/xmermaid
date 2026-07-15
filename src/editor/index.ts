@@ -120,6 +120,7 @@ const FENCE_PATTERN = /```(mermaid|xmermaid)\s*\n([\s\S]*?)\n```/gi;
 export function extractDiagrams(text: string): DiagramDocument {
   const diagrams: DiagramBlock[] = [];
   const diagnostics: DocumentDiagnostic[] = [];
+  const lineStarts = lineStartOffsets(text);
 
   for (const match of text.matchAll(FENCE_PATTERN)) {
     const fullMatch = match[0];
@@ -128,7 +129,7 @@ export function extractDiagrams(text: string): DiagramDocument {
     const matchStart = match.index ?? 0;
     const sourceStart = matchStart + fullMatch.indexOf(match[2]);
     diagrams.push(createDiagramBlock({
-      text,
+      lineStarts,
       index: diagrams.length,
       source,
       origin: 'markdown-fence',
@@ -142,7 +143,7 @@ export function extractDiagrams(text: string): DiagramDocument {
     const startOffset = text.search(/\S/);
     const source = text.trim();
     diagrams.push(createDiagramBlock({
-      text,
+      lineStarts,
       index: 0,
       source,
       origin: 'raw-mermaid-block',
@@ -750,7 +751,7 @@ class XMermaidLiveEditor {
 export { XMermaidLiveEditor };
 
 interface CreateDiagramBlockInput {
-  text: string;
+  lineStarts: number[];
   index: number;
   source: string;
   origin: DiagramOrigin;
@@ -760,6 +761,8 @@ interface CreateDiagramBlockInput {
 }
 
 function createDiagramBlock(input: CreateDiagramBlockInput): DiagramBlock {
+  const start = sourcePosition(input.lineStarts, input.startOffset);
+  const end = sourcePosition(input.lineStarts, input.endOffset);
   return {
     id: `diagram-${input.index + 1}`,
     index: input.index,
@@ -770,10 +773,10 @@ function createDiagramBlock(input: CreateDiagramBlockInput): DiagramBlock {
     range: {
       startOffset: input.startOffset,
       endOffset: input.endOffset,
-      startLine: lineForOffset(input.text, input.startOffset),
-      startColumn: columnForOffset(input.text, input.startOffset),
-      endLine: lineForOffset(input.text, input.endOffset),
-      endColumn: columnForOffset(input.text, input.endOffset),
+      startLine: start.line,
+      startColumn: start.column,
+      endLine: end.line,
+      endColumn: end.column,
     },
     diagramType: isMermaidStart(input.source) ? 'flowchart' : 'unknown',
   };
@@ -791,13 +794,27 @@ function layoutDirection(direction: FlowchartGraphDirection): LayoutConfig['dire
   return direction === 'TD' || direction === 'TB' ? 'TB' : direction;
 }
 
-function lineForOffset(text: string, offset: number): number {
-  return text.slice(0, offset).split('\n').length;
+function lineStartOffsets(text: string): number[] {
+  const starts = [0];
+  for (let index = 0; index < text.length; index += 1) {
+    if (text.charCodeAt(index) === 10) starts.push(index + 1);
+  }
+  return starts;
 }
 
-function columnForOffset(text: string, offset: number): number {
-  const lineStart = text.lastIndexOf('\n', Math.max(0, offset - 1));
-  return offset - lineStart;
+function sourcePosition(lineStarts: number[], offset: number): { line: number; column: number } {
+  let low = 0;
+  let high = lineStarts.length - 1;
+  while (low <= high) {
+    const middle = Math.floor((low + high) / 2);
+    if ((lineStarts[middle] ?? 0) <= offset) low = middle + 1;
+    else high = middle - 1;
+  }
+  const lineIndex = Math.max(0, high);
+  return {
+    line: lineIndex + 1,
+    column: offset - (lineStarts[lineIndex] ?? 0) + 1,
+  };
 }
 
 function normalizeRenderError(error: unknown, range: SourceRange): RenderDiagnostic[] {
