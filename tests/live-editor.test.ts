@@ -273,6 +273,61 @@ describe('syntax repair rules', () => {
 });
 
 describe('XMermaidLiveEditor', () => {
+  it('renders named workbench panels for scan-friendly editing', async () => {
+    const root = document.createElement('div');
+    const editor = new XMermaidLiveEditor({
+      root,
+      initialText: markdownWithTwoDiagrams,
+      renderDiagram: vi.fn(async ({ container }) => {
+        container.textContent = 'rendered';
+      }),
+    });
+
+    await editor.mount();
+
+    expect(root.querySelector('[data-xm-panel="document"] [data-xm-panel-title]')?.textContent)
+      .toBe('Document');
+    expect(root.querySelector('[data-xm-panel="diagrams"] [data-xm-panel-title]')?.textContent)
+      .toBe('Diagrams');
+    expect(root.querySelector('[data-xm-panel="source"] [data-xm-panel-title]')?.textContent)
+      .toBe('Selected source');
+    expect(root.querySelector('[data-xm-panel="preview"] [data-xm-panel-title]')?.textContent)
+      .toBe('Preview');
+    expect(root.querySelector('[data-xm-panel="preview"]')?.getAttribute('aria-labelledby'))
+      .toBe(root.querySelector('[data-xm-panel="preview"] [data-xm-panel-title]')?.id);
+    expect(root.querySelector('[data-xm-document-input]')).toBeTruthy();
+    expect(root.querySelector('[data-xm-diagram-list]')).toBeTruthy();
+    expect(root.querySelector('[data-xm-selected-source]')).toBeTruthy();
+    expect(root.querySelector('[data-xm-preview]')).toBeTruthy();
+  });
+
+  it('groups visual editing controls by node and edge task', async () => {
+    const root = document.createElement('div');
+    const editor = new XMermaidLiveEditor({
+      root,
+      initialText: 'flowchart TD\n  A --> B',
+      parseFlowchartDsl: parseFlowchartDslForTest,
+      renderFlowchartDsl: renderFlowchartDslForTest,
+      renderDiagram: vi.fn(async ({ container }) => {
+        container.textContent = 'rendered';
+      }),
+    });
+
+    await editor.mount();
+    root.querySelector<HTMLButtonElement>('[data-xm-visual-toggle]')?.click();
+
+    const nodeTools = root.querySelector('[data-xm-visual-node-tools]');
+    const edgeTools = root.querySelector('[data-xm-visual-edge-tools]');
+    expect(nodeTools?.querySelector('[data-xm-visual-node-id]')).toBeTruthy();
+    expect(nodeTools?.querySelector('[data-xm-visual-rename-node]')).toBeTruthy();
+    expect(edgeTools?.querySelector('[data-xm-visual-edge-from]')).toBeTruthy();
+    expect(edgeTools?.querySelector('[data-xm-visual-add-edge]')).toBeTruthy();
+    expect(root.querySelector<HTMLInputElement>('[data-xm-visual-node-id]')?.placeholder)
+      .toBe('Node id');
+    expect(root.querySelector<HTMLInputElement>('[data-xm-visual-edge-label]')?.placeholder)
+      .toBe('Edge label');
+  });
+
   it('renders a diagram list, defaults to the first diagram, and switches selection', async () => {
     const root = document.createElement('div');
     const rendered: string[] = [];
@@ -1620,6 +1675,15 @@ describe('examples/live-editor.html', () => {
 
     expect(html).toContain('[data-xm-toolbar]');
     expect(html).toContain('[data-xm-visual-editor]');
+  });
+
+  it('includes responsive workbench and focus styles', () => {
+    const html = readFileSync('examples/live-editor.html', 'utf8');
+
+    expect(html).toContain('.xm-live-panel');
+    expect(html).toContain('@media (max-width: 1100px)');
+    expect(html).toContain('@media (max-width: 760px)');
+    expect(html).toContain(':focus-visible');
   });
 });
 

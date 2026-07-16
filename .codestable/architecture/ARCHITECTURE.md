@@ -224,7 +224,7 @@ Live editor 的 visual edit path 是异步编排：analysis 成功后应用 edit
 
 方向控制分成两条路径：toolbar 的 `data-xm-layout-direction` select 是 preview-only layout override，只影响下一次 render request 的 `layoutConfig.direction`，不修改 selected source 或 document text；`data-xm-apply-source-direction` button 才触发 source direction edit，复用同一 AST-backed analysis/validation/replace pipeline。`validateVisualEditResult()` 在 parse 成功且 AST type 为 flowchart 后还会执行 render/layout validation；失败时返回 `visual_render_failed` 并阻断 source commit。`tests/visual-roundtrip.test.ts` 是 visual edit 的真实 WASM 合同测试：直接初始化 `pkg/xmermaid_wasm.js` + `pkg/xmermaid_wasm_bg.wasm`，验证 supported shape/style/label rename、subgraph rename、source direction edit 都能重新 parse/render，并验证 delimiter label drift、`classDef`、stadium / cylinder shape syntax 这类 blocked unsupported syntax 不产生 rewrite。当前仍只支持选中 flowchart，不保留原始注释、空白或格式。
 
-示例入口是 `examples/live-editor.html`。页面直接加载构建后的 `dist/xmermaid.esm.js`，提供文档输入、多图列表、选中源码编辑区、预览区域、diagnostics/repair panel、toolbar、主题/方向控制、复制、SVG/PNG 导出、URL hash 分享和表单式 visual editor。
+示例入口是 `examples/live-editor.html`。页面直接加载构建后的 `dist/xmermaid.esm.js`，提供文档输入、多图列表、选中源码编辑区、预览区域、diagnostics/repair panel、toolbar、主题/方向控制、复制、SVG/PNG 导出、URL hash 分享和表单式 visual editor。当前工作台结构是四个命名 panel：Document、Diagrams、Selected source 和 Preview；这些 panel 只组织已有内容，不改变 document extraction、render、diagnostics 或 source replacement 合同。示例 CSS 维护桌面四列、1100px 以下两列加 preview 跨列、760px 以下单列堆叠的响应式布局，并提供 visible focus outline。Visual editor 仍是表单式 AST-backed rewrite 入口，控件按 Node 和 Edge 两个任务组展示；这只是交互分组，不新增 shape/style 拖拽或 Mermaid 语义支持。
 
 ### 当前生产支持合同
 
