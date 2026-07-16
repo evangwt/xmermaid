@@ -1,0 +1,64 @@
+feature: 2026-07-17-live-editor-ux-polish
+created: 2026-07-17
+
+steps:
+  - action: "Wrap live editor workbench regions in named panels"
+    exit_signal: "Document, Diagrams, Selected source, and Preview panels expose stable headings and aria-labelledby"
+    status: done
+
+  - action: "Group visual edit controls by task"
+    exit_signal: "Node and Edge visual tool groups contain the existing controls without changing edit behavior"
+    status: done
+
+  - action: "Polish example page layout and responsive CSS"
+    exit_signal: "Desktop, tablet, and mobile breakpoints keep controls usable and avoid horizontal overflow"
+    status: done
+
+  - action: "Lock UI structure with focused tests"
+    exit_signal: "Vitest covers panel headings, visual tool groups, placeholders, and responsive/focus CSS hooks"
+    status: done
+
+  - action: "Verify in real browser"
+    exit_signal: "Chrome/CDP smoke proves SVG preview, desktop alignment, mobile stacking, visual groups, and zero horizontal overflow"
+    status: done
+
+checks:
+  - item: "Primary workbench regions are named panels"
+    source: "Interaction capability"
+    status: passed
+
+  - item: "Panel headings are real DOM headings and referenced by aria-labelledby"
+    source: "Interaction capability"
+    status: passed
+
+  - item: "Visual edit controls are grouped into Node and Edge task groups"
+    source: "Interaction capability"
+    status: passed
+
+  - item: "Visual edit inputs retain aria-label and gain matching placeholder text"
+    source: "Interaction capability"
+    status: passed
+
+  - item: "Example CSS includes visible focus styling"
+    source: "Interaction capability"
+    status: passed
+
+  - item: "Example CSS includes desktop/tablet/mobile layout breakpoints"
+    source: "Flexibility"
+    status: passed
+
+  - item: "Mobile browser smoke has no horizontal overflow"
+    source: "Flexibility"
+    status: passed
+
+  - item: "Existing document/list/source/preview test selectors remain available"
+    source: "Maintainability"
+    status: passed
+
+  - item: "No new dependency or frontend framework"
+    source: "Scope guard"
+    status: passed
+
+  - item: "No parser, renderer, support-matrix, export, or share behavior changed"
+    source: "Scope guard"
+    status: passed
