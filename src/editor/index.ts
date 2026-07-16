@@ -278,11 +278,35 @@ class XMermaidLiveEditor {
 
     const workspace = document.createElement('div');
     workspace.className = 'xm-live-workspace';
-    workspace.append(this.documentInput, this.listEl, this.sourceInput, previewPanel);
+    workspace.append(
+      this.createPanel('document', 'Document', this.documentInput),
+      this.createPanel('diagrams', 'Diagrams', this.listEl),
+      this.createPanel('source', 'Selected source', this.sourceInput),
+      this.createPanel('preview', 'Preview', previewPanel),
+    );
 
     this.visualEditorEl = this.createVisualEditor();
     shell.append(this.createToolbar(), workspace, this.visualEditorEl);
     return shell;
+  }
+
+  private createPanel(kind: string, title: string, content: HTMLElement): HTMLElement {
+    const panel = document.createElement('section');
+    panel.className = 'xm-live-panel';
+    panel.setAttribute('data-xm-panel', kind);
+
+    const heading = document.createElement('h2');
+    heading.id = `xm-live-panel-${kind}`;
+    heading.setAttribute('data-xm-panel-title', '');
+    heading.textContent = title;
+    panel.setAttribute('aria-labelledby', heading.id);
+
+    const body = document.createElement('div');
+    body.className = 'xm-live-panel-body';
+    body.appendChild(content);
+
+    panel.append(heading, body);
+    return panel;
   }
 
   private createToolbar(): HTMLElement {
@@ -384,6 +408,10 @@ class XMermaidLiveEditor {
     panel.setAttribute('data-xm-visual-editor', '');
     panel.hidden = true;
 
+    const title = document.createElement('h2');
+    title.setAttribute('data-xm-visual-title', '');
+    title.textContent = 'Visual edits';
+
     const nodeIdInput = this.createInput('data-xm-visual-node-id', 'Node id');
     const nodeLabelInput = this.createInput('data-xm-visual-node-label', 'Node label');
     const renameButton = this.createButton('data-xm-visual-rename-node', 'Rename node');
@@ -418,12 +446,14 @@ class XMermaidLiveEditor {
       void this.applyVisualEdit({ type: 'remove-edge', edgeId: edgeIdInput.value });
     });
 
-    panel.append(
+    const nodeTools = this.createVisualToolGroup('Node', 'data-xm-visual-node-tools',
       nodeIdInput,
       nodeLabelInput,
       renameButton,
       addNodeButton,
       removeNodeButton,
+    );
+    const edgeTools = this.createVisualToolGroup('Edge', 'data-xm-visual-edge-tools',
       edgeFromInput,
       edgeToInput,
       edgeLabelInput,
@@ -431,13 +461,32 @@ class XMermaidLiveEditor {
       addEdgeButton,
       removeEdgeButton,
     );
+    panel.append(title, nodeTools, edgeTools);
     return panel;
+  }
+
+  private createVisualToolGroup(title: string, attribute: string, ...children: HTMLElement[]): HTMLElement {
+    const group = document.createElement('div');
+    group.className = 'xm-visual-tool-group';
+    group.setAttribute(attribute, '');
+
+    const heading = document.createElement('h3');
+    heading.setAttribute('data-xm-visual-group-title', '');
+    heading.textContent = title;
+
+    const controls = document.createElement('div');
+    controls.className = 'xm-visual-tool-controls';
+    controls.append(...children);
+
+    group.append(heading, controls);
+    return group;
   }
 
   private createInput(attribute: string, label: string): HTMLInputElement {
     const input = document.createElement('input');
     input.setAttribute(attribute, '');
     input.setAttribute('aria-label', label);
+    input.placeholder = label;
     return input;
   }
 

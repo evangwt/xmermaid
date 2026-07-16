@@ -7,26 +7,59 @@
   <title>xmermaid - Live Editor</title>
   <style>
     * { box-sizing: border-box; }
-    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f3f4f6; color: #1f2937; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f6f7f9; color: #18202f; }
     .app { min-height: 100vh; display: grid; grid-template-rows: auto 1fr; }
-    header { padding: 16px 20px; background: #ffffff; border-bottom: 1px solid #d1d5db; }
-    h1 { margin: 0; font-size: 20px; font-weight: 650; }
+    header { padding: 14px 18px; background: #ffffff; border-bottom: 1px solid #d8dee8; }
+    h1 { margin: 0; font-size: 19px; font-weight: 650; letter-spacing: 0; }
     .xmermaid-live-editor { min-height: 0; }
-    .xm-live-shell { height: calc(100vh - 58px); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; padding: 12px; }
-    .xm-live-workspace { min-height: 0; display: grid; grid-template-columns: minmax(280px, 0.9fr) 180px minmax(320px, 1fr) minmax(320px, 1fr); gap: 12px; }
-    [data-xm-toolbar] { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .xm-live-shell { height: calc(100vh - 52px); min-height: 560px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 10px; padding: 10px; }
+    .xm-live-workspace { min-height: 0; display: grid; grid-template-columns: minmax(250px, 0.95fr) minmax(150px, 0.45fr) minmax(280px, 1fr) minmax(330px, 1.15fr); gap: 10px; }
+    .xm-live-panel {
+      min-width: 0;
+      min-height: 0;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      border: 1px solid #d8dee8;
+      border-radius: 8px;
+      background: #ffffff;
+      overflow: hidden;
+    }
+    [data-xm-panel-title],
+    [data-xm-visual-title],
+    [data-xm-visual-group-title] {
+      margin: 0;
+      color: #4a5567;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+    [data-xm-panel-title] {
+      min-height: 34px;
+      display: flex;
+      align-items: center;
+      padding: 0 11px;
+      border-bottom: 1px solid #edf0f4;
+      background: #fbfcfd;
+    }
+    .xm-live-panel-body { min-height: 0; display: grid; }
+    [data-xm-toolbar] { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
     [data-xm-toolbar] select,
     [data-xm-toolbar] button,
     [data-xm-download-link],
     [data-xm-visual-editor] button {
-      min-height: 32px;
-      border: 1px solid #cbd5e1;
+      min-height: 34px;
+      border: 1px solid #ccd5e2;
       border-radius: 6px;
       background: #ffffff;
-      color: #1f2937;
-      padding: 5px 9px;
+      color: #18202f;
+      padding: 6px 10px;
       font: 13px/1.3 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
+    [data-xm-toolbar] button:hover,
+    [data-xm-download-link]:hover,
+    [data-xm-visual-editor] button:hover { border-color: #2563eb; color: #1d4ed8; }
+    :focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
     [data-xm-toolbar] button,
     [data-xm-download-link],
     [data-xm-visual-editor] button { cursor: pointer; }
@@ -37,50 +70,83 @@
       width: 100%;
       height: 100%;
       resize: none;
-      border: 1px solid #cbd5e1;
-      border-radius: 6px;
+      border: 0;
+      border-radius: 0;
       padding: 12px;
       font: 13px/1.5 "SF Mono", "Fira Code", Consolas, monospace;
       background: #ffffff;
       color: #111827;
     }
-    [data-xm-diagram-list] { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+    [data-xm-diagram-list] { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 10px; overflow: auto; }
     [data-xm-diagram-item] {
       padding: 8px 10px;
-      border: 1px solid #cbd5e1;
+      border: 1px solid #d8dee8;
       border-radius: 6px;
       background: #ffffff;
-      color: #1f2937;
+      color: #263244;
       text-align: left;
       cursor: pointer;
     }
+    [data-xm-diagram-item]:hover { border-color: #97a6ba; background: #f8fafc; }
     [data-xm-diagram-item].is-selected { border-color: #2563eb; background: #eff6ff; color: #1d4ed8; }
-    .xm-live-preview-panel { min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: 12px; }
-    [data-xm-preview] { min-height: 0; overflow: auto; border: 1px solid #cbd5e1; border-radius: 6px; background: #ffffff; padding: 16px; }
+    .xm-live-preview-panel { min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: 10px; padding: 10px; background: #f9fafb; }
+    [data-xm-preview] { min-height: 0; overflow: auto; border: 1px solid #d8dee8; border-radius: 6px; background: #ffffff; padding: 16px; }
     [data-xm-preview] svg { max-width: 100%; }
     [data-xm-preview-error] { color: #b91c1c; background: #fee2e2; border: 1px solid #fecaca; border-radius: 6px; padding: 10px; }
-    [data-xm-diagnostics] { border: 1px solid #cbd5e1; border-radius: 6px; background: #ffffff; padding: 10px; min-height: 44px; }
+    [data-xm-diagnostics] { border: 1px solid #d8dee8; border-radius: 6px; background: #ffffff; padding: 10px; min-height: 44px; max-height: 160px; overflow: auto; }
     [data-xm-diagnostic-item] { color: #991b1b; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 8px; font: 12px/1.4 "SF Mono", "Fira Code", Consolas, monospace; }
-    [data-xm-repair-suggestion] { margin-top: 8px; color: #374151; background: #f8fafc; border: 1px solid #dbeafe; border-radius: 6px; padding: 8px; font-size: 13px; }
+    [data-xm-repair-suggestion] { margin-top: 8px; color: #374151; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 6px; padding: 8px; font-size: 13px; }
     [data-xm-repair-apply] { margin-left: 8px; border: 1px solid #2563eb; border-radius: 5px; background: #2563eb; color: #ffffff; padding: 4px 8px; cursor: pointer; }
     [data-xm-diagnostics-empty] { margin: 0; color: #64748b; font-size: 13px; }
-    [data-xm-empty] { margin: 0; padding: 10px; border: 1px dashed #cbd5e1; border-radius: 6px; background: #ffffff; color: #64748b; }
+    [data-xm-empty] { margin: 0; padding: 10px; border: 1px dashed #ccd5e2; border-radius: 6px; background: #fbfcfd; color: #64748b; }
     [data-xm-visual-editor] {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      border: 1px solid #cbd5e1;
-      border-radius: 6px;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) minmax(0, 1.2fr);
+      align-items: start;
+      gap: 10px;
+      border: 1px solid #d8dee8;
+      border-radius: 8px;
       background: #ffffff;
       padding: 10px;
     }
+    [data-xm-visual-title] { padding: 9px 2px 0 2px; white-space: nowrap; }
+    .xm-visual-tool-group {
+      min-width: 0;
+      display: grid;
+      gap: 7px;
+      padding-left: 10px;
+      border-left: 1px solid #edf0f4;
+    }
+    .xm-visual-tool-controls { display: flex; flex-wrap: wrap; gap: 7px; min-width: 0; }
     [data-xm-visual-editor] input {
       min-height: 32px;
-      min-width: 120px;
-      border: 1px solid #cbd5e1;
+      width: 120px;
+      border: 1px solid #ccd5e2;
       border-radius: 6px;
       padding: 5px 8px;
       font: 13px/1.3 "SF Mono", "Fira Code", Consolas, monospace;
+    }
+    @media (max-width: 1100px) {
+      .xm-live-shell { height: auto; min-height: calc(100vh - 52px); }
+      .xm-live-workspace { grid-template-columns: minmax(220px, 0.8fr) minmax(280px, 1fr); grid-auto-rows: minmax(260px, 34vh); }
+      [data-xm-panel="preview"] { grid-column: span 2; }
+      [data-xm-visual-editor] { grid-template-columns: 1fr 1fr; }
+      [data-xm-visual-title] { grid-column: 1 / -1; padding-top: 0; }
+      .xm-visual-tool-group { padding-left: 0; border-left: 0; }
+    }
+    @media (max-width: 760px) {
+      header { padding: 12px; }
+      .xm-live-shell { padding: 8px; }
+      .xm-live-workspace { grid-template-columns: 1fr; grid-auto-rows: minmax(220px, auto); }
+      [data-xm-panel="preview"] { grid-column: auto; min-height: 340px; }
+      [data-xm-toolbar] { align-items: stretch; }
+      [data-xm-toolbar] select,
+      [data-xm-toolbar] button,
+      [data-xm-download-link] { flex: 1 1 132px; }
+      [data-xm-visual-editor] { grid-template-columns: 1fr; }
+      [data-xm-visual-editor] input { width: 100%; min-width: 0; }
+      .xm-visual-tool-controls { display: grid; grid-template-columns: 1fr 1fr; }
     }
   </style>
 </head>
