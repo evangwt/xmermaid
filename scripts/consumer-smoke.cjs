@@ -405,10 +405,46 @@ async function runBrowserSmoke(consumerDir, chromeExecutable, timeoutMs) {
     }
     return { durationMs, smoke };
   } finally {
-    if (chrome) chrome.kill();
+    await stopChrome(chrome);
     await new Promise(resolveClose => server.server.close(resolveClose));
-    rmSync(profileDir, { recursive: true, force: true });
+    rmSync(profileDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }
+}
+
+async function stopChrome(chrome, timeoutMs = 2000) {
+  if (!chrome || chromeHasExited(chrome)) return true;
+
+  const termExit = waitForChromeExit(chrome, timeoutMs);
+  const termSent = chrome.kill('SIGTERM');
+  if (await termExit) return true;
+  if (!termSent && chromeHasExited(chrome)) return true;
+
+  const forceExit = waitForChromeExit(chrome, timeoutMs);
+  const forceSent = chrome.kill('SIGKILL');
+  const forceExited = await forceExit;
+  return forceSent ? forceExited : chromeHasExited(chrome);
+}
+
+function chromeHasExited(chrome) {
+  return chrome.exitCode !== null || chrome.signalCode !== null;
+}
+
+function waitForChromeExit(chrome, timeoutMs) {
+  if (chromeHasExited(chrome)) return Promise.resolve(true);
+
+  return new Promise(resolveExit => {
+    let settled = false;
+    const finish = exited => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      chrome.off('exit', onExit);
+      resolveExit(exited);
+    };
+    const onExit = () => finish(true);
+    const timer = setTimeout(() => finish(chromeHasExited(chrome)), timeoutMs);
+    chrome.once('exit', onExit);
+  });
 }
 
 function startStaticServer(rootDir) {
@@ -654,9 +690,10 @@ if (require.main === module) {
     }
     process.exit(1);
   });
-} else {
+  } else {
   module.exports = {
     resolveChromeExecutable,
+    stopChrome,
     validatePackFiles,
     writeBrowserSmokePage,
   };

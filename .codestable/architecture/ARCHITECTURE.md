@@ -60,7 +60,7 @@ xmermaid 当前已落地的主链路是四层结构：
 
 `LayoutConfig` 是布局输入合同，包含节点尺寸、水平/垂直间距、padding 和方向。WASM `render_with_config(input, configJson)` 支持 partial config：未传方向时根据 DSL 方向补默认值，显式传 `direction` 时以 config 为准。
 
-`LayoutResult` 包含 `nodes`、`edges` 和 `dimensions`。每个 `LayoutNode` 提供 `center`、`bounds`、`shape`、`label`；每个 `LayoutEdge` 提供中心点 `waypoints`、标签位置、边样式，以及 geometry v1 显式字段：`source_boundary`、`target_boundary`、`path_end`、`final_tangent_angle`、`label_anchor`。Renderer 优先使用 geometry v1 字段绘制 arrow tip、stroke endpoint 和 label anchor；缺字段时回退到 TS `computeEdgePath`。
+`LayoutResult` 包含 `nodes`、`edges` 和 `dimensions`。每个 `LayoutNode` 提供 `center`、`bounds`、`shape`、`label` 和 `label_lines`；裸节点的有效 `label` 是其 id，显式 label 保持原值。`label_lines` 是 layout 到 renderer 的显示合同：node 与 edge label 都按每行最多 48 个字符、最多 8 行生成，超出部分以 `…` 标示；SVG 保留原始 `label` 于 `<title>`，因此可视输出有界而完整文字仍可取得。布局用保守的默认字体度量按 node 标签扩展 bounds 和 viewport，并把 edge label 的背景和文字范围一并纳入 dimensions，避免两类标签在 SVG 外被截断。每个 `LayoutEdge` 提供中心点 `waypoints`、标签位置、边样式，以及 geometry v1 显式字段：`source_boundary`、`target_boundary`、`path_end`、`final_tangent_angle`、`label_anchor`。geometry v1 在 Rust 中按实际 SVG shape（矩形、圆、菱形、六边形、平行四边形、梯形、跑道形）计算边界；Renderer 优先使用该字段绘制 arrow tip、stroke endpoint 和 label anchor，缺字段时回退到 TS `computeEdgePath`。
 
 SVG renderer 的主题合同是 `RenderTheme`，当前内置 `DEFAULT_THEME`、`DARK_THEME`、`MINIMAL_THEME`。主题控制颜色、箭头样式、曲线样式、edge gap、arrow size、圆角和字体。`XMermaidOptions` 暴露 `theme` 与 `layoutConfig`，`XMermaid.render()` 负责 WASM 初始化、布局调用、WASM enum 归一化和 DOM 替换。
 

@@ -18,6 +18,16 @@ use xmermaid_parser::ast::{EdgeStyle as ParserEdgeStyle, FlowchartAst, NodeShape
 const GEOMETRY_VERSION: u8 = 1;
 const DEFAULT_EDGE_GAP: f64 = 8.0;
 const DEFAULT_ARROW_SIZE: f64 = 10.0;
+const DEFAULT_NODE_FONT_SIZE: f64 = 14.0;
+const NODE_LABEL_HORIZONTAL_PADDING: f64 = 28.0;
+const NODE_LABEL_VERTICAL_PADDING: f64 = 20.0;
+const DEFAULT_EDGE_LABEL_FONT_SIZE: f64 = 12.0;
+const EDGE_LABEL_HORIZONTAL_PADDING: f64 = 8.0;
+const EDGE_LABEL_VERTICAL_PADDING: f64 = 6.0;
+const MAX_LABEL_CHARS_PER_LINE: usize = 48;
+const MAX_LABEL_LINES: usize = 8;
+const NODE_LABEL_LINE_HEIGHT: f64 = 18.0;
+const EDGE_LABEL_LINE_HEIGHT: f64 = 15.0;
 
 /// Map parser NodeShape to layout NodeShape.
 /// Some shapes are simplified for layout purposes.
@@ -48,7 +58,7 @@ fn map_edge_style(style: &ParserEdgeStyle) -> crate::types::EdgeStyle {
     }
 }
 
-fn boundary_point(center: Point, toward: Point, bounds: Bounds) -> Point {
+fn rectangle_boundary_point(center: Point, toward: Point, bounds: Bounds) -> Point {
     let dx = toward.x - center.x;
     let dy = toward.y - center.y;
 
@@ -80,6 +90,243 @@ fn boundary_point(center: Point, toward: Point, bounds: Bounds) -> Point {
     }
 }
 
+fn polygon_boundary_point(center: Point, toward: Point, vertices: &[Point]) -> Point {
+    let dx = toward.x - center.x;
+    let dy = toward.y - center.y;
+    if dx == 0.0 && dy == 0.0 {
+        return center;
+    }
+
+    let mut t_max = -1.0_f64;
+    for index in 0..vertices.len() {
+        let start = vertices[index];
+        let end = vertices[(index + 1) % vertices.len()];
+        let segment_dx = end.x - start.x;
+        let segment_dy = end.y - start.y;
+        let denominator = dx * segment_dy - dy * segment_dx;
+        if denominator.abs() < 1e-10 {
+            continue;
+        }
+
+        let offset_x = start.x - center.x;
+        let offset_y = start.y - center.y;
+        let t = (offset_x * segment_dy - offset_y * segment_dx) / denominator;
+        let u = (offset_x * dy - offset_y * dx) / denominator;
+        if t > 0.0 && (0.0..=1.0).contains(&u) && t > t_max {
+            t_max = t;
+        }
+    }
+
+    if t_max <= 0.0 {
+        center
+    } else {
+        Point {
+            x: center.x + dx * t_max,
+            y: center.y + dy * t_max,
+        }
+    }
+}
+
+fn circle_boundary_point(center: Point, toward: Point, radius: f64) -> Point {
+    let dx = toward.x - center.x;
+    let dy = toward.y - center.y;
+    let length = (dx * dx + dy * dy).sqrt();
+    if length == 0.0 {
+        return center;
+    }
+
+    Point {
+        x: center.x + dx / length * radius,
+        y: center.y + dy / length * radius,
+    }
+}
+
+fn stadium_boundary_point(center: Point, toward: Point, bounds: Bounds) -> Point {
+    let dx = toward.x - center.x;
+    let dy = toward.y - center.y;
+    if dx == 0.0 && dy == 0.0 {
+        return center;
+    }
+
+    let radius = bounds.height / 2.0;
+    let half_straight_width = (bounds.width / 2.0 - radius).max(0.0);
+
+    if dy != 0.0 {
+        let vertical_t = radius / dy.abs();
+        if (vertical_t * dx).abs() <= half_straight_width {
+            return Point {
+                x: center.x + dx * vertical_t,
+                y: center.y + dy * vertical_t,
+            };
+        }
+    }
+
+    let cap_center = Point {
+        x: center.x + if dx >= 0.0 { half_straight_width } else { -half_straight_width },
+        y: center.y,
+    };
+    let offset_x = center.x - cap_center.x;
+    let a = dx * dx + dy * dy;
+    let b = 2.0 * offset_x * dx;
+    let c = offset_x * offset_x - radius * radius;
+    let discriminant = b * b - 4.0 * a * c;
+    if discriminant < 0.0 {
+        return rectangle_boundary_point(center, toward, bounds);
+    }
+    let sqrt_discriminant = discriminant.sqrt();
+    let t1 = (-b - sqrt_discriminant) / (2.0 * a);
+    let t2 = (-b + sqrt_discriminant) / (2.0 * a);
+    let t = [t1, t2]
+        .into_iter()
+        .filter(|candidate| *candidate > 0.0)
+        .fold(-1.0_f64, f64::max);
+
+    if t <= 0.0 {
+        rectangle_boundary_point(center, toward, bounds)
+    } else {
+        Point {
+            x: center.x + dx * t,
+            y: center.y + dy * t,
+        }
+    }
+}
+
+fn boundary_point(center: Point, toward: Point, bounds: Bounds, shape: NodeShape) -> Point {
+    let cx = center.x;
+    let cy = center.y;
+    let x = bounds.x;
+    let y = bounds.y;
+    let width = bounds.width;
+    let height = bounds.height;
+
+    match shape {
+        NodeShape::Circle => circle_boundary_point(center, toward, width.min(height) / 2.0),
+        NodeShape::Diamond => polygon_boundary_point(
+            center,
+            toward,
+            &[
+                Point { x: cx, y },
+                Point { x: x + width, y: cy },
+                Point { x: cx, y: y + height },
+                Point { x, y: cy },
+            ],
+        ),
+        NodeShape::Hexagon => {
+            let offset = width * 0.25;
+            polygon_boundary_point(
+                center,
+                toward,
+                &[
+                    Point { x: x + offset, y },
+                    Point { x: x + width - offset, y },
+                    Point { x: x + width, y: cy },
+                    Point { x: x + width - offset, y: y + height },
+                    Point { x: x + offset, y: y + height },
+                    Point { x, y: cy },
+                ],
+            )
+        }
+        NodeShape::Parallelogram => {
+            let offset = width * 0.15;
+            polygon_boundary_point(
+                center,
+                toward,
+                &[
+                    Point { x: x + offset, y },
+                    Point { x: x + width, y },
+                    Point { x: x + width - offset, y: y + height },
+                    Point { x, y: y + height },
+                ],
+            )
+        }
+        NodeShape::Trapezoid => {
+            let offset = width * 0.15;
+            polygon_boundary_point(
+                center,
+                toward,
+                &[
+                    Point { x: x + offset, y },
+                    Point { x: x + width - offset, y },
+                    Point { x: x + width, y: y + height },
+                    Point { x, y: y + height },
+                ],
+            )
+        }
+        NodeShape::Stadium => stadium_boundary_point(center, toward, bounds),
+        NodeShape::Rectangle | NodeShape::RoundedRect => rectangle_boundary_point(center, toward, bounds),
+    }
+}
+
+fn effective_label(node: &xmermaid_parser::ast::Node) -> String {
+    node.label.clone().unwrap_or_else(|| node.id.clone())
+}
+
+fn wrap_label(label: &str) -> Vec<String> {
+    if label.is_empty() {
+        return vec![String::new()];
+    }
+
+    let mut chars = label.chars();
+    let mut lines = Vec::new();
+    for line_index in 0..MAX_LABEL_LINES {
+        let line: String = chars.by_ref().take(MAX_LABEL_CHARS_PER_LINE).collect();
+        if line.is_empty() {
+            break;
+        }
+
+        if line_index == MAX_LABEL_LINES - 1 && chars.next().is_some() {
+            let mut truncated: String = line.chars().take(MAX_LABEL_CHARS_PER_LINE - 1).collect();
+            truncated.push('…');
+            lines.push(truncated);
+            break;
+        }
+        lines.push(line);
+    }
+    lines
+}
+
+fn label_size(
+    lines: &[String],
+    font_size: f64,
+    line_height: f64,
+    horizontal_padding: f64,
+    vertical_padding: f64,
+) -> (f64, f64) {
+    let max_line_length = lines.iter().map(|line| line.chars().count()).max().unwrap_or(0);
+    let content_height = if lines.is_empty() {
+        0.0
+    } else {
+        font_size + (lines.len().saturating_sub(1) as f64 * line_height)
+    };
+    (
+        max_line_length as f64 * font_size + horizontal_padding,
+        content_height + vertical_padding,
+    )
+}
+
+fn node_size(label_lines: &[String], shape: NodeShape, config: &LayoutConfig) -> (f64, f64) {
+    // SVG text is measured by the browser, while layout runs in Rust/WASM. A full-em
+    // width per Unicode scalar is intentionally conservative so layout owns the
+    // viewport contract without relying on browser-only font measurement.
+    let (content_width, content_height) = label_size(
+        label_lines,
+        DEFAULT_NODE_FONT_SIZE,
+        NODE_LABEL_LINE_HEIGHT,
+        NODE_LABEL_HORIZONTAL_PADDING,
+        NODE_LABEL_VERTICAL_PADDING,
+    );
+    let mut width = config.node_width.max(content_width);
+    let mut height = config.node_height.max(content_height);
+
+    if shape == NodeShape::Circle {
+        let diameter = width.max(height);
+        width = diameter;
+        height = diameter;
+    }
+
+    (width, height)
+}
+
 fn edge_has_arrow(style: &crate::types::EdgeStyle) -> bool {
     !matches!(
         style,
@@ -89,8 +336,8 @@ fn edge_has_arrow(style: &crate::types::EdgeStyle) -> bool {
 
 fn compute_edge_geometry(
     waypoints: &[Point],
-    from_bounds: Option<Bounds>,
-    to_bounds: Option<Bounds>,
+    from_node: Option<&LayoutNode>,
+    to_node: Option<&LayoutNode>,
     style: &crate::types::EdgeStyle,
 ) -> (Option<Point>, Option<Point>, Option<Point>, Option<f64>) {
     if waypoints.len() < 2 {
@@ -102,8 +349,10 @@ fn compute_edge_geometry(
     let source_approach = waypoints[1];
     let target_approach = waypoints[waypoints.len() - 2];
 
-    let source_boundary = from_bounds.map(|bounds| boundary_point(first, source_approach, bounds));
-    let target_boundary = to_bounds.map(|bounds| boundary_point(last, target_approach, bounds));
+    let source_boundary = from_node
+        .map(|node| boundary_point(first, source_approach, node.bounds, node.shape));
+    let target_boundary = to_node
+        .map(|node| boundary_point(last, target_approach, node.bounds, node.shape));
     let angle = Some((last.y - target_approach.y).atan2(last.x - target_approach.x));
 
     let path_end = match (target_boundary, angle) {
@@ -121,13 +370,38 @@ fn compute_edge_geometry(
     (source_boundary, target_boundary, path_end, angle)
 }
 
+fn translate_layout(nodes: &mut [LayoutNode], edges: &mut [LayoutEdge], x_shift: f64, y_shift: f64) {
+    for node in nodes {
+        node.center.x += x_shift;
+        node.center.y += y_shift;
+        node.bounds.x += x_shift;
+        node.bounds.y += y_shift;
+    }
+    for edge in edges {
+        for waypoint in &mut edge.waypoints {
+            waypoint.x += x_shift;
+            waypoint.y += y_shift;
+        }
+        for point in [
+            &mut edge.label_position,
+            &mut edge.source_boundary,
+            &mut edge.target_boundary,
+            &mut edge.path_end,
+            &mut edge.label_anchor,
+        ] {
+            if let Some(point) = point {
+                point.x += x_shift;
+                point.y += y_shift;
+            }
+        }
+    }
+}
+
 /// Compute layout for a flowchart diagram.
 ///
 /// Takes a `FlowchartAst` directly (not a `DiagramAst`) and a `LayoutConfig`,
 /// and returns a `LayoutResult` with positioned nodes and edges.
 pub fn layout(fc: &FlowchartAst, config: &LayoutConfig) -> LayoutResult {
-    let node_width = config.node_width;
-    let node_height = config.node_height;
     let h_spacing = config.h_spacing;
     let v_spacing = config.v_spacing;
     let padding = config.padding;
@@ -150,6 +424,14 @@ pub fn layout(fc: &FlowchartAst, config: &LayoutConfig) -> LayoutResult {
         .iter()
         .enumerate()
         .map(|(i, &id)| (id, i))
+        .collect();
+    let node_shapes: Vec<NodeShape> = fc.nodes.iter().map(|node| map_shape(&node.shape)).collect();
+    let node_labels: Vec<String> = fc.nodes.iter().map(effective_label).collect();
+    let node_label_lines: Vec<Vec<String>> = node_labels.iter().map(|label| wrap_label(label)).collect();
+    let node_sizes: Vec<(f64, f64)> = node_label_lines
+        .iter()
+        .zip(node_shapes.iter().copied())
+        .map(|(lines, shape)| node_size(lines, shape, config))
         .collect();
 
     // Build forward adjacency and compute in-degrees
@@ -407,76 +689,69 @@ pub fn layout(fc: &FlowchartAst, config: &LayoutConfig) -> LayoutResult {
     // Temporary storage: node index -> center Point
     let mut centers: Vec<Point> = vec![Point { x: 0.0, y: 0.0 }; node_count];
 
-    // First pass: position nodes left-to-right per layer (no centering yet)
+    // Rank size comes from the largest node in that rank. Nodes are positioned
+    // one after another on the cross axis, so variable label-driven sizes never
+    // overlap and every rank can still be centered against the widest/tallest one.
+    let rank_sizes: Vec<f64> = layer_groups
+        .iter()
+        .map(|group| {
+            group
+                .iter()
+                .map(|&node_idx| {
+                    if is_horizontal {
+                        node_sizes[node_idx].0
+                    } else {
+                        node_sizes[node_idx].1
+                    }
+                })
+                .fold(0.0_f64, f64::max)
+        })
+        .collect();
+    let cross_sizes: Vec<f64> = layer_groups
+        .iter()
+        .map(|group| {
+            if group.is_empty() {
+                return 0.0;
+            }
+            group
+                .iter()
+                .map(|&node_idx| {
+                    if is_horizontal {
+                        node_sizes[node_idx].1
+                    } else {
+                        node_sizes[node_idx].0
+                    }
+                })
+                .sum::<f64>()
+                + group.len().saturating_sub(1) as f64
+                    * if is_horizontal { v_spacing } else { h_spacing }
+        })
+        .collect();
+    let max_cross_size = cross_sizes.iter().copied().fold(0.0_f64, f64::max);
+
+    let mut rank_cursor = padding;
     for (layer_idx, group) in layer_groups.iter().enumerate() {
-        for (pos_in_layer, &node_idx) in group.iter().enumerate() {
-            let x = if is_horizontal {
-                padding + layer_idx as f64 * (node_width + h_spacing)
-            } else {
-                padding + pos_in_layer as f64 * (node_width + h_spacing)
-            };
-            let y = if is_horizontal {
-                padding + pos_in_layer as f64 * (node_height + v_spacing)
-            } else {
-                padding + layer_idx as f64 * (node_height + v_spacing)
-            };
-            centers[node_idx] = Point { x, y };
-        }
-    }
+        let rank_center = rank_cursor + rank_sizes[layer_idx] / 2.0;
+        let mut cross_cursor = padding + (max_cross_size - cross_sizes[layer_idx]) / 2.0;
 
-    // ── Center nodes within layers ──────────────────────────────────
-    if !is_horizontal {
-        // Center each layer horizontally relative to the widest layer
-        let mut layer_widths: Vec<f64> = Vec::with_capacity(layer_groups.len());
-        for group in &layer_groups {
-            let width = if group.is_empty() {
-                0.0
+        for &node_idx in group {
+            let (width, height) = node_sizes[node_idx];
+            if is_horizontal {
+                centers[node_idx] = Point {
+                    x: rank_center,
+                    y: cross_cursor + height / 2.0,
+                };
+                cross_cursor += height + v_spacing;
             } else {
-                group.len() as f64 * node_width
-                    + group.len().saturating_sub(1) as f64 * h_spacing
-            };
-            layer_widths.push(width);
+                centers[node_idx] = Point {
+                    x: cross_cursor + width / 2.0,
+                    y: rank_center,
+                };
+                cross_cursor += width + h_spacing;
+            }
         }
-        let max_width = layer_widths.iter().copied().fold(0.0_f64, f64::max);
 
-        for (layer_idx, group) in layer_groups.iter().enumerate() {
-            if group.is_empty() {
-                continue;
-            }
-            let layer_width = layer_widths[layer_idx];
-            let shift = (max_width - layer_width) / 2.0;
-            if shift > 0.0 {
-                for &node_idx in group {
-                    centers[node_idx].x += shift;
-                }
-            }
-        }
-    } else {
-        // Center each layer vertically relative to the tallest layer
-        let mut layer_heights: Vec<f64> = Vec::with_capacity(layer_groups.len());
-        for group in &layer_groups {
-            let height = if group.is_empty() {
-                0.0
-            } else {
-                group.len() as f64 * node_height
-                    + group.len().saturating_sub(1) as f64 * v_spacing
-            };
-            layer_heights.push(height);
-        }
-        let max_height = layer_heights.iter().copied().fold(0.0_f64, f64::max);
-
-        for (layer_idx, group) in layer_groups.iter().enumerate() {
-            if group.is_empty() {
-                continue;
-            }
-            let layer_height = layer_heights[layer_idx];
-            let shift = (max_height - layer_height) / 2.0;
-            if shift > 0.0 {
-                for &node_idx in group {
-                    centers[node_idx].y += shift;
-                }
-            }
-        }
+        rank_cursor += rank_sizes[layer_idx] + if is_horizontal { h_spacing } else { v_spacing };
     }
 
     // ── BT/RL reversal ───────────────────────────────────────────────
@@ -497,11 +772,13 @@ pub fn layout(fc: &FlowchartAst, config: &LayoutConfig) -> LayoutResult {
     // ── Normalize: ensure no node extends beyond left/top boundary ───
     let min_x = centers
         .iter()
-        .map(|p| p.x - node_width / 2.0)
+        .enumerate()
+        .map(|(index, p)| p.x - node_sizes[index].0 / 2.0)
         .fold(f64::MAX, f64::min);
     let min_y = centers
         .iter()
-        .map(|p| p.y - node_height / 2.0)
+        .enumerate()
+        .map(|(index, p)| p.y - node_sizes[index].1 / 2.0)
         .fold(f64::MAX, f64::min);
     if min_x < padding {
         let shift = padding - min_x;
@@ -524,24 +801,28 @@ pub fn layout(fc: &FlowchartAst, config: &LayoutConfig) -> LayoutResult {
         .map(|(i, node)| LayoutNode {
             id: node.id.clone(),
             center: centers[i],
-            bounds: Bounds::from_center(centers[i], node_width, node_height),
-            shape: map_shape(&node.shape),
-            label: node.label.clone().unwrap_or_default(),
+            bounds: Bounds::from_center(centers[i], node_sizes[i].0, node_sizes[i].1),
+            shape: node_shapes[i],
+            label: node_labels[i].clone(),
+            label_lines: node_label_lines[i].clone(),
         })
         .collect();
 
     // ── Compute bounding extremes before edge routing ─────────────────
     let max_x = centers
         .iter()
-        .map(|p| p.x + node_width / 2.0)
+        .enumerate()
+        .map(|(index, p)| p.x + node_sizes[index].0 / 2.0)
         .fold(0.0_f64, f64::max);
     let max_y = centers
         .iter()
-        .map(|p| p.y + node_height / 2.0)
+        .enumerate()
+        .map(|(index, p)| p.y + node_sizes[index].1 / 2.0)
         .fold(0.0_f64, f64::max);
     let min_y = centers
         .iter()
-        .map(|p| p.y - node_height / 2.0)
+        .enumerate()
+        .map(|(index, p)| p.y - node_sizes[index].1 / 2.0)
         .fold(f64::MAX, f64::min);
 
     // Route offset for back-edges: beyond the diagram boundary.
@@ -622,16 +903,18 @@ pub fn layout(fc: &FlowchartAst, config: &LayoutConfig) -> LayoutResult {
             };
 
             let style = map_edge_style(&edge.style);
-            let from_bounds = from_idx_opt.map(|idx| nodes[idx].bounds);
-            let to_bounds = to_idx_opt.map(|idx| nodes[idx].bounds);
+            let label_lines = edge.label.as_deref().map(wrap_label);
+            let from_node = from_idx_opt.map(|idx| &nodes[idx]);
+            let to_node = to_idx_opt.map(|idx| &nodes[idx]);
             let (source_boundary, target_boundary, path_end, final_tangent_angle) =
-                compute_edge_geometry(&waypoints, from_bounds, to_bounds, &style);
+                compute_edge_geometry(&waypoints, from_node, to_node, &style);
 
             LayoutEdge {
                 from: edge.from.clone(),
                 to: edge.to.clone(),
                 waypoints,
                 label: edge.label.clone(),
+                label_lines,
                 label_position,
                 style,
                 source_boundary,
@@ -647,7 +930,7 @@ pub fn layout(fc: &FlowchartAst, config: &LayoutConfig) -> LayoutResult {
     // ── Compute final dimensions ─────────────────────────────────────
     // Expand dimensions and shift coordinates to accommodate back-edge routing.
     // Only applies when back-edges exist; otherwise, dimensions remain unchanged.
-    let (final_nodes, final_edges, final_width, final_height) = if has_back_edges {
+    let (mut final_nodes, mut final_edges, mut final_width, mut final_height) = if has_back_edges {
         // For LR/RL, route_y goes above the topmost node. Since coordinates
         // must stay positive, shift everything down if route_y < padding.
         let y_shift = if is_horizontal && route_y < padding {
@@ -660,30 +943,7 @@ pub fn layout(fc: &FlowchartAst, config: &LayoutConfig) -> LayoutResult {
         let mut shifted_edges = edges;
 
         if y_shift > 0.0 {
-            for node in &mut shifted_nodes {
-                node.center.y += y_shift;
-                node.bounds.y += y_shift;
-            }
-            for edge in &mut shifted_edges {
-                for wp in &mut edge.waypoints {
-                    wp.y += y_shift;
-                }
-                if let Some(ref mut lp) = edge.label_position {
-                    lp.y += y_shift;
-                }
-                if let Some(ref mut point) = edge.source_boundary {
-                    point.y += y_shift;
-                }
-                if let Some(ref mut point) = edge.target_boundary {
-                    point.y += y_shift;
-                }
-                if let Some(ref mut point) = edge.path_end {
-                    point.y += y_shift;
-                }
-                if let Some(ref mut point) = edge.label_anchor {
-                    point.y += y_shift;
-                }
-            }
+            translate_layout(&mut shifted_nodes, &mut shifted_edges, 0.0, y_shift);
         }
 
         let width = if !is_horizontal {
@@ -700,6 +960,40 @@ pub fn layout(fc: &FlowchartAst, config: &LayoutConfig) -> LayoutResult {
         let height = max_y + padding;
         (nodes, edges, width, height)
     };
+
+    // Edge labels are rendered by the TypeScript SVG layer, but their bounds are
+    // layout-owned so the root viewport must reserve room for them here.
+    let mut label_min_x = f64::MAX;
+    let mut label_min_y = f64::MAX;
+    let mut label_max_x = f64::MIN;
+    let mut label_max_y = f64::MIN;
+    for edge in &final_edges {
+        if let (Some(lines), Some(anchor)) = (edge.label_lines.as_deref(), edge.label_anchor) {
+            let (width, height) = label_size(
+                lines,
+                DEFAULT_EDGE_LABEL_FONT_SIZE,
+                EDGE_LABEL_LINE_HEIGHT,
+                EDGE_LABEL_HORIZONTAL_PADDING,
+                EDGE_LABEL_VERTICAL_PADDING,
+            );
+            label_min_x = label_min_x.min(anchor.x - width / 2.0);
+            label_max_x = label_max_x.max(anchor.x + width / 2.0);
+            label_min_y = label_min_y.min(anchor.y - height / 2.0);
+            label_max_y = label_max_y.max(anchor.y + height / 2.0);
+        }
+    }
+
+    if label_min_x.is_finite() {
+        let x_shift = (padding - label_min_x).max(0.0);
+        let y_shift = (padding - label_min_y).max(0.0);
+        if x_shift > 0.0 || y_shift > 0.0 {
+            translate_layout(&mut final_nodes, &mut final_edges, x_shift, y_shift);
+            final_width += x_shift;
+            final_height += y_shift;
+        }
+        final_width = final_width.max(label_max_x + x_shift + padding);
+        final_height = final_height.max(label_max_y + y_shift + padding);
+    }
 
     LayoutResult {
         nodes: final_nodes,
@@ -738,10 +1032,60 @@ mod tests {
         let result = layout_from_dsl("graph TD\n  A");
         assert_eq!(result.nodes.len(), 1);
         assert_eq!(result.nodes[0].id, "A");
-        // Bare node IDs have no label in the parser, so layout uses empty string
-        assert_eq!(result.nodes[0].label, "");
+        // Bare node IDs are user-visible labels when no explicit label is supplied.
+        assert_eq!(result.nodes[0].label, "A");
         assert!(result.dimensions.width > 0.0);
         assert!(result.dimensions.height > 0.0);
+    }
+
+    #[test]
+    fn test_circle_edge_geometry_ends_on_the_circle() {
+        let result = layout_from_dsl("graph LR\n  A[Start] --> B((Circle))");
+        let circle = result.nodes.iter().find(|node| node.id == "B").unwrap();
+        let edge = result.edges.first().unwrap();
+        let target = edge.target_boundary.unwrap();
+
+        assert_eq!(circle.shape, NodeShape::Circle);
+        assert!(
+            (target.x - (circle.center.x - circle.bounds.width.min(circle.bounds.height) / 2.0)).abs()
+                < f64::EPSILON,
+            "arrow tip must meet the rendered circle boundary",
+        );
+        assert!((target.y - circle.center.y).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_long_node_labels_expand_their_bounds_and_viewport() {
+        let label = "A label long enough to exceed the default node width without clipping";
+        let result = layout_from_dsl(&format!("graph TD\n  A[{label}]"));
+        let node = result.nodes.first().unwrap();
+
+        assert!(node.bounds.width > LayoutConfig::default().node_width);
+        assert!(node.bounds.right() + LayoutConfig::default().padding <= result.dimensions.width);
+    }
+
+    #[test]
+    fn test_extreme_node_labels_have_bounded_layout_dimensions() {
+        let label = "W".repeat(50_000);
+        let result = layout_from_dsl(&format!("graph TD\n  A[{label}]"));
+        let node = result.nodes.first().unwrap();
+
+        assert!(node.bounds.width <= 1_000.0);
+        assert!(node.bounds.height <= 1_000.0);
+        assert!(result.dimensions.width <= 1_200.0);
+        assert!(result.dimensions.height <= 1_200.0);
+    }
+
+    #[test]
+    fn test_long_edge_labels_stay_inside_the_layout_viewport() {
+        let label = "wide edge label ".repeat(20);
+        let result = layout_from_dsl(&format!("graph TD\n  A -->|{label}| B"));
+        let edge = result.edges.first().unwrap();
+        let anchor = edge.label_anchor.unwrap();
+        let estimated_width = 48.0 * 12.0 + 8.0;
+
+        assert!(anchor.x - estimated_width / 2.0 >= LayoutConfig::default().padding);
+        assert!(anchor.x + estimated_width / 2.0 <= result.dimensions.width - LayoutConfig::default().padding);
     }
 
     #[test]

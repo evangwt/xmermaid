@@ -10,9 +10,15 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { EventEmitter } from 'node:events';
 import { describe, expect, it } from 'vitest';
 
 const require = createRequire(import.meta.url);
+type ChromeProcessStub = EventEmitter & {
+  exitCode: number | null;
+  signalCode: string | null;
+  kill(signal?: string): boolean;
+};
 
 describe('consumer smoke helpers', () => {
   it('requires the packed package to contain runtime bundles, declarations, wasm, README, and LICENSE', () => {
@@ -84,6 +90,57 @@ describe('consumer smoke helpers', () => {
 
     expect(() => resolveChromeExecutable({ CHROME_BIN: '/not/a/chrome' }, []))
       .toThrow(/CHROME_BIN/);
+  });
+
+  it('waits for Chrome to exit before releasing its temporary profile', async () => {
+    const { stopChrome } = require('../scripts/consumer-smoke.cjs') as {
+      stopChrome(chrome: ChromeProcessStub, timeoutMs?: number): Promise<boolean>;
+    };
+    const chrome = new EventEmitter() as ChromeProcessStub;
+    chrome.exitCode = null;
+    chrome.signalCode = null;
+    chrome.kill = (): boolean => {
+      chrome.signalCode = 'SIGTERM';
+      chrome.emit('exit', null, 'SIGTERM');
+      return true;
+    };
+
+    await expect(stopChrome(chrome, 10)).resolves.toBe(true);
+    expect(chrome.signalCode).toBe('SIGTERM');
+  });
+
+  it('escalates to SIGKILL and returns after Chrome ignores SIGTERM', async () => {
+    const { stopChrome } = require('../scripts/consumer-smoke.cjs') as {
+      stopChrome(chrome: ChromeProcessStub, timeoutMs?: number): Promise<boolean>;
+    };
+    const chrome = new EventEmitter() as ChromeProcessStub;
+    const signals: string[] = [];
+    chrome.exitCode = null;
+    chrome.signalCode = null;
+    chrome.kill = (signal = 'SIGTERM'): boolean => {
+      signals.push(signal);
+      return true;
+    };
+
+    await expect(stopChrome(chrome, 5)).resolves.toBe(false);
+    expect(signals).toEqual(['SIGTERM', 'SIGKILL']);
+  });
+
+  it('does not wait when Chrome rejects both termination signals', async () => {
+    const { stopChrome } = require('../scripts/consumer-smoke.cjs') as {
+      stopChrome(chrome: ChromeProcessStub, timeoutMs?: number): Promise<boolean>;
+    };
+    const chrome = new EventEmitter() as ChromeProcessStub;
+    const signals: string[] = [];
+    chrome.exitCode = null;
+    chrome.signalCode = null;
+    chrome.kill = (signal = 'SIGTERM'): boolean => {
+      signals.push(signal);
+      return false;
+    };
+
+    await expect(stopChrome(chrome, 5)).resolves.toBe(false);
+    expect(signals).toEqual(['SIGTERM', 'SIGKILL']);
   });
 
   it('keeps the built ESM entry importable in Node for bundlers and SSR parsing', async () => {
