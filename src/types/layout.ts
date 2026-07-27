@@ -37,6 +37,8 @@ export interface LayoutNode {
   bounds: Bounds;
   shape: NodeShape;
   label: string;
+  /** Pre-wrapped display lines emitted by layout; absent in legacy payloads. */
+  label_lines?: string[];
 }
 
 export type EdgeStyle = 'arrow' | 'line' | 'dotted' | 'thick' | 'invisible';
@@ -46,6 +48,8 @@ export interface LayoutEdge {
   to: string;
   waypoints: Point[];
   label?: string;
+  /** Pre-wrapped display lines emitted by layout; absent in legacy payloads. */
+  label_lines?: string[];
   label_position?: Point;
   style: EdgeStyle;
   source_boundary?: Point;

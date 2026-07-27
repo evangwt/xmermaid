@@ -101,6 +101,8 @@ pub struct LayoutNode {
     pub bounds: Bounds,
     pub shape: NodeShape,
     pub label: String,
+    #[serde(default)]
+    pub label_lines: Vec<String>,
 }
 
 /// Style of an edge, forwarded from AST
@@ -147,6 +149,8 @@ pub struct LayoutEdge {
     pub to: String,
     pub waypoints: Vec<Point>,
     pub label: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label_lines: Option<Vec<String>>,
     pub label_position: Option<Point>,
     pub style: EdgeStyle,
     pub source_boundary: Option<Point>,
