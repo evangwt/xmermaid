@@ -16,8 +16,8 @@ export {
   validateVisualEditResult,
 } from './editor';
 export { SVGRenderer } from './renderer/svg';
-export { computeEdgePath, computeBezierPath, computeStepPath, computeStraightPath, truncateAtBounds, computeArrowPoints } from './renderer/edge';
-export { DEFAULT_THEME, DARK_THEME, MINIMAL_THEME, createTheme } from './types/theme';
+export { computeEdgePath, computeBezierPath, computeStepPath, computeStraightPath, truncateAtBounds, computeArrowPlacement, computeArrowPoints } from './renderer/edge';
+export { DEFAULT_THEME, DARK_THEME, LIGHT_THEME, MINIMAL_THEME, createTheme } from './types/theme';
 export { initWasm, isWasmReady } from './wasm';
 export { XMermaidError } from './types/error';
 export { getSupportMatrix, getDiagramSupport, analyzeSupport, detectUnsupportedFeatures } from './support';

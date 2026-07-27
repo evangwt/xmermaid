@@ -1,7 +1,7 @@
 import { beforeAll, describe, it, expect } from 'vitest';
 import { SVGRenderer } from '../src/renderer/svg';
 import { DEFAULT_THEME } from '../src/types/theme';
-import type { LayoutResult, LayoutNode, LayoutEdge } from '../src/types/layout';
+import type { LayoutResult, LayoutNode } from '../src/types/layout';
 
 beforeAll(() => {
   Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
@@ -43,6 +43,32 @@ function createTestLayout(): LayoutResult {
 function renderArrow(arrowStyle: 'filled' | 'triangle' | 'open' | 'circle' | 'cross'): SVGSVGElement {
   const renderer = new SVGRenderer({ arrowStyle });
   return renderer.render(createTestLayout());
+}
+
+function layoutWithGeometry(version: 1 | 2): LayoutResult {
+  const layout = createTestLayout();
+  layout.edges[0] = {
+    ...layout.edges[0],
+    source_boundary: { x: 20, y: 30 },
+    target_boundary: { x: 120, y: 30 },
+    path_end: version === 1 ? { x: 96, y: 30 } : { x: 120, y: 30 },
+    final_tangent_angle: 0,
+    label_anchor: { x: 58, y: 42 },
+    geometry_version: version,
+  };
+  return layout;
+}
+
+function renderedPathEnd(svg: SVGSVGElement): string {
+  const values = svg.querySelector('g.edge path')?.getAttribute('d')?.match(/-?\d+(?:\.\d+)?/g);
+  if (!values || values.length < 2) throw new Error('Expected edge path coordinates.');
+  return values.slice(-2).join(',');
+}
+
+function renderedArrowTip(svg: SVGSVGElement): string {
+  const values = svg.querySelector('g.edge polygon')?.getAttribute('points')?.match(/-?\d+(?:\.\d+)?/g);
+  if (!values || values.length < 4) throw new Error('Expected filled arrow coordinates.');
+  return values.slice(2, 4).join(',');
 }
 
 describe('SVGRenderer', () => {
@@ -135,30 +161,27 @@ describe('SVGRenderer', () => {
       .find(el => el.textContent === 'yes');
 
     expect(label).toBeDefined();
-    expect(Number(label?.getAttribute('y'))).toBeCloseTo(115, 1);
+    expect(Number(label?.getAttribute('y'))).toBeCloseTo(116.04, 1);
   });
 
-  it('prefers explicit edge geometry over waypoint fallback', () => {
-    const layout = createTestLayout();
-    layout.edges[0] = {
-      ...layout.edges[0],
-      waypoints: [{ x: 160, y: 60 }, { x: 160, y: 180 }],
-      source_boundary: { x: 20, y: 30 },
-      target_boundary: { x: 120, y: 30 },
-      path_end: { x: 96, y: 30 },
-      final_tangent_angle: 0,
-      label_anchor: { x: 58, y: 42 },
-      geometry_version: 1,
-    } as LayoutEdge;
-
-    const svg = new SVGRenderer({ curveStyle: 'straight', edgeGap: 8, arrowSize: 10 }).render(layout);
+  it('uses explicit route geometry while recomputing marker placement for geometry v1', () => {
+    const svg = new SVGRenderer({ curveStyle: 'straight', edgeGap: 8, arrowSize: 10 }).render(layoutWithGeometry(1));
     const path = svg.querySelector('g.edge path');
     const label = Array.from(svg.querySelectorAll('g.edge text'))
       .find(el => el.textContent === 'yes');
 
-    expect(path?.getAttribute('d')).toBe('M 20 30 L 96 30');
+    expect(path?.getAttribute('d')).not.toBe('M 20 30 L 96 30');
+    expect(Number(renderedPathEnd(svg).split(',')[0])).toBeCloseTo(104.09, 2);
     expect(label?.getAttribute('x')).toBe('58');
     expect(label?.getAttribute('y')).toBe('42');
-    expect(svg.querySelector('g.edge polygon')?.getAttribute('points')).toContain('120,30');
+    expect(renderedArrowTip(svg)).toBe('112,30');
+  });
+
+  it('recomputes geometry v2 for the active arrow size without moving its tip', () => {
+    const small = new SVGRenderer({ curveStyle: 'straight', edgeGap: 2, arrowSize: 8 }).render(layoutWithGeometry(2));
+    const large = new SVGRenderer({ curveStyle: 'straight', edgeGap: 2, arrowSize: 20 }).render(layoutWithGeometry(2));
+
+    expect(renderedPathEnd(small)).not.toBe(renderedPathEnd(large));
+    expect(renderedArrowTip(small)).toBe(renderedArrowTip(large));
   });
 });

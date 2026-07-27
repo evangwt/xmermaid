@@ -2,9 +2,58 @@ import type { Point, Bounds, CurveStyle, ArrowStyle, NodeShape } from '../types'
 
 export interface EdgePathResult {
   path: string; // SVG path d attribute — ends at arrow base (pathEnd)
-  arrowTip: Point; // Where the arrow tip points, on the target node boundary
+  arrowTip: Point; // Forward-most point of the rendered marker
+  arrowAnchor?: Point; // Marker reference point; circle/cross use their center
   arrowAngle: number; // Angle in radians from path tangent at endpoint
   pathEnd?: Point; // Where the path line ends before the arrow tail
+}
+
+export interface ArrowPlacement {
+  arrowTip: Point;
+  arrowAnchor: Point;
+  pathEnd: Point;
+}
+
+export function computeArrowPlacement(
+  boundary: Point,
+  angle: number,
+  size: number,
+  gap: number,
+  style: ArrowStyle,
+  strokeWidth = 1.5,
+): ArrowPlacement {
+  const dx = Math.cos(angle);
+  const dy = Math.sin(angle);
+  const moveBack = (point: Point, distance: number): Point => ({
+    x: point.x - dx * distance,
+    y: point.y - dy * distance,
+  });
+  const arrowTip = moveBack(boundary, gap);
+  const overlap = strokeWidth / 2;
+
+  if (style === 'open') {
+    return { arrowTip, arrowAnchor: arrowTip, pathEnd: arrowTip };
+  }
+  if (style === 'circle') {
+    const radius = size / 2;
+    const arrowAnchor = moveBack(arrowTip, radius);
+    return {
+      arrowTip,
+      arrowAnchor,
+      pathEnd: moveBack(arrowAnchor, Math.max(0, radius - overlap)),
+    };
+  }
+  if (style === 'cross') {
+    const arrowAnchor = moveBack(arrowTip, size / 2);
+    return { arrowTip, arrowAnchor, pathEnd: arrowAnchor };
+  }
+
+  const axialLength = Math.cos(Math.PI / 6) * size;
+  return {
+    arrowTip,
+    arrowAnchor: arrowTip,
+    pathEnd: moveBack(arrowTip, Math.max(0, axialLength - overlap)),
+  };
 }
 
 /**
@@ -424,6 +473,8 @@ export function computeBezierPath(
   arrowSize: number,
   fromShape?: NodeShape,
   toShape?: NodeShape,
+  arrowStyle: ArrowStyle | null = 'filled',
+  strokeWidth = 1.5,
 ): EdgePathResult {
   if (waypoints.length < 2) {
     throw new Error('At least 2 waypoints are required');
@@ -439,7 +490,7 @@ export function computeBezierPath(
   const targetApproach: Point = waypoints.length >= 2 ? waypoints[waypoints.length - 2] : first;
 
   const start = truncateAtBounds(sourceApproach, first, fromBounds, gap, fromShape);
-  const arrowTip = truncateAtBounds(targetApproach, last, toBounds, 0, toShape);
+  const targetBoundary = truncateAtBounds(targetApproach, last, toBounds, 0, toShape);
 
   let path: string;
   let arrowAngle: number;
@@ -447,8 +498,8 @@ export function computeBezierPath(
 
   if (waypoints.length === 2) {
     // Cubic bezier with control points offset along primary axis
-    const dx = arrowTip.x - start.x;
-    const dy = arrowTip.y - start.y;
+    const dx = targetBoundary.x - start.x;
+    const dy = targetBoundary.y - start.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
     const tension = Math.min(dist * 0.4, 50);
     const isVertical = Math.abs(dy) >= Math.abs(dx);
@@ -457,45 +508,41 @@ export function computeBezierPath(
     if (isVertical) {
       cp1x = start.x;
       cp1y = start.y + tension * (dy >= 0 ? 1 : -1);
-      cp2x = arrowTip.x;
-      cp2y = arrowTip.y - tension * (dy >= 0 ? 1 : -1);
+      cp2x = targetBoundary.x;
+      cp2y = targetBoundary.y - tension * (dy >= 0 ? 1 : -1);
     } else {
       cp1x = start.x + tension * (dx >= 0 ? 1 : -1);
       cp1y = start.y;
-      cp2x = arrowTip.x - tension * (dx >= 0 ? 1 : -1);
-      cp2y = arrowTip.y;
+      cp2x = targetBoundary.x - tension * (dx >= 0 ? 1 : -1);
+      cp2y = targetBoundary.y;
     }
 
     lastCp2 = { x: cp2x, y: cp2y };
-    path = `M ${start.x} ${start.y} C ${cp1x} ${cp1y} ${cp2x} ${cp2y} ${arrowTip.x} ${arrowTip.y}`;
+    path = `M ${start.x} ${start.y} C ${cp1x} ${cp1y} ${cp2x} ${cp2y} ${targetBoundary.x} ${targetBoundary.y}`;
   } else {
     // Multi-waypoint: Catmull-Rom to cubic bezier conversion
-    const points: Point[] = [start, ...waypoints.slice(1, -1), arrowTip];
+    const points: Point[] = [start, ...waypoints.slice(1, -1), targetBoundary];
     const segments = catmullRomToBezierSegments(points);
     path = segments.join(' ');
 
     // Extract last cp2 from the final C command for arrow angle
-    lastCp2 = extractLastCp2(path, arrowTip);
+    lastCp2 = extractLastCp2(path, targetBoundary);
   }
 
   // Arrow angle from bezier tangent at endpoint: direction from cp2 to end
-  arrowAngle = Math.atan2(arrowTip.y - lastCp2.y, arrowTip.x - lastCp2.x);
+  arrowAngle = Math.atan2(targetBoundary.y - lastCp2.y, targetBoundary.x - lastCp2.x);
+  const placement = arrowStyle
+    ? computeArrowPlacement(targetBoundary, arrowAngle, arrowSize, gap, arrowStyle, strokeWidth)
+    : { arrowTip: targetBoundary, arrowAnchor: targetBoundary, pathEnd: targetBoundary };
 
-  // Shorten path by gap + arrowSize so the stroke stops before the arrow tail
-  // while the arrow tip itself remains on the target boundary.
-  const arrowBase: Point = {
-    x: arrowTip.x - Math.cos(arrowAngle) * (gap + arrowSize),
-    y: arrowTip.y - Math.sin(arrowAngle) * (gap + arrowSize),
-  };
-
-  // Replace the final endpoint in the path string with arrowBase
-  path = replacePathEndpoint(path, arrowTip, arrowBase);
+  path = replacePathEndpoint(path, targetBoundary, placement.pathEnd);
 
   return {
     path,
-    arrowTip,
+    arrowTip: placement.arrowTip,
+    arrowAnchor: placement.arrowAnchor,
     arrowAngle,
-    pathEnd: arrowBase,
+    pathEnd: placement.pathEnd,
   };
 }
 
@@ -569,6 +616,8 @@ export function computeStepPath(
   arrowSize: number,
   fromShape?: NodeShape,
   toShape?: NodeShape,
+  arrowStyle: ArrowStyle | null = 'filled',
+  strokeWidth = 1.5,
 ): EdgePathResult {
   if (waypoints.length < 2) {
     throw new Error('At least 2 waypoints are required');
@@ -582,7 +631,7 @@ export function computeStepPath(
   const targetApproach: Point = waypoints.length >= 2 ? waypoints[waypoints.length - 2] : first;
 
   const start = truncateAtBounds(sourceApproach, first, fromBounds, gap, fromShape);
-  const arrowTip = truncateAtBounds(targetApproach, last, toBounds, 0, toShape);
+  const targetBoundary = truncateAtBounds(targetApproach, last, toBounds, 0, toShape);
 
   // Arrow angle from last segment direction (from secondLast toward last)
   const arrowAngle = Math.atan2(
@@ -590,26 +639,24 @@ export function computeStepPath(
     last.x - targetApproach.x,
   );
 
-  // Shorten path by gap + arrowSize so the visible stroke stops before the arrow tail.
-  const arrowBase: Point = {
-    x: arrowTip.x - Math.cos(arrowAngle) * (gap + arrowSize),
-    y: arrowTip.y - Math.sin(arrowAngle) * (gap + arrowSize),
-  };
+  const placement = arrowStyle
+    ? computeArrowPlacement(targetBoundary, arrowAngle, arrowSize, gap, arrowStyle, strokeWidth)
+    : { arrowTip: targetBoundary, arrowAnchor: targetBoundary, pathEnd: targetBoundary };
 
   let path: string;
 
   if (waypoints.length === 2) {
     // H-V-H pattern: go horizontal to midpoint.x, then vertical, then horizontal
-    const midX = (start.x + arrowBase.x) / 2;
+    const midX = (start.x + placement.pathEnd.x) / 2;
     path = [
       `M ${start.x} ${start.y}`,
       `H ${midX}`,
-      `V ${arrowBase.y}`,
-      `L ${arrowBase.x} ${arrowBase.y}`,
+      `V ${placement.pathEnd.y}`,
+      `L ${placement.pathEnd.x} ${placement.pathEnd.y}`,
     ].join(' ');
   } else {
     // Between each pair of consecutive waypoints, use H-V-H stepping
-    const points: Point[] = [start, ...waypoints.slice(1, -1), arrowBase];
+    const points: Point[] = [start, ...waypoints.slice(1, -1), placement.pathEnd];
     const parts: string[] = [`M ${points[0].x} ${points[0].y}`];
 
     for (let i = 1; i < points.length; i++) {
@@ -626,9 +673,10 @@ export function computeStepPath(
 
   return {
     path,
-    arrowTip,
+    arrowTip: placement.arrowTip,
+    arrowAnchor: placement.arrowAnchor,
     arrowAngle,
-    pathEnd: arrowBase,
+    pathEnd: placement.pathEnd,
   };
 }
 
@@ -643,6 +691,8 @@ export function computeStraightPath(
   arrowSize: number,
   fromShape?: NodeShape,
   toShape?: NodeShape,
+  arrowStyle: ArrowStyle | null = 'filled',
+  strokeWidth = 1.5,
 ): EdgePathResult {
   if (waypoints.length < 2) {
     throw new Error('At least 2 waypoints are required');
@@ -656,7 +706,7 @@ export function computeStraightPath(
   const targetApproach: Point = waypoints.length >= 2 ? waypoints[waypoints.length - 2] : first;
 
   const start = truncateAtBounds(sourceApproach, first, fromBounds, gap, fromShape);
-  const arrowTip = truncateAtBounds(targetApproach, last, toBounds, 0, toShape);
+  const targetBoundary = truncateAtBounds(targetApproach, last, toBounds, 0, toShape);
 
   // Arrow angle from last segment direction (from secondLast toward last)
   const arrowAngle = Math.atan2(
@@ -664,11 +714,9 @@ export function computeStraightPath(
     last.x - targetApproach.x,
   );
 
-  // Shorten path by gap + arrowSize so the visible stroke stops before the arrow tail.
-  const arrowBase: Point = {
-    x: arrowTip.x - Math.cos(arrowAngle) * (gap + arrowSize),
-    y: arrowTip.y - Math.sin(arrowAngle) * (gap + arrowSize),
-  };
+  const placement = arrowStyle
+    ? computeArrowPlacement(targetBoundary, arrowAngle, arrowSize, gap, arrowStyle, strokeWidth)
+    : { arrowTip: targetBoundary, arrowAnchor: targetBoundary, pathEnd: targetBoundary };
 
   // Build path with intermediate waypoints
   const parts: string[] = [`M ${start.x} ${start.y}`];
@@ -678,13 +726,14 @@ export function computeStraightPath(
     parts.push(`L ${waypoints[i].x} ${waypoints[i].y}`);
   }
 
-  parts.push(`L ${arrowBase.x} ${arrowBase.y}`);
+  parts.push(`L ${placement.pathEnd.x} ${placement.pathEnd.y}`);
 
   return {
     path: parts.join(' '),
-    arrowTip,
+    arrowTip: placement.arrowTip,
+    arrowAnchor: placement.arrowAnchor,
     arrowAngle,
-    pathEnd: arrowBase,
+    pathEnd: placement.pathEnd,
   };
 }
 
@@ -700,16 +749,18 @@ export function computeEdgePath(
   arrowSize: number,
   fromShape?: NodeShape,
   toShape?: NodeShape,
+  arrowStyle: ArrowStyle | null = 'filled',
+  strokeWidth = 1.5,
 ): EdgePathResult {
   switch (curveStyle) {
     case 'bezier':
-      return computeBezierPath(waypoints, fromBounds, toBounds, gap, arrowSize, fromShape, toShape);
+      return computeBezierPath(waypoints, fromBounds, toBounds, gap, arrowSize, fromShape, toShape, arrowStyle, strokeWidth);
     case 'step':
-      return computeStepPath(waypoints, fromBounds, toBounds, gap, arrowSize, fromShape, toShape);
+      return computeStepPath(waypoints, fromBounds, toBounds, gap, arrowSize, fromShape, toShape, arrowStyle, strokeWidth);
     case 'straight':
-      return computeStraightPath(waypoints, fromBounds, toBounds, gap, arrowSize, fromShape, toShape);
+      return computeStraightPath(waypoints, fromBounds, toBounds, gap, arrowSize, fromShape, toShape, arrowStyle, strokeWidth);
     default:
-      return computeBezierPath(waypoints, fromBounds, toBounds, gap, arrowSize, fromShape, toShape);
+      return computeBezierPath(waypoints, fromBounds, toBounds, gap, arrowSize, fromShape, toShape, arrowStyle, strokeWidth);
   }
 }
 

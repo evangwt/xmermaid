@@ -1,3 +1,3 @@
 export { SVGRenderer } from './svg';
-export { computeEdgePath, computeBezierPath, computeStepPath, computeStraightPath, truncateAtBounds, computeArrowPoints } from './edge';
-export type { EdgePathResult } from './edge';
+export { computeEdgePath, computeBezierPath, computeStepPath, computeStraightPath, truncateAtBounds, computeArrowPlacement, computeArrowPoints } from './edge';
+export type { ArrowPlacement, EdgePathResult } from './edge';

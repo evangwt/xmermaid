@@ -47,26 +47,38 @@ export const DEFAULT_THEME: RenderTheme = {
   fontSize: 14,
 };
 
-export const DARK_THEME: RenderTheme = {
-  name: 'dark',
+export const LIGHT_THEME: RenderTheme = {
+  ...DEFAULT_THEME,
+  name: 'xmermaid-light',
   colors: {
-    background: '#1a1a2e',
-    nodeFill: '#16213e',
-    nodeStroke: '#e0e0e0',
-    nodeText: '#e0e0e0',
-    edgeStroke: '#e0e0e0',
-    edgeLabel: '#e0e0e0',
-    arrowFill: '#e0e0e0',
-    subgraphFill: '#0f3460',
-    subgraphStroke: '#555555',
+    background: '#f7f9fb',
+    nodeFill: '#ffffff',
+    nodeStroke: '#0f766e',
+    nodeText: '#17212b',
+    edgeStroke: '#52606d',
+    edgeLabel: '#334155',
+    arrowFill: '#0f9f8f',
+    subgraphFill: '#edf7f5',
+    subgraphStroke: '#94a3b8',
   },
-  arrowStyle: 'filled',
-  curveStyle: 'bezier',
-  edgeGap: 8,
-  arrowSize: 10,
-  nodeBorderRadius: 4,
-  fontFamily: 'sans-serif',
-  fontSize: 14,
+  edgeGap: 2,
+};
+
+export const DARK_THEME: RenderTheme = {
+  ...DEFAULT_THEME,
+  name: 'xmermaid-dark',
+  colors: {
+    background: '#0b1117',
+    nodeFill: '#15212b',
+    nodeStroke: '#2dd4bf',
+    nodeText: '#e6edf3',
+    edgeStroke: '#9fb0bf',
+    edgeLabel: '#d5dee7',
+    arrowFill: '#2dd4bf',
+    subgraphFill: '#111c24',
+    subgraphStroke: '#3c4b57',
+  },
+  edgeGap: 2,
 };
 
 export const MINIMAL_THEME: RenderTheme = {

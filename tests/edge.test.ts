@@ -4,6 +4,7 @@ import {
   computeBezierPath,
   computeStepPath,
   computeStraightPath,
+  computeArrowPlacement,
   computeArrowPoints,
 } from '../src/renderer/edge';
 import type { Point, Bounds } from '../src/types';
@@ -132,7 +133,7 @@ describe('computeBezierPath', () => {
     expect(result.path.startsWith('M')).toBe(true);
   });
 
-  it('arrow tip touches the target node boundary', () => {
+  it('uses edge gap as marker-to-node clearance', () => {
     const result = computeBezierPath(
       [{ x: 50, y: 25 }, { x: 50, y: 225 }],
       fromBounds,
@@ -140,7 +141,7 @@ describe('computeBezierPath', () => {
       gap,
       arrowSize,
     );
-    expect(result.arrowTip.y).toBeCloseTo(200, 1);
+    expect(result.arrowTip.y).toBeCloseTo(195, 1);
   });
 
   it('arrow angle points downward for vertical edge', () => {
@@ -154,7 +155,7 @@ describe('computeBezierPath', () => {
     expect(result.arrowAngle).toBeCloseTo(Math.PI / 2, 1);
   });
 
-  it('path ends before the arrow tail with edge gap and arrow size', () => {
+  it('path joins the filled arrow base without a positive gap', () => {
     const result = computeBezierPath(
       [{ x: 50, y: 25 }, { x: 50, y: 225 }],
       fromBounds,
@@ -162,8 +163,9 @@ describe('computeBezierPath', () => {
       gap,
       arrowSize,
     );
+    const placement = computeArrowPlacement({ x: 50, y: 200 }, Math.PI / 2, arrowSize, gap, 'filled');
     expect(result.pathEnd).toBeDefined();
-    expect(result.pathEnd!.y).toBeCloseTo(result.arrowTip.y - gap - arrowSize, 1);
+    expect(result.pathEnd!.y).toBeCloseTo(placement.pathEnd.y, 6);
     expect(result.path).toContain(`${result.pathEnd!.x} ${result.pathEnd!.y}`);
   });
 
@@ -203,9 +205,8 @@ describe('computeBezierPath', () => {
       gap,
       arrowSize,
     );
-    // Arrow tip should be at top edge of toBounds (approach from above)
-    // not at some other edge
-    expect(result.arrowTip.y).toBeCloseTo(200, 1);
+    // Arrow tip keeps the configured marker-to-node clearance at the approached edge.
+    expect(result.arrowTip.y).toBeCloseTo(195, 1);
     expect(result.arrowTip.x).toBeCloseTo(50, 1);
   });
 });
@@ -251,7 +252,7 @@ describe('computeStepPath', () => {
     expect(result.arrowAngle).toBeCloseTo(Math.PI / 2, 1);
   });
 
-  it('path is shortened in the SVG command output by edge gap and arrow size', () => {
+  it('joins the filled arrow base in the SVG command output', () => {
     const result = computeStepPath(
       [{ x: 50, y: 25 }, { x: 50, y: 225 }],
       fromBounds,
@@ -259,9 +260,10 @@ describe('computeStepPath', () => {
       gap,
       arrowSize,
     );
+    const placement = computeArrowPlacement({ x: 50, y: 200 }, Math.PI / 2, arrowSize, gap, 'filled');
     expect(result.pathEnd).toBeDefined();
-    expect(result.arrowTip.y).toBeCloseTo(200, 1);
-    expect(result.pathEnd!.y).toBeCloseTo(result.arrowTip.y - gap - arrowSize, 1);
+    expect(result.arrowTip.y).toBeCloseTo(195, 1);
+    expect(result.pathEnd!.y).toBeCloseTo(placement.pathEnd.y, 6);
     expect(result.path).toContain(`${result.pathEnd!.x} ${result.pathEnd!.y}`);
     expect(result.path.trim()).not.toMatch(/H 50$/);
   });
@@ -296,7 +298,7 @@ describe('computeStraightPath', () => {
     expect(result.arrowAngle).toBeCloseTo(Math.PI / 2, 1);
   });
 
-  it('path shortened by edge gap and arrow size', () => {
+  it('joins the filled arrow base without a positive gap', () => {
     const result = computeStraightPath(
       [{ x: 50, y: 25 }, { x: 50, y: 225 }],
       fromBounds,
@@ -304,10 +306,26 @@ describe('computeStraightPath', () => {
       gap,
       arrowSize,
     );
+    const placement = computeArrowPlacement({ x: 50, y: 200 }, Math.PI / 2, arrowSize, gap, 'filled');
     expect(result.pathEnd).toBeDefined();
-    expect(result.arrowTip.y).toBeCloseTo(200, 1);
-    expect(result.pathEnd!.y).toBeCloseTo(result.arrowTip.y - gap - arrowSize, 1);
+    expect(result.arrowTip.y).toBeCloseTo(195, 1);
+    expect(result.pathEnd!.y).toBeCloseTo(placement.pathEnd.y, 6);
     expect(result.path).toContain(`${result.pathEnd!.x} ${result.pathEnd!.y}`);
+  });
+
+  it('runs an open-arrow shaft to its tip', () => {
+    const result = computeStraightPath(
+      [{ x: 50, y: 25 }, { x: 50, y: 225 }],
+      fromBounds,
+      toBounds,
+      gap,
+      arrowSize,
+      undefined,
+      undefined,
+      'open',
+    );
+
+    expect(result.pathEnd).toEqual(result.arrowTip);
   });
 
   it('multi-waypoint straight path includes intermediate points', () => {
@@ -374,5 +392,33 @@ describe('computeArrowPoints', () => {
       'circle',
     );
     expect(result).toContain('5'); // radius = size/2
+  });
+});
+
+describe('computeArrowPlacement', () => {
+  const boundary: Point = { x: 100, y: 50 };
+
+  it('joins a filled arrow at its base instead of edgeGap plus arrowSize', () => {
+    const placement = computeArrowPlacement(boundary, 0, 10, 2, 'filled', 1.5);
+
+    expect(placement.arrowTip).toEqual({ x: 98, y: 50 });
+    expect(placement.arrowAnchor).toEqual(placement.arrowTip);
+    expect(placement.pathEnd.x).toBeCloseTo(90.09, 2);
+    expect(placement.pathEnd.y).toBe(50);
+  });
+
+  it('runs an open-arrow shaft to the tip', () => {
+    const placement = computeArrowPlacement(boundary, 0, 10, 2, 'open', 1.5);
+
+    expect(placement.pathEnd).toEqual(placement.arrowTip);
+  });
+
+  it('joins a circle at its rear circumference', () => {
+    const placement = computeArrowPlacement(boundary, 0, 10, 2, 'circle', 1.5);
+
+    expect(placement.arrowTip).toEqual({ x: 98, y: 50 });
+    expect(placement.arrowAnchor).toEqual({ x: 93, y: 50 });
+    expect(placement.pathEnd.x).toBeCloseTo(88.75, 2);
+    expect(placement.pathEnd.y).toBe(50);
   });
 });

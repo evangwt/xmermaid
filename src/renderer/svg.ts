@@ -1,7 +1,7 @@
 import type { LayoutResult, LayoutNode, LayoutEdge, Point } from '../types/layout';
 import type { ArrowStyle, RenderTheme } from '../types/theme';
 import { DEFAULT_THEME } from '../types/theme';
-import { computeEdgePath, computeArrowPoints, type EdgePathResult } from './edge';
+import { computeArrowPlacement, computeEdgePath, computeArrowPoints, type EdgePathResult } from './edge';
 
 export class SVGRenderer {
   private theme: RenderTheme;
@@ -249,12 +249,14 @@ export class SVGRenderer {
       this.theme.arrowSize,
       sourceNode.shape,
       targetNode.shape,
+      this.edgeHasArrow(edge) ? this.theme.arrowStyle : null,
+      this.edgeStrokeWidth(edge),
     );
   }
 
   private computeExplicitEdgePath(edge: LayoutEdge): EdgePathResult | undefined {
     if (
-      edge.geometry_version !== 1 ||
+      (edge.geometry_version !== 1 && edge.geometry_version !== 2) ||
       !edge.source_boundary ||
       !edge.target_boundary ||
       !edge.path_end ||
@@ -264,19 +266,35 @@ export class SVGRenderer {
       return undefined;
     }
 
+    const placement = this.edgeHasArrow(edge)
+      ? computeArrowPlacement(
+        edge.target_boundary,
+        edge.final_tangent_angle,
+        this.theme.arrowSize,
+        this.theme.edgeGap,
+        this.theme.arrowStyle,
+        this.edgeStrokeWidth(edge),
+      )
+      : {
+        arrowTip: edge.target_boundary,
+        arrowAnchor: edge.target_boundary,
+        pathEnd: edge.target_boundary,
+      };
+
     return {
-      path: this.buildExplicitPath(edge),
-      arrowTip: edge.target_boundary,
+      path: this.buildExplicitPath(edge, placement.pathEnd),
+      arrowTip: placement.arrowTip,
+      arrowAnchor: placement.arrowAnchor,
       arrowAngle: edge.final_tangent_angle,
-      pathEnd: edge.path_end,
+      pathEnd: placement.pathEnd,
     };
   }
 
-  private buildExplicitPath(edge: LayoutEdge): string {
+  private buildExplicitPath(edge: LayoutEdge, pathEnd: Point): string {
     const points = [
       edge.source_boundary!,
       ...edge.waypoints.slice(1, -1),
-      edge.path_end!,
+      pathEnd,
     ];
 
     if (this.theme.curveStyle === 'step') {
@@ -351,8 +369,9 @@ export class SVGRenderer {
       }
       case 'circle': {
         const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-        circle.setAttribute('cx', String(edgeResult.arrowTip.x));
-        circle.setAttribute('cy', String(edgeResult.arrowTip.y));
+        const center = edgeResult.arrowAnchor ?? edgeResult.arrowTip;
+        circle.setAttribute('cx', String(center.x));
+        circle.setAttribute('cy', String(center.y));
         circle.setAttribute('r', String(this.theme.arrowSize / 2));
         circle.setAttribute('fill', this.theme.colors.arrowFill);
         circle.setAttribute('stroke', this.theme.colors.edgeStroke);
@@ -360,10 +379,18 @@ export class SVGRenderer {
         return [circle];
       }
       case 'cross': {
-        const points = this.parsePoints(this.computeArrowPoints(style, edgeResult));
-        if (points.length < 3) return [];
-        const crossA = this.createArrowLine(points[0], points[2]);
-        const crossB = this.createArrowLine(edgeResult.arrowTip, edgeResult.pathEnd ?? points[1]);
+        const center = edgeResult.arrowAnchor ?? edgeResult.arrowTip;
+        const half = this.theme.arrowSize / 2;
+        const diagonalA = edgeResult.arrowAngle + Math.PI / 4;
+        const diagonalB = edgeResult.arrowAngle - Math.PI / 4;
+        const endpoints = (angle: number): [Point, Point] => [
+          { x: center.x - Math.cos(angle) * half, y: center.y - Math.sin(angle) * half },
+          { x: center.x + Math.cos(angle) * half, y: center.y + Math.sin(angle) * half },
+        ];
+        const [a1, a2] = endpoints(diagonalA);
+        const [b1, b2] = endpoints(diagonalB);
+        const crossA = this.createArrowLine(a1, a2);
+        const crossB = this.createArrowLine(b1, b2);
         return [crossA, crossB];
       }
       case 'filled':
@@ -378,6 +405,14 @@ export class SVGRenderer {
         return [polygon];
       }
     }
+  }
+
+  private edgeHasArrow(edge: LayoutEdge): boolean {
+    return edge.style !== 'line' && edge.style !== 'invisible';
+  }
+
+  private edgeStrokeWidth(edge: LayoutEdge): number {
+    return edge.style === 'thick' ? 3 : 1.5;
   }
 
   private computeArrowPoints(style: ArrowStyle, edgeResult: EdgePathResult): string {
