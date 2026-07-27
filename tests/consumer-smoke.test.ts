@@ -176,7 +176,7 @@ describe('consumer smoke helpers', () => {
       writeBrowserSmokePage(tempRoot);
       const page = readFileSync(join(tempRoot, 'smoke.html'), 'utf8');
 
-      expect(page).toContain("await renderer.renderToSVGElement('graph TD\\n  A-->B');");
+      expect(page).toContain("await renderer.renderToSVGElement('graph TD\\n  A-->B', { theme: DARK_THEME });");
       expect(page).not.toContain('wasmUrl');
       expect(page).toContain('liveEditorWorkflow');
       expect(page).toContain('visualRenameApplied');
@@ -185,6 +185,9 @@ describe('consumer smoke helpers', () => {
       expect(page).toContain('unsupportedVisualEditBlocked');
       expect(page).toContain('shareHashNamespaced');
       expect(page).toContain('svgExportReady');
+      expect(page).toContain("import { DARK_THEME, XMermaid } from 'xmermaid';");
+      expect(page).toContain('themeGeometryReady');
+      expect(page).toContain('markerJoinDistance <= 1');
     } finally {
       rmSync(tempRoot, { recursive: true, force: true });
     }

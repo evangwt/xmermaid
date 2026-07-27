@@ -15,9 +15,7 @@ use crate::types::{
 };
 use xmermaid_parser::ast::{EdgeStyle as ParserEdgeStyle, FlowchartAst, NodeShape as ParserNodeShape};
 
-const GEOMETRY_VERSION: u8 = 1;
-const DEFAULT_EDGE_GAP: f64 = 8.0;
-const DEFAULT_ARROW_SIZE: f64 = 10.0;
+const GEOMETRY_VERSION: u8 = 2;
 const DEFAULT_NODE_FONT_SIZE: f64 = 14.0;
 const NODE_LABEL_HORIZONTAL_PADDING: f64 = 28.0;
 const NODE_LABEL_VERTICAL_PADDING: f64 = 20.0;
@@ -327,18 +325,10 @@ fn node_size(label_lines: &[String], shape: NodeShape, config: &LayoutConfig) ->
     (width, height)
 }
 
-fn edge_has_arrow(style: &crate::types::EdgeStyle) -> bool {
-    !matches!(
-        style,
-        crate::types::EdgeStyle::Line | crate::types::EdgeStyle::Invisible
-    )
-}
-
 fn compute_edge_geometry(
     waypoints: &[Point],
     from_node: Option<&LayoutNode>,
     to_node: Option<&LayoutNode>,
-    style: &crate::types::EdgeStyle,
 ) -> (Option<Point>, Option<Point>, Option<Point>, Option<f64>) {
     if waypoints.len() < 2 {
         return (None, None, None, None);
@@ -355,17 +345,7 @@ fn compute_edge_geometry(
         .map(|node| boundary_point(last, target_approach, node.bounds, node.shape));
     let angle = Some((last.y - target_approach.y).atan2(last.x - target_approach.x));
 
-    let path_end = match (target_boundary, angle) {
-        (Some(target), Some(final_angle)) if edge_has_arrow(style) => {
-            let distance = DEFAULT_EDGE_GAP + DEFAULT_ARROW_SIZE;
-            Some(Point {
-                x: target.x - final_angle.cos() * distance,
-                y: target.y - final_angle.sin() * distance,
-            })
-        }
-        (Some(target), _) => Some(target),
-        _ => None,
-    };
+    let path_end = target_boundary;
 
     (source_boundary, target_boundary, path_end, angle)
 }
@@ -907,7 +887,7 @@ pub fn layout(fc: &FlowchartAst, config: &LayoutConfig) -> LayoutResult {
             let from_node = from_idx_opt.map(|idx| &nodes[idx]);
             let to_node = to_idx_opt.map(|idx| &nodes[idx]);
             let (source_boundary, target_boundary, path_end, final_tangent_angle) =
-                compute_edge_geometry(&waypoints, from_node, to_node, &style);
+                compute_edge_geometry(&waypoints, from_node, to_node);
 
             LayoutEdge {
                 from: edge.from.clone(),

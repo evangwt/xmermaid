@@ -62,6 +62,31 @@ const svgText = await renderer.renderToSVGString('graph TD\n  A-->B');
 - `dimensions`
 - `svg`
 
+## Diagram Themes
+
+xmermaid publishes paired `LIGHT_THEME` and `DARK_THEME` presets while keeping `DEFAULT_THEME` as the compatibility default. Pass a preset or any partial `RenderTheme` per renderer or per render:
+
+```ts
+import { DARK_THEME, XMermaid, type RenderTheme } from 'xmermaid';
+
+const customTheme: Partial<RenderTheme> = {
+  ...DARK_THEME,
+  colors: {
+    ...DARK_THEME.colors,
+    nodeStroke: '#67e8f9',
+    arrowFill: '#fbbf24',
+  },
+  arrowStyle: 'open',
+  curveStyle: 'step',
+  edgeGap: 2,
+  arrowSize: 12,
+};
+
+await renderer.renderToSVGElement(source, { theme: customTheme });
+```
+
+`edgeGap` is the clearance between the marker and target node. The renderer derives the visible line endpoint from the active marker style, size, and stroke width so the line joins the marker without a visible gap.
+
 ## Current Support
 
 xmermaid currently focuses on browser-side SVG rendering for Mermaid flowcharts. It supports basic `graph` / `flowchart` declarations, basic nodes and directed edges, common labels, core shapes, and partial subgraph parsing.

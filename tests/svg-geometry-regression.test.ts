@@ -72,11 +72,12 @@ describe('SVG geometry regression suite', () => {
 
     expect(path).toContain('L 260 60');
     expect(path).toContain('L 260 180');
-    expect(path).toContain('L 302 180');
+    expect(path).toContain('L 304.08974596215563 180');
 
     const nums = pathNumbers(path);
     expect(nums.slice(0, 2)).toEqual([168, 60]);
-    expect(nums.slice(-2)).toEqual([302, 180]);
+    expect(nums.slice(-2)[0]).toBeCloseTo(304.09, 2);
+    expect(nums.slice(-2)[1]).toBe(180);
     expect(nums[nums.length - 2]).toBeLessThan(b.bounds.x);
   });
 
@@ -99,7 +100,7 @@ describe('SVG geometry regression suite', () => {
 
     expect(label).toBeDefined();
     expect(Number(label?.getAttribute('x'))).toBeCloseTo(100, 1);
-    expect(Number(label?.getAttribute('y'))).toBeCloseTo(115, 1);
+    expect(Number(label?.getAttribute('y'))).toBeCloseTo(116.04, 1);
   });
 
   it('clips fallback paths at non-rectangle shape boundaries', () => {

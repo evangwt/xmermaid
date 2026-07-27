@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { DEFAULT_THEME, DARK_THEME, MINIMAL_THEME, createTheme } from '../src/types/theme';
+import { DEFAULT_THEME, DARK_THEME, LIGHT_THEME, MINIMAL_THEME, createTheme } from '../src/types/theme';
 
 describe('DEFAULT_THEME', () => {
   it('has all required fields', () => {
@@ -13,9 +13,24 @@ describe('DEFAULT_THEME', () => {
 });
 
 describe('DARK_THEME', () => {
-  it('has dark background', () => {
-    expect(DARK_THEME.colors.background).toBe('#1a1a2e');
-    expect(DARK_THEME.colors.nodeFill).toBe('#16213e');
+  it('uses the xmermaid dark palette and compact node clearance', () => {
+    expect(DARK_THEME.name).toBe('xmermaid-dark');
+    expect(DARK_THEME.colors.background).toBe('#0b1117');
+    expect(DARK_THEME.colors.nodeFill).toBe('#15212b');
+    expect(DARK_THEME.colors.arrowFill).toBe('#2dd4bf');
+    expect(DARK_THEME.edgeGap).toBe(2);
+  });
+});
+
+describe('LIGHT_THEME', () => {
+  it('pairs with the dark theme without changing the compatibility default', () => {
+    expect(LIGHT_THEME.name).toBe('xmermaid-light');
+    expect(LIGHT_THEME.colors.background).toBe('#f7f9fb');
+    expect(LIGHT_THEME.colors.nodeFill).toBe('#ffffff');
+    expect(LIGHT_THEME.colors.arrowFill).toBe('#0f9f8f');
+    expect(LIGHT_THEME.edgeGap).toBe(2);
+    expect(DEFAULT_THEME.name).toBe('default');
+    expect(createTheme()).toEqual(DEFAULT_THEME);
   });
 });
 
