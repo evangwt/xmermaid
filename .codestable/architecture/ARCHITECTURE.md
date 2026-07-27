@@ -60,9 +60,9 @@ xmermaid 当前已落地的主链路是四层结构：
 
 `LayoutConfig` 是布局输入合同，包含节点尺寸、水平/垂直间距、padding 和方向。WASM `render_with_config(input, configJson)` 支持 partial config：未传方向时根据 DSL 方向补默认值，显式传 `direction` 时以 config 为准。
 
-`LayoutResult` 包含 `nodes`、`edges` 和 `dimensions`。每个 `LayoutNode` 提供 `center`、`bounds`、`shape`、`label` 和 `label_lines`；裸节点的有效 `label` 是其 id，显式 label 保持原值。`label_lines` 是 layout 到 renderer 的显示合同：node 与 edge label 都按每行最多 48 个字符、最多 8 行生成，超出部分以 `…` 标示；SVG 保留原始 `label` 于 `<title>`，因此可视输出有界而完整文字仍可取得。布局用保守的默认字体度量按 node 标签扩展 bounds 和 viewport，并把 edge label 的背景和文字范围一并纳入 dimensions，避免两类标签在 SVG 外被截断。每个 `LayoutEdge` 提供中心点 `waypoints`、标签位置、边样式，以及 geometry v1 显式字段：`source_boundary`、`target_boundary`、`path_end`、`final_tangent_angle`、`label_anchor`。geometry v1 在 Rust 中按实际 SVG shape（矩形、圆、菱形、六边形、平行四边形、梯形、跑道形）计算边界；Renderer 优先使用该字段绘制 arrow tip、stroke endpoint 和 label anchor，缺字段时回退到 TS `computeEdgePath`。
+`LayoutResult` 包含 `nodes`、`edges` 和 `dimensions`。每个 `LayoutNode` 提供 `center`、`bounds`、`shape`、`label` 和 `label_lines`；裸节点的有效 `label` 是其 id，显式 label 保持原值。`label_lines` 是 layout 到 renderer 的显示合同：node 与 edge label 都按每行最多 48 个字符、最多 8 行生成，超出部分以 `…` 标示；SVG 保留原始 `label` 于 `<title>`，因此可视输出有界而完整文字仍可取得。布局用保守的默认字体度量按 node 标签扩展 bounds 和 viewport，并把 edge label 的背景和文字范围一并纳入 dimensions，避免两类标签在 SVG 外被截断。每个 `LayoutEdge` 提供中心点 `waypoints`、标签位置、边样式，以及 geometry v2 显式字段：`source_boundary`、`target_boundary`、`path_end`、`final_tangent_angle`、`label_anchor`。geometry v2 在 Rust 中按实际 SVG shape（矩形、圆、菱形、六边形、平行四边形、梯形、跑道形）计算边界和最终切线；`path_end` 保持为不含主题尺寸的目标边界 fallback。Renderer 使用当前主题重算 arrow tip、marker anchor 和 stroke endpoint，缺字段时回退到 TS `computeEdgePath`。
 
-SVG renderer 的主题合同是 `RenderTheme`，当前内置 `DEFAULT_THEME`、`DARK_THEME`、`MINIMAL_THEME`。主题控制颜色、箭头样式、曲线样式、edge gap、arrow size、圆角和字体。`XMermaidOptions` 暴露 `theme` 与 `layoutConfig`，`XMermaid.render()` 负责 WASM 初始化、布局调用、WASM enum 归一化和 DOM 替换。
+SVG renderer 的主题合同是 `RenderTheme`，当前内置兼容默认 `DEFAULT_THEME`、配套 `LIGHT_THEME` / `DARK_THEME` 和 `MINIMAL_THEME`。主题控制颜色、箭头样式、曲线样式、edge gap、arrow size、圆角和字体；`edgeGap` 只表示 marker-to-node clearance，line-to-marker 接合由 renderer 按 marker footprint 计算。`XMermaidOptions` 暴露 `theme` 与 `layoutConfig`，`XMermaid.render()` 负责 WASM 初始化、布局调用、WASM enum 归一化和 DOM 替换。
 
 公开 SDK 现在同时提供容器替换路径和可复用 SVG 输出路径。`XMermaid.render(input): Promise<void>` 保持兼容：清空 constructor 传入的 container 并插入 SVG。`XMermaid.run()` 仍是 DOM scan 兼容入口；失败时保留写入错误文本的行为，同时在失败的 `.mermaid` 元素上写入 `data-xmermaid-error-code` 和 JSON `data-xmermaid-diagnostics`。`XMermaid.renderToSVGElement(input, options?)` 是主输出 API，返回 `RenderResult`，包含 `diagramType`、`diagnostics`、`dimensions` 和 `svg: SVGSVGElement`；成功渲染 partial flowchart 时，support analyzer 发现的 warning-level unsupported syntax 会随 `RenderResult.diagnostics` 返回，error-level unsupported syntax 和 unsupported diagram family 会在调用 WASM 前抛 `XMermaidError`。`XMermaid.renderToSVGString(input, options?)` 是 element API 的序列化包装，不另走第二套渲染逻辑。`RenderOptions` 支持单次 `theme`、`layoutConfig`、`wasm.wasmUrl` 和 `wasm.fetch`；显式 `wasm.wasmUrl` 会传给 wasm-pack 初始化，用于自定义 WASM asset base path；同时传入 `wasm.fetch` 时，loader 用该 fetch 获取 wasm Response 后交给 wasm-pack 初始化。WASM 初始化是进程级单例：首次初始化后后续 render 复用同一个 module，不在多次 render 间切换 `wasmUrl` / `fetch`。
 
@@ -124,12 +124,12 @@ SVG renderer 的主题合同是 `RenderTheme`，当前内置 `DEFAULT_THEME`、`
 | `compute_layout()` | layout dispatcher | 当前只对 `DiagramAst::Flowchart` 调用 flowchart layout；其他 AST 返回空 layout result |
 | `flowchart::layout()` | flowchart 布局 | Sugiyama-style layered graph drawing，支持 TB/BT/LR/RL 方向 |
 | `LayoutConfig` | 布局输入配置 | 节点尺寸、水平/垂直间距、padding、direction |
-| `LayoutResult` | 布局输出合同 | nodes、edges、dimensions；edge 携带 geometry v1 字段供 SVG renderer 消费 |
+| `LayoutResult` | 布局输出合同 | nodes、edges、dimensions；edge 携带 theme-independent geometry v2 字段供 SVG renderer 消费 |
 
 ### 布局算法策略
 
 **Flowchart：**
-- 使用当前 Rust flowchart layout engine 计算 node center/bounds、edge waypoints 和 geometry v1 字段。
+- 使用当前 Rust flowchart layout engine 计算 node center/bounds、edge waypoints 和 geometry v2 边界/切线字段。
 - 支持方向：TB/TD（从上到下）、BT（从下到上）、LR/RL（从左到右/从右到左）。
 - 子图当前保留在 AST / visual model 合同中；布局能力以现有 tests 和 release gate 为准，不承诺完整 Mermaid subgraph layout 语义。
 
@@ -164,14 +164,14 @@ SVG renderer 的主题合同是 `RenderTheme`，当前内置 `DEFAULT_THEME`、`
 | 模块 | 功能 | 技术栈 |
 |------|------|--------|
 | `SVGRenderer` | SVG 渲染 | TypeScript + DOM API，生成 SVG 元素树 |
-| `RenderTheme` | 主题合同 | `DEFAULT_THEME`、`DARK_THEME`、`MINIMAL_THEME` 及 partial theme override |
-| edge geometry helpers | 边路径表达 | 优先消费 layout geometry v1，缺字段时回退到 legacy path 计算 |
+| `RenderTheme` | 主题合同 | `DEFAULT_THEME`、`LIGHT_THEME`、`DARK_THEME`、`MINIMAL_THEME` 及 partial theme override |
+| edge geometry helpers | 边路径表达 | 消费 layout geometry v1/v2 并按活动主题重算 marker placement；缺字段时回退到 waypoint path 计算 |
 | browser export helpers | Live editor 导出 | 基于当前 preview SVG 导出 SVG，PNG 仅作为 live editor browser helper |
 
 ### SVG 渲染器特点
 
 - 输出标准 SVG DOM，可被 CSS 样式化
-- 支持主题切换（default、dark、minimal）
+- 支持主题切换（default、xmermaid-light、xmermaid-dark、minimal）
 - 每个 node/edge 有唯一 ID，便于 JS 操作
 - 支持响应式缩放（viewBox 设置）
 
@@ -256,9 +256,9 @@ packed consumer smoke 的 TypeScript fixture 也会 import `DEFAULT_SECURITY_POL
 
 ## Layout / Renderer Edge Geometry Contract
 
-布局层现在为每条 `LayoutEdge` 输出 versioned geometry v1 字段：`source_boundary`、`target_boundary`、`path_end`、`final_tangent_angle`、`label_anchor` 和 `geometry_version`。`target_boundary` 表示箭头尖端落在目标节点边界的点，`path_end` 表示可见 stroke 结束点，二者不能被混用。
+布局层现在为每条 `LayoutEdge` 输出 versioned geometry v2 字段：`source_boundary`、`target_boundary`、`path_end`、`final_tangent_angle`、`label_anchor` 和 `geometry_version`。`target_boundary` 是目标 shape 的真实边界，`path_end` 在 v2 中与它相同，只作为 theme-independent fallback；布局层不再烘焙默认 `edgeGap` 或 `arrowSize`。
 
-SVG renderer 的消费顺序是：完整 `geometry_version=1` 字段存在时优先使用 explicit geometry；缺字段或旧 payload 时回退到 `waypoints` + node bounds 的现有 `computeEdgePath` 计算。label 定位优先级为 `label_anchor` → `label_position` → path fallback。
+SVG renderer 对完整 `geometry_version=1|2` payload 都保留 explicit route、shape boundary、最终切线和 label anchor，但不信任旧 v1 已烘焙的 `path_end`。Renderer 依据活动主题的 arrow style、arrow size、edge gap 和实际 stroke width 计算 `arrowTip`、`arrowAnchor` 与可见 stroke endpoint；无箭头边直接结束在目标边界。缺字段或 waypoint-only payload 时回退到 `waypoints` + node bounds 的 `computeEdgePath`，使用同一 marker placement helper。label 定位优先级为 `label_anchor` → `label_position` → path fallback。
 
 SVG 几何行为由 `tests/edge.test.ts`、`tests/renderer.test.ts` 和 `tests/svg-geometry-regression.test.ts` 共同守护。新增 regression suite 使用 jsdom 断言实际 SVG DOM，覆盖复杂 path、中间 routing point、label fallback、diamond/circle/stadium boundary truncation 和五种 arrow style 的 DOM 形态。截图仍按 `docs/evidence-governance.md` 默认不提交。
 

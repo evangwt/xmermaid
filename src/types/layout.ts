@@ -57,7 +57,7 @@ export interface LayoutEdge {
   path_end?: Point;
   final_tangent_angle?: number;
   label_anchor?: Point;
-  geometry_version?: 1;
+  geometry_version?: 1 | 2;
 }
 
 export interface Dimensions {
