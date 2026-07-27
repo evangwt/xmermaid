@@ -48,6 +48,10 @@ export class SVGRenderer {
     g.classList.add('node');
     g.setAttribute('id', `node-${node.id}`);
 
+    const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+    title.textContent = node.label;
+    g.appendChild(title);
+
     const shape = this.createNodeShape(node);
     shape.setAttribute('fill', this.theme.colors.nodeFill);
     shape.setAttribute('stroke', this.theme.colors.nodeStroke);
@@ -56,13 +60,11 @@ export class SVGRenderer {
 
     const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     text.setAttribute('x', String(node.center.x));
-    text.setAttribute('y', String(node.center.y));
     text.setAttribute('text-anchor', 'middle');
-    text.setAttribute('dominant-baseline', 'central');
     text.setAttribute('fill', this.theme.colors.nodeText);
     text.setAttribute('font-family', this.theme.fontFamily);
     text.setAttribute('font-size', String(this.theme.fontSize));
-    text.textContent = node.label;
+    this.setTextLines(text, node.label_lines?.length ? node.label_lines : [node.label], node.center, this.theme.fontSize);
     g.appendChild(text);
 
     return g;
@@ -202,29 +204,32 @@ export class SVGRenderer {
     if (edge.label) {
       const labelPos = edge.label_anchor ?? edge.label_position ?? this.computeLabelPosition(edgeResult);
       const fontSize = this.theme.fontSize - 2;
+      const labelLines = edge.label_lines?.length ? edge.label_lines : [edge.label];
       const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       text.setAttribute('x', String(labelPos.x));
-      text.setAttribute('y', String(labelPos.y));
       text.setAttribute('text-anchor', 'middle');
-      text.setAttribute('dominant-baseline', 'central');
       text.setAttribute('fill', this.theme.colors.edgeLabel);
       text.setAttribute('font-family', this.theme.fontFamily);
       text.setAttribute('font-size', String(fontSize));
 
       // Background for readability — measure actual text width
-      const textWidth = this.measureText(edge.label, fontSize);
+      const textWidth = Math.max(...labelLines.map(line => this.measureText(line, fontSize)));
+      const textHeight = fontSize + (labelLines.length - 1) * fontSize * 1.2;
       const padX = 4;
       const padY = 3;
       const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
       bg.setAttribute('x', String(labelPos.x - textWidth / 2 - padX));
-      bg.setAttribute('y', String(labelPos.y - fontSize / 2 - padY));
+      bg.setAttribute('y', String(labelPos.y - textHeight / 2 - padY));
       bg.setAttribute('width', String(textWidth + padX * 2));
-      bg.setAttribute('height', String(fontSize + padY * 2));
+      bg.setAttribute('height', String(textHeight + padY * 2));
       bg.setAttribute('fill', this.theme.colors.background);
       bg.setAttribute('rx', '2');
       g.appendChild(bg);
 
-      text.textContent = edge.label;
+      const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+      title.textContent = edge.label;
+      g.appendChild(title);
+      this.setTextLines(text, labelLines, labelPos, fontSize);
       g.appendChild(text);
     }
 
@@ -402,6 +407,25 @@ export class SVGRenderer {
       const [x, y] = point.split(',').map(Number);
       return { x, y };
     }).filter(point => Number.isFinite(point.x) && Number.isFinite(point.y));
+  }
+
+  private setTextLines(text: SVGTextElement, lines: string[], center: Point, fontSize: number): void {
+    if (lines.length <= 1) {
+      text.setAttribute('y', String(center.y));
+      text.setAttribute('dominant-baseline', 'central');
+      text.textContent = lines[0] ?? '';
+      return;
+    }
+
+    const lineHeight = fontSize * 1.2;
+    const firstLineY = center.y - (lines.length - 1) * lineHeight / 2;
+    for (const [index, line] of lines.entries()) {
+      const tspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+      tspan.setAttribute('x', String(center.x));
+      tspan.setAttribute('y', String(firstLineY + index * lineHeight));
+      tspan.textContent = line;
+      text.appendChild(tspan);
+    }
   }
 
   private computeLabelPosition(edgeResult: EdgePathResult): Point {
