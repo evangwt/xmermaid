@@ -401,4 +401,21 @@ describe('SVGRenderer', () => {
     expect(renderedPathEnd(small)).not.toBe(renderedPathEnd(large));
     expect(renderedArrowTip(small)).toBe(renderedArrowTip(large));
   });
+
+  it('aligns explicit step and bezier path endings with the supplied target tangent', () => {
+    const layout = layoutWithGeometry(2);
+    layout.edges[0] = {
+      ...layout.edges[0],
+      waypoints: [{ x: 20, y: 30 }, { x: 78, y: 90 }, { x: 120, y: 30 }],
+      source_boundary: { x: 20, y: 30 },
+      target_boundary: { x: 120, y: 30 },
+      final_tangent_angle: -Math.PI / 2,
+    };
+
+    const step = new SVGRenderer({ curveStyle: 'step' }).render(layout).querySelector('g.edge path')?.getAttribute('d') ?? '';
+    const bezier = new SVGRenderer({ curveStyle: 'bezier' }).render(layout).querySelector('g.edge path')?.getAttribute('d') ?? '';
+
+    expect(step.trim()).toMatch(/V\s+[^\s]+$/);
+    expect(bezier).toContain('C');
+  });
 });
