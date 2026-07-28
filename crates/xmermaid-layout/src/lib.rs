@@ -7,6 +7,7 @@ pub mod error;
 pub mod flowchart;
 pub mod gantt;
 pub mod pie;
+pub mod sankey;
 pub mod types;
 pub mod xychart;
 
@@ -14,5 +15,5 @@ pub use engine::compute_layout;
 pub use error::LayoutError;
 pub use types::{
     Bounds, Dimensions, FlowDirection, LayoutConfig, LayoutEdge, LayoutNode, LayoutResult,
-    NodeShape, Point, XyChartLayout, XyChartSeries, XySeriesKind,
+    NodeShape, Point, SankeyLayout, SankeyLink, SankeyNode, XyChartLayout, XyChartSeries, XySeriesKind,
 };

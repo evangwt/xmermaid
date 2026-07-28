@@ -34,6 +34,19 @@ fn xychart_layout_keeps_bar_baselines_and_line_points_inside_the_plot() {
 }
 
 #[test]
+fn sankey_layout_stacks_weighted_bands_between_columns() {
+    let ast = parse("sankey\nA,B,8\nA,C,4\nB,D,8\nC,D,4").unwrap();
+    let layout = compute_layout(&ast, &LayoutConfig::default());
+    let sankey = layout.sankey.expect("sankey layout");
+
+    assert_eq!(sankey.nodes.len(), 4);
+    assert_eq!(sankey.links.len(), 4);
+    assert!(sankey.links.iter().all(|link| link.thickness > 0.0));
+    assert!(sankey.links.iter().all(|link| link.source_y.is_finite() && link.target_y.is_finite()));
+    assert!(sankey.nodes.iter().all(|node| node.bounds.height > 0.0));
+}
+
+#[test]
 fn test_layout_chain_three_nodes() {
     let ast = parse("graph TD\n  A-->B\n  B-->C").unwrap();
     let config = config_for_ast(&ast);
