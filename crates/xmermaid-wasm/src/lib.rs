@@ -50,6 +50,7 @@ pub fn get_diagram_type(ast_json: &str) -> Result<String, JsValue> {
         DiagramAst::Requirement(_) => "requirement",
         DiagramAst::GitGraph(_) => "gitgraph",
         DiagramAst::C4(_) => "c4",
+        DiagramAst::ZenUml(_) => "zenuml",
     };
 
     Ok(type_str.to_string())
@@ -209,5 +210,13 @@ mod tests {
         let ast_json = serde_json::to_string(&ast).unwrap();
 
         assert_eq!(get_diagram_type(&ast_json).unwrap(), "c4");
+    }
+
+    #[test]
+    fn zenuml_diagrams_report_their_own_wasm_type() {
+        let ast = xmermaid_parser::parse("zenuml\n  Alice->Bob: Authenticate").unwrap();
+        let ast_json = serde_json::to_string(&ast).unwrap();
+
+        assert_eq!(get_diagram_type(&ast_json).unwrap(), "zenuml");
     }
 }

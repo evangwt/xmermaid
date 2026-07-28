@@ -74,6 +74,7 @@ impl<'a> Parser<'a> {
         if self.input.trim_start().starts_with("requirementDiagram") { return self.parse_requirement(); }
         if self.input.trim_start().starts_with("gitGraph") { return self.parse_gitgraph(); }
         if self.input.trim_start().starts_with("C4") { return self.parse_c4(); }
+        if self.input.trim_start().starts_with("zenuml") { return self.parse_zenuml(); }
         let keyword = self.expect(TokenType::Keyword)?;
 
         match keyword.as_str() {
@@ -463,6 +464,58 @@ impl<'a> Parser<'a> {
         }
         if elements.is_empty() { return Err(ParseError::EmptyInput); }
         Ok(DiagramAst::C4(C4Ast { diagram_kind: diagram_kind.to_string(), title, elements, relationships }))
+    }
+
+    fn parse_zenuml(&self) -> Result<DiagramAst, ParseError> {
+        let mut participants = Vec::new();
+        let mut messages = Vec::new();
+        for line in self.input.lines().skip(1) {
+            let statement = line.trim();
+            if statement.is_empty() || statement.starts_with("%%") {
+                continue;
+            }
+            let (from, rest, kind) = if let Some((from, rest)) = statement.split_once("-->") {
+                (from, rest, "return")
+            } else if let Some((from, rest)) = statement.split_once("->") {
+                (from, rest, "call")
+            } else {
+                return Err(ParseError::UnexpectedToken(format!(
+                    "Invalid ZenUML message: {}",
+                    statement
+                )));
+            };
+            let (to, label) = rest.split_once(':').ok_or_else(|| {
+                ParseError::UnexpectedToken(format!(
+                    "ZenUML messages require a label: {}",
+                    statement
+                ))
+            })?;
+            let (from, to, label) = (from.trim(), to.trim(), label.trim());
+            if from.is_empty() || to.is_empty() || label.is_empty() {
+                return Err(ParseError::UnexpectedToken(format!(
+                    "Invalid ZenUML message: {}",
+                    statement
+                )));
+            }
+            for participant in [from, to] {
+                if !participants.iter().any(|known| known == participant) {
+                    participants.push(participant.to_string());
+                }
+            }
+            messages.push(ZenUmlMessage {
+                from: from.to_string(),
+                to: to.to_string(),
+                label: label.to_string(),
+                kind: kind.to_string(),
+            });
+        }
+        if messages.is_empty() {
+            return Err(ParseError::EmptyInput);
+        }
+        Ok(DiagramAst::ZenUml(ZenUmlAst {
+            participants,
+            messages,
+        }))
     }
 
     fn add_class_if_new(classes: &mut Vec<ClassDefinition>, id: &str) {

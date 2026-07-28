@@ -89,14 +89,11 @@ await renderer.renderToSVGElement(source, { theme: customTheme });
 
 ## Current Support
 
-xmermaid currently focuses on browser-side SVG rendering for Mermaid flowcharts. It supports basic `graph` / `flowchart` declarations, basic nodes and directed edges, common labels, core shapes, and partial subgraph parsing. It also renders deliberately small Sequence, Class, State, and Entity Relationship subsets.
+xmermaid currently focuses on browser-side SVG rendering for Mermaid flowcharts. It supports basic `graph` / `flowchart` declarations, basic nodes and directed edges, common labels, core shapes, and partial subgraph parsing. It also renders deliberately small subsets of Sequence, Class, State, Entity Relationship, User Journey, Gantt, Pie, Mindmap, Timeline, Requirement, GitGraph, C4, and ZenUML diagrams.
 
 This is partial Mermaid support, not full Mermaid compatibility.
 
-Diagram families that are not rendered currently include:
-
-- `pie`
-- `mindmap`
+All remaining Mermaid catalog families are explicitly marked `planned` in `getSupportMatrix()` and rejected before WASM rendering.
 
 `sequenceDiagram` is partial: activation bars, explicit participant aliases, notes, loops, and alternate branches remain unsupported. `getSupportMatrix()` or `analyzeSupport(source)` exposes that boundary programmatically.
 
@@ -107,6 +104,20 @@ Diagram families that are not rendered currently include:
 `erDiagram` is partial: labeled `||--o{` crow’s-foot relationships render as a relationship layout; entity attribute blocks and extended cardinalities remain unsupported.
 
 `gantt` is partial: sectioned tasks with ISO start dates and `Nd` durations render as a timeline; task states, dependencies, milestones, and custom date formats remain unsupported.
+
+`pie` is partial: numeric labeled slices render as a pie chart; `showData`, custom themes, and advanced formatting remain unsupported.
+
+`mindmap` is partial: space-indented hierarchies render as connected nodes; Markdown, icons, and custom shapes remain unsupported.
+
+`timeline` is partial: ordered period/event entries render as connected nodes; advanced styling and event metadata remain unsupported.
+
+`requirementDiagram` is partial: typed requirement blocks and labeled relationships render as connected nodes; custom styling and advanced relation syntax remain unsupported.
+
+`gitGraph` is partial: commits, branches, checkouts, merges, IDs, tags, and types render as a history graph; cherry-picks, custom ordering, and advanced commit options remain unsupported.
+
+`C4Context`, `C4Container`, `C4Component`, `C4Dynamic`, and `C4Deployment` are partial: people, systems, containers, components, external elements, and labeled relationships render as connected nodes; boundaries, deployment nodes, styling, and advanced relationship macros remain unsupported.
+
+`zenuml` is partial: labeled `->` calls and `-->` returns render as distinct solid and dashed arrows; blocks, declarations, async messages, and advanced control syntax remain unsupported.
 
 Unsupported or partial flowchart syntax includes invalid `graph` / `flowchart` directions, `class`, `classDef`, `style`, `click`, `linkStyle`, HTML labels, Markdown labels, quoted labels, entity-code labels, FontAwesome icon labels, expanded/stadium/cylinder shape syntax, thick/extended edge forms, bidirectional/circle/cross edge endings, inline edge labels, edge IDs, edges to subgraph ids, hyphenated node ids, and inline class assignments. Use `getSupportMatrix()` or `analyzeSupport(source)` to inspect the current production support contract from code.
 
