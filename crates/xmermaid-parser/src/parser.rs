@@ -76,6 +76,7 @@ impl<'a> Parser<'a> {
         if self.input.trim_start().starts_with("C4") { return self.parse_c4(); }
         if self.input.trim_start().starts_with("zenuml") { return self.parse_zenuml(); }
         if self.input.trim_start().starts_with("xychart-beta") { return self.parse_xychart(); }
+        if self.input.trim_start().starts_with("sankey") { return self.parse_sankey(); }
         let keyword = self.expect(TokenType::Keyword)?;
 
         match keyword.as_str() {
@@ -536,6 +537,48 @@ impl<'a> Parser<'a> {
         if series.is_empty() { return Err(ParseError::EmptyInput); }
         if series.iter().any(|item| item.values.len() != x_labels.len()) { return Err(ParseError::UnexpectedToken("Each XY chart series must contain one value per x-axis label.".to_string())); }
         Ok(DiagramAst::XyChart(XyChartAst { title, x_labels, y_min, y_max, series }))
+    }
+
+    fn parse_sankey(&self) -> Result<DiagramAst, ParseError> {
+        let mut lines = self.input.lines();
+        let header = lines.next().unwrap_or_default().trim();
+        if !matches!(header, "sankey" | "sankey-beta") {
+            return Err(ParseError::UnexpectedToken(format!("Unsupported Sankey declaration: {}", header)));
+        }
+
+        let mut nodes = Vec::new();
+        let mut links = Vec::new();
+        for line in lines {
+            let statement = line.trim();
+            if statement.is_empty() || statement.starts_with("%%") {
+                continue;
+            }
+            let fields = parse_sankey_csv_record(line)?;
+            if fields.len() != 3 {
+                return Err(ParseError::UnexpectedToken(format!(
+                    "Sankey rows require exactly source,target,value columns: {}",
+                    line
+                )));
+            }
+            let source = fields[0].trim();
+            let target = fields[1].trim();
+            let value = fields[2].trim().parse::<f64>().ok().filter(|value| value.is_finite() && *value > 0.0)
+                .ok_or_else(|| ParseError::UnexpectedToken(format!("Sankey values must be finite and positive: {}", line)))?;
+            if source.is_empty() || target.is_empty() {
+                return Err(ParseError::UnexpectedToken(format!("Sankey source and target cannot be empty: {}", line)));
+            }
+            for node in [source, target] {
+                if !nodes.iter().any(|known| known == node) {
+                    nodes.push(node.to_string());
+                }
+            }
+            links.push(SankeyLink { source: source.to_string(), target: target.to_string(), value });
+        }
+
+        if links.is_empty() {
+            return Err(ParseError::EmptyInput);
+        }
+        Ok(DiagramAst::Sankey(SankeyAst { nodes, links }))
     }
 
     fn add_class_if_new(classes: &mut Vec<ClassDefinition>, id: &str) {
@@ -1094,6 +1137,33 @@ fn parse_xy_labels(value: &str) -> Result<Vec<String>, ParseError> { let content
 fn parse_xy_range(value: &str) -> Result<(f64, f64), ParseError> { let value = value.trim(); let value = if value.starts_with('"') { let end = value[1..].find('"').ok_or_else(|| ParseError::UnexpectedToken("XY chart y-axis label must close its quote.".to_string()))? + 1; value[end + 1..].trim() } else { value }; let (minimum, maximum) = value.split_once("-->").ok_or_else(|| ParseError::UnexpectedToken("XY chart y-axis must use min --> max syntax.".to_string()))?; let minimum = parse_xy_number(minimum, "XY chart y-axis minimum must be finite.")?; let maximum = parse_xy_number(maximum, "XY chart y-axis maximum must be finite.")?; if minimum >= maximum { return Err(ParseError::UnexpectedToken("XY chart y-axis maximum must exceed its minimum.".to_string())); } Ok((minimum, maximum)) }
 fn parse_xy_values(value: &str) -> Result<Vec<f64>, ParseError> { let content = value.trim().strip_prefix('[').and_then(|text| text.strip_suffix(']')).ok_or_else(|| ParseError::UnexpectedToken("XY chart series must use [value, ...] syntax.".to_string()))?; let values = content.split(',').map(|value| parse_xy_number(value, "XY chart series values must be finite.")).collect::<Result<Vec<_>, _>>()?; if values.is_empty() { return Err(ParseError::UnexpectedToken("XY chart series cannot be empty.".to_string())); } Ok(values) }
 fn parse_xy_number(value: &str, message: &str) -> Result<f64, ParseError> { value.trim().parse::<f64>().ok().filter(|number| number.is_finite()).ok_or_else(|| ParseError::UnexpectedToken(message.to_string())) }
+
+fn parse_sankey_csv_record(line: &str) -> Result<Vec<String>, ParseError> {
+    let mut fields = Vec::new();
+    let mut field = String::new();
+    let mut quoted = false;
+    let mut chars = line.trim().chars().peekable();
+
+    while let Some(character) = chars.next() {
+        match character {
+            '"' if quoted && chars.peek() == Some(&'"') => {
+                field.push('"');
+                chars.next();
+            }
+            '"' => quoted = !quoted,
+            ',' if !quoted => {
+                fields.push(field.trim().to_string());
+                field.clear();
+            }
+            _ => field.push(character),
+        }
+    }
+    if quoted {
+        return Err(ParseError::UnexpectedToken(format!("Unterminated Sankey CSV quoted field: {}", line)));
+    }
+    fields.push(field.trim().to_string());
+    Ok(fields)
+}
 
 pub fn parse_input(input: &str) -> Result<DiagramAst, ParseError> {
     let mut parser = Parser::new(input);
