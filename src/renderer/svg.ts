@@ -33,6 +33,10 @@ export class SVGRenderer {
       this.renderSankey(svg, layout);
       return svg;
     }
+    if (layout.quadrant_chart) {
+      this.renderQuadrantChart(svg, layout);
+      return svg;
+    }
 
     // Build node index for bounds lookup
     const nodeMap = new Map<string, LayoutNode>();
@@ -222,6 +226,80 @@ export class SVGRenderer {
       group.appendChild(label);
     });
     svg.appendChild(group);
+  }
+
+  private renderQuadrantChart(svg: SVGSVGElement, layout: LayoutResult): void {
+    const chart = layout.quadrant_chart!;
+    const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    group.classList.add('quadrant-chart');
+    const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+    title.textContent = chart.title || 'Quadrant chart';
+    group.appendChild(title);
+    const halfWidth = chart.plot.width / 2;
+    const halfHeight = chart.plot.height / 2;
+    const cells = [
+      { x: chart.plot.x + halfWidth, y: chart.plot.y, label: chart.quadrants[0], opacity: '.34' },
+      { x: chart.plot.x, y: chart.plot.y, label: chart.quadrants[1], opacity: '.26' },
+      { x: chart.plot.x, y: chart.plot.y + halfHeight, label: chart.quadrants[2], opacity: '.18' },
+      { x: chart.plot.x + halfWidth, y: chart.plot.y + halfHeight, label: chart.quadrants[3], opacity: '.22' },
+    ];
+    for (const cell of cells) {
+      const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      rect.classList.add('quadrant-cell');
+      rect.setAttribute('x', String(cell.x));
+      rect.setAttribute('y', String(cell.y));
+      rect.setAttribute('width', String(halfWidth));
+      rect.setAttribute('height', String(halfHeight));
+      rect.setAttribute('fill', this.theme.colors.subgraphFill);
+      rect.setAttribute('fill-opacity', cell.opacity);
+      group.appendChild(rect);
+      if (cell.label) this.appendQuadrantText(group, cell.label, cell.x + 12, cell.y + 22, 'start', this.theme.colors.edgeLabel, Math.max(10, this.theme.fontSize - 2));
+    }
+    const addAxis = (x1: number, y1: number, x2: number, y2: number) => {
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.classList.add('quadrant-axis');
+      line.setAttribute('x1', String(x1)); line.setAttribute('y1', String(y1));
+      line.setAttribute('x2', String(x2)); line.setAttribute('y2', String(y2));
+      line.setAttribute('stroke', this.theme.colors.subgraphStroke);
+      line.setAttribute('stroke-width', '1.5');
+      group.appendChild(line);
+    };
+    addAxis(chart.plot.x + halfWidth, chart.plot.y, chart.plot.x + halfWidth, chart.plot.y + chart.plot.height);
+    addAxis(chart.plot.x, chart.plot.y + halfHeight, chart.plot.x + chart.plot.width, chart.plot.y + halfHeight);
+    if (chart.title) this.appendQuadrantText(group, chart.title, chart.plot.x, chart.plot.y - 24, 'start', this.theme.colors.nodeText, this.theme.fontSize + 2);
+    if (chart.x_axis) {
+      this.appendQuadrantText(group, chart.x_axis[0], chart.plot.x, chart.plot.y + chart.plot.height + 22, 'start', this.theme.colors.nodeText, Math.max(10, this.theme.fontSize - 2));
+      this.appendQuadrantText(group, chart.x_axis[1], chart.plot.x + chart.plot.width, chart.plot.y + chart.plot.height + 22, 'end', this.theme.colors.nodeText, Math.max(10, this.theme.fontSize - 2));
+    }
+    if (chart.y_axis) {
+      this.appendQuadrantText(group, chart.y_axis[0], chart.plot.x - 12, chart.plot.y + chart.plot.height, 'end', this.theme.colors.nodeText, Math.max(10, this.theme.fontSize - 2));
+      this.appendQuadrantText(group, chart.y_axis[1], chart.plot.x - 12, chart.plot.y + 10, 'end', this.theme.colors.nodeText, Math.max(10, this.theme.fontSize - 2));
+    }
+    for (const point of chart.points) {
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      circle.classList.add('quadrant-point');
+      circle.setAttribute('cx', String(point.center.x));
+      circle.setAttribute('cy', String(point.center.y));
+      circle.setAttribute('r', '5.5');
+      circle.setAttribute('fill', this.theme.colors.arrowFill);
+      circle.setAttribute('stroke', this.theme.colors.background);
+      circle.setAttribute('stroke-width', '2');
+      const description = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+      description.textContent = point.label;
+      circle.appendChild(description);
+      group.appendChild(circle);
+      this.appendQuadrantText(group, point.label, point.center.x + 8, point.center.y - 8, 'start', this.theme.colors.nodeText, Math.max(10, this.theme.fontSize - 2), 'quadrant-point-label');
+    }
+    svg.appendChild(group);
+  }
+
+  private appendQuadrantText(group: SVGGElement, value: string, x: number, y: number, anchor: string, fill: string, size: number, className?: string): void {
+    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    if (className) text.classList.add(className);
+    text.setAttribute('x', String(x)); text.setAttribute('y', String(y)); text.setAttribute('text-anchor', anchor);
+    text.setAttribute('fill', fill); text.setAttribute('font-family', this.theme.fontFamily); text.setAttribute('font-size', String(size));
+    text.textContent = value;
+    group.appendChild(text);
   }
 
   private renderNode(node: LayoutNode): SVGGElement {

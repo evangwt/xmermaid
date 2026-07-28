@@ -122,6 +122,29 @@ describe('SVGRenderer', () => {
     expect(svg.querySelectorAll('.edge')).toHaveLength(0);
   });
 
+  it('renders a native four-cell quadrant chart and normalized points', () => {
+    const layout = {
+      nodes: [],
+      edges: [],
+      dimensions: { width: 560, height: 560 },
+      quadrant_chart: {
+        title: 'Reach and engagement',
+        plot: { x: 80, y: 80, width: 360, height: 360 },
+        x_axis: ['Low reach', 'High reach'],
+        y_axis: ['Low engagement', 'High engagement'],
+        quadrants: ['Expand', 'Promote', 'Re-evaluate', 'Improve'],
+        points: [{ label: 'Campaign A', center: { x: 188, y: 188 } }, { label: 'Campaign B', center: { x: 332, y: 332 } }],
+      },
+    } as LayoutResult;
+
+    const svg = new SVGRenderer(DARK_THEME).render(layout);
+
+    expect(svg.querySelectorAll('.quadrant-cell')).toHaveLength(4);
+    expect(svg.querySelectorAll('.quadrant-axis')).toHaveLength(2);
+    expect(svg.querySelectorAll('.quadrant-point')).toHaveLength(2);
+    expect(svg.querySelectorAll('.node')).toHaveLength(0);
+  });
+
   it('creates an SVG element with correct dimensions', () => {
     const renderer = new SVGRenderer();
     const layout = createTestLayout();
