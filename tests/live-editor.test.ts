@@ -74,6 +74,26 @@ describe('extractDiagrams', () => {
     });
   });
 
+  it('keeps fenced planned diagrams in source order', () => {
+    const document = extractDiagrams([
+      '```mermaid', 'sequenceDiagram', '  A->>B: Hello', '```', '',
+      '```xmermaid', 'classDiagram', '  Animal <|-- Duck', '```',
+    ].join('\n'));
+
+    expect(document.diagrams.map(item => item.diagramType)).toEqual(['sequence', 'class']);
+    expect(document.diagrams.map(item => item.origin)).toEqual(['markdown-fence', 'markdown-fence']);
+  });
+
+  it('keeps a whole-input bare sequence diagram', () => {
+    const document = extractDiagrams('sequenceDiagram\n  A->>B: Hello');
+
+    expect(document.diagrams).toHaveLength(1);
+    expect(document.diagrams[0]).toMatchObject({
+      origin: 'raw-mermaid-block',
+      diagramType: 'sequence',
+    });
+  });
+
   it('returns an empty diagram list for prose-only input', () => {
     const document = extractDiagrams('# Notes\n\nNo diagrams here.');
 
