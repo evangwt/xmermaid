@@ -31,7 +31,7 @@ describe('support matrix production contract', () => {
     ]));
     expect(matrix.entries).toHaveLength(30);
     expect(matrix.entries.find(item => item.diagramType === 'sequence')?.status).toBe('partial');
-    expect(matrix.entries.filter(item => !['flowchart', 'sequence', 'class', 'state', 'er', 'user-journey', 'gantt', 'pie', 'mindmap', 'timeline', 'requirement', 'gitgraph', 'c4', 'zenuml'].includes(item.diagramType)).every(item => item.status === 'planned')).toBe(true);
+    expect(matrix.entries.filter(item => !['flowchart', 'sequence', 'class', 'state', 'er', 'user-journey', 'gantt', 'pie', 'mindmap', 'timeline', 'requirement', 'gitgraph', 'c4', 'zenuml', 'xychart'].includes(item.diagramType)).every(item => item.status === 'planned')).toBe(true);
   });
 
   it('reports flowchart and sequence sources as partial while planned diagrams stay explicit', () => {
@@ -50,6 +50,12 @@ describe('support matrix production contract', () => {
 
     expect(analyzeSupport('zenuml\n  Alice->Bob: Authenticate\n  Bob-->Alice: Token')).toMatchObject({
       diagramType: 'zenuml',
+      status: 'partial',
+      unsupportedFeatures: [],
+    });
+
+    expect(analyzeSupport('xychart-beta\n  x-axis [Q1, Q2]\n  y-axis 0 --> 100\n  bar [20, 40]\n  line [30, 50]')).toMatchObject({
+      diagramType: 'xychart',
       status: 'partial',
       unsupportedFeatures: [],
     });
@@ -129,6 +135,18 @@ describe('support matrix production contract', () => {
   it('reports numeric Pie slices as partial instead of planned', () => {
     expect(analyzeSupport('pie title Deployment\n  "Passed" : 80\n  "Failed" : 20')).toMatchObject({
       diagramType: 'pie', status: 'partial', unsupportedFeatures: [],
+    });
+  });
+  it('reports categorical XY chart series as partial instead of planned', () => {
+    expect(analyzeSupport('xychart-beta\n  title "Revenue"\n  x-axis [Q1, Q2]\n  y-axis "USD" 0 --> 100\n  bar [20, 40]\n  line [30, 50]')).toMatchObject({
+      diagramType: 'xychart', status: 'partial', unsupportedFeatures: [],
+    });
+  });
+  it('surfaces numeric XY x-axes before the WASM render path', () => {
+    expect(analyzeSupport('xychart-beta\n  x-axis 0 --> 100\n  y-axis 0 --> 100\n  line [20, 40]')).toMatchObject({
+      diagramType: 'xychart',
+      status: 'partial',
+      unsupportedFeatures: [expect.objectContaining({ id: 'xychart.numericXAxis', severity: 'error' })],
     });
   });
   it('reports indented Mindmap nodes as partial instead of planned', () => {

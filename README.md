@@ -89,7 +89,7 @@ await renderer.renderToSVGElement(source, { theme: customTheme });
 
 ## Current Support
 
-xmermaid currently focuses on browser-side SVG rendering for Mermaid flowcharts. It supports basic `graph` / `flowchart` declarations, basic nodes and directed edges, common labels, core shapes, and partial subgraph parsing. It also renders deliberately small subsets of Sequence, Class, State, Entity Relationship, User Journey, Gantt, Pie, Mindmap, Timeline, Requirement, GitGraph, C4, and ZenUML diagrams.
+xmermaid currently focuses on browser-side SVG rendering for Mermaid flowcharts. It supports basic `graph` / `flowchart` declarations, basic nodes and directed edges, common labels, core shapes, and partial subgraph parsing. It also renders deliberately small subsets of Sequence, Class, State, Entity Relationship, User Journey, Gantt, Pie, Mindmap, Timeline, Requirement, GitGraph, C4, ZenUML, and XY Chart diagrams.
 
 This is partial Mermaid support, not full Mermaid compatibility.
 
@@ -118,6 +118,8 @@ All remaining Mermaid catalog families are explicitly marked `planned` in `getSu
 `C4Context`, `C4Container`, `C4Component`, `C4Dynamic`, and `C4Deployment` are partial: people, systems, containers, components, external elements, and labeled relationships render as connected nodes; boundaries, deployment nodes, styling, and advanced relationship macros remain unsupported.
 
 `zenuml` is partial: labeled `->` calls and `-->` returns render as distinct solid and dashed arrows; blocks, declarations, async messages, and advanced control syntax remain unsupported.
+
+`xychart-beta` is partial: quoted titles, categorical `x-axis [label, ...]`, numeric `y-axis [label] min --> max`, and ordered `bar` / `line` series render as native SVG axes, bars, and polylines. Numeric x-axes, horizontal orientation, and advanced directives remain unsupported.
 
 Unsupported or partial flowchart syntax includes invalid `graph` / `flowchart` directions, `class`, `classDef`, `style`, `click`, `linkStyle`, HTML labels, Markdown labels, quoted labels, entity-code labels, FontAwesome icon labels, expanded/stadium/cylinder shape syntax, thick/extended edge forms, bidirectional/circle/cross edge endings, inline edge labels, edge IDs, edges to subgraph ids, hyphenated node ids, and inline class assignments. Use `getSupportMatrix()` or `analyzeSupport(source)` to inspect the current production support contract from code.
 
