@@ -174,6 +174,19 @@ pub struct XySeries { pub kind: XySeriesKind, pub values: Vec<f64> }
 pub enum XySeriesKind { Bar, Line }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SankeyAst {
+    pub nodes: Vec<String>,
+    pub links: Vec<SankeyLink>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SankeyLink {
+    pub source: String,
+    pub target: String,
+    pub value: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum DiagramAst {
     Flowchart(FlowchartAst),
@@ -191,4 +204,5 @@ pub enum DiagramAst {
     C4(C4Ast),
     ZenUml(ZenUmlAst),
     XyChart(XyChartAst),
+    Sankey(SankeyAst),
 }
