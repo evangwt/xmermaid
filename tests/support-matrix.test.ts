@@ -31,7 +31,7 @@ describe('support matrix production contract', () => {
     ]));
     expect(matrix.entries).toHaveLength(30);
     expect(matrix.entries.find(item => item.diagramType === 'sequence')?.status).toBe('partial');
-    expect(matrix.entries.filter(item => !['flowchart', 'sequence', 'class', 'state', 'er', 'user-journey', 'gantt', 'pie', 'mindmap'].includes(item.diagramType)).every(item => item.status === 'planned')).toBe(true);
+    expect(matrix.entries.filter(item => !['flowchart', 'sequence', 'class', 'state', 'er', 'user-journey', 'gantt', 'pie', 'mindmap', 'timeline'].includes(item.diagramType)).every(item => item.status === 'planned')).toBe(true);
   });
 
   it('reports flowchart and sequence sources as partial while planned diagrams stay explicit', () => {
@@ -94,6 +94,10 @@ describe('support matrix production contract', () => {
     expect(analyzeSupport('journey\n  section Explore\n    Find product: 5: Buyer')).toMatchObject({
       diagramType: 'user-journey', status: 'partial', unsupportedFeatures: [],
     });
+  });
+
+  it('reports period/event timelines as partial instead of planned', () => {
+    expect(analyzeSupport('timeline\n  2025 : Global launch')).toMatchObject({ diagramType: 'timeline', status: 'partial', unsupportedFeatures: [] });
   });
 
   it('reports dated Gantt tasks as partial instead of planned', () => {
