@@ -22,6 +22,12 @@ fn rejects_malformed_or_non_positive_sankey_rows() {
 }
 
 #[test]
+fn rejects_cyclic_sankey_rows_before_layout() {
+    let error = parse("sankey\nA,B,1\nB,A,1").unwrap_err();
+    assert!(error.to_string().contains("cycle"));
+}
+
+#[test]
 fn test_parse_simple_flowchart() {
     let input = "graph TD\n  A-->B";
     let result = parse(input);

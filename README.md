@@ -121,6 +121,8 @@ All remaining Mermaid catalog families are explicitly marked `planned` in `getSu
 
 `xychart-beta` is partial: quoted titles, categorical `x-axis [label, ...]`, numeric `y-axis [label] min --> max`, and ordered `bar` / `line` series render as native SVG axes, bars, and polylines. Numeric x-axes, horizontal orientation, and advanced directives remain unsupported.
 
+`sankey` and `sankey-beta` are partial: acyclic three-column CSV `source,target,value` records (including quoted commas and blank lines) render as native weighted SVG bands. Cycles, non-positive values, YAML/config directives, and custom Sankey configuration remain unsupported.
+
 Unsupported or partial flowchart syntax includes invalid `graph` / `flowchart` directions, `class`, `classDef`, `style`, `click`, `linkStyle`, HTML labels, Markdown labels, quoted labels, entity-code labels, FontAwesome icon labels, expanded/stadium/cylinder shape syntax, thick/extended edge forms, bidirectional/circle/cross edge endings, inline edge labels, edge IDs, edges to subgraph ids, hyphenated node ids, and inline class assignments. Use `getSupportMatrix()` or `analyzeSupport(source)` to inspect the current production support contract from code.
 
 ## Diagnostics

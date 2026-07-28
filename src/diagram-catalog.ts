@@ -17,7 +17,7 @@ export const DIAGRAM_CATALOG = [
   ['mindmap', /^mindmap\b/i],
   ['timeline', /^timeline\b/i],
   ['zenuml', /^zenuml\b/i],
-  ['sankey', /^sankey-beta\b/i],
+  ['sankey', /^sankey(?:-beta)?\b/i],
   ['xychart', /^xychart(?:-beta)?\b/i],
   ['block', /^block-beta\b/i],
   ['packet', /^packet-beta\b/i],
