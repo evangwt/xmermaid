@@ -83,10 +83,32 @@ export interface XyChartLayout {
   series: XyChartSeries[];
 }
 
+export interface SankeyNode {
+  id: string;
+  bounds: Bounds;
+  value: number;
+  column: number;
+}
+
+export interface SankeyLink {
+  source: string;
+  target: string;
+  value: number;
+  source_y: number;
+  target_y: number;
+  thickness: number;
+}
+
+export interface SankeyLayout {
+  nodes: SankeyNode[];
+  links: SankeyLink[];
+}
+
 export interface LayoutResult {
   nodes: LayoutNode[];
   edges: LayoutEdge[];
   dimensions: Dimensions;
   pie_slices?: PieSlice[];
   xy_chart?: XyChartLayout;
+  sankey?: SankeyLayout;
 }

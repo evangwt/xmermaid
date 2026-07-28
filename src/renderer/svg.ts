@@ -29,6 +29,10 @@ export class SVGRenderer {
       this.renderXyChart(svg, layout);
       return svg;
     }
+    if (layout.sankey) {
+      this.renderSankey(svg, layout);
+      return svg;
+    }
 
     // Build node index for bounds lookup
     const nodeMap = new Map<string, LayoutNode>();
@@ -136,6 +140,86 @@ export class SVGRenderer {
         line.setAttribute('stroke-linejoin', 'round');
         group.appendChild(line);
       }
+    });
+    svg.appendChild(group);
+  }
+
+  private renderSankey(svg: SVGSVGElement, layout: LayoutResult): void {
+    const chart = layout.sankey!;
+    const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    group.classList.add('sankey');
+    const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+    title.textContent = 'Sankey diagram';
+    group.appendChild(title);
+    const nodes = new Map(chart.nodes.map(node => [node.id, node]));
+
+    for (const link of chart.links) {
+      const source = nodes.get(link.source);
+      const target = nodes.get(link.target);
+      if (!source || !target) continue;
+      const sourceX = source.bounds.x + source.bounds.width;
+      const targetX = target.bounds.x;
+      const control = Math.max(24, (targetX - sourceX) * .46);
+      const sourceTop = link.source_y - link.thickness / 2;
+      const sourceBottom = link.source_y + link.thickness / 2;
+      const targetTop = link.target_y - link.thickness / 2;
+      const targetBottom = link.target_y + link.thickness / 2;
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.classList.add('sankey-link');
+      path.setAttribute('d', [
+        `M ${sourceX} ${sourceTop}`,
+        `C ${sourceX + control} ${sourceTop}, ${targetX - control} ${targetTop}, ${targetX} ${targetTop}`,
+        `L ${targetX} ${targetBottom}`,
+        `C ${targetX - control} ${targetBottom}, ${sourceX + control} ${sourceBottom}, ${sourceX} ${sourceBottom}`,
+        'Z',
+      ].join(' '));
+      path.setAttribute('fill', this.theme.colors.edgeStroke);
+      path.setAttribute('fill-opacity', '.38');
+      path.setAttribute('stroke', this.theme.colors.edgeStroke);
+      path.setAttribute('stroke-opacity', '.5');
+      path.setAttribute('stroke-width', '1');
+      const description = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+      description.textContent = `${link.source} → ${link.target}: ${link.value}`;
+      path.appendChild(description);
+      group.appendChild(path);
+    }
+
+    const palette = [
+      this.theme.colors.nodeFill,
+      this.theme.colors.nodeStroke,
+      this.theme.colors.arrowFill,
+      this.theme.colors.subgraphStroke,
+      this.theme.colors.subgraphFill,
+    ];
+    const lastColumn = Math.max(...chart.nodes.map(node => node.column));
+    chart.nodes.forEach((node, index) => {
+      const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      rect.classList.add('sankey-node');
+      rect.setAttribute('x', String(node.bounds.x));
+      rect.setAttribute('y', String(node.bounds.y));
+      rect.setAttribute('width', String(node.bounds.width));
+      rect.setAttribute('height', String(node.bounds.height));
+      rect.setAttribute('rx', String(Math.min(4, node.bounds.width / 3)));
+      rect.setAttribute('fill', palette[index % palette.length]);
+      rect.setAttribute('stroke', this.theme.colors.nodeStroke);
+      rect.setAttribute('stroke-width', '1.25');
+      const description = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+      description.textContent = `${node.id}: ${node.value}`;
+      rect.appendChild(description);
+      group.appendChild(rect);
+
+      const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      label.classList.add('sankey-label');
+      const onRight = node.column < lastColumn;
+      label.setAttribute('x', String(onRight ? node.bounds.x + node.bounds.width + 8 : node.bounds.x - 8));
+      label.setAttribute('y', String(node.bounds.y + node.bounds.height / 2));
+      label.setAttribute('dy', '.35em');
+      label.setAttribute('text-anchor', onRight ? 'start' : 'end');
+      label.setAttribute('fill', this.theme.colors.nodeText);
+      label.setAttribute('font-family', this.theme.fontFamily);
+      label.setAttribute('font-size', String(Math.max(10, this.theme.fontSize - 1)));
+      label.textContent = node.id;
+      group.appendChild(label);
     });
     svg.appendChild(group);
   }
