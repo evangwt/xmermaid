@@ -98,6 +98,30 @@ describe('SVGRenderer', () => {
     expect(svg.querySelectorAll('.node')).toHaveLength(0);
   });
 
+  it('renders weighted Sankey bands and node labels without flowchart edges', () => {
+    const layout = {
+      nodes: [],
+      edges: [],
+      dimensions: { width: 720, height: 400 },
+      sankey: {
+        nodes: [
+          { id: 'Source', bounds: { x: 40, y: 80, width: 18, height: 120 }, value: 12, column: 0 },
+          { id: 'Target', bounds: { x: 650, y: 120, width: 18, height: 120 }, value: 12, column: 1 },
+        ],
+        links: [
+          { source: 'Source', target: 'Target', value: 12, source_y: 140, target_y: 180, thickness: 120 },
+        ],
+      },
+    } as LayoutResult;
+
+    const svg = new SVGRenderer(DARK_THEME).render(layout);
+
+    expect(svg.querySelectorAll('.sankey-link')).toHaveLength(1);
+    expect(svg.querySelectorAll('.sankey-node')).toHaveLength(2);
+    expect(svg.querySelector('.sankey-label')?.textContent).toContain('Source');
+    expect(svg.querySelectorAll('.edge')).toHaveLength(0);
+  });
+
   it('creates an SVG element with correct dimensions', () => {
     const renderer = new SVGRenderer();
     const layout = createTestLayout();
