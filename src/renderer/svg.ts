@@ -45,6 +45,10 @@ export class SVGRenderer {
       this.renderKanbanBoard(svg, layout);
       return svg;
     }
+    if (layout.treemap) {
+      this.renderTreemap(svg, layout);
+      return svg;
+    }
 
     // Build node index for bounds lookup
     const nodeMap = new Map<string, LayoutNode>();
@@ -378,6 +382,62 @@ export class SVGRenderer {
         this.appendKanbanText(columnGroup, task.label, task.bounds, this.theme.colors.nodeText, this.theme.fontSize - 1, 'kanban-task-label');
       }
       group.appendChild(columnGroup);
+    }
+    svg.appendChild(group);
+  }
+
+  private renderTreemap(svg: SVGSVGElement, layout: LayoutResult): void {
+    const chart = layout.treemap!;
+    const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    group.classList.add('treemap');
+    const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+    title.textContent = 'Treemap';
+    group.appendChild(title);
+    const leafPalette = [
+      this.theme.colors.nodeFill,
+      this.theme.colors.subgraphFill,
+      this.theme.colors.arrowFill,
+      this.theme.colors.nodeStroke,
+      this.theme.colors.edgeStroke,
+    ];
+    let leafIndex = 0;
+
+    for (const node of chart.nodes) {
+      const cell = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      cell.classList.add(node.is_leaf ? 'treemap-leaf' : 'treemap-group');
+      const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      rect.setAttribute('x', String(node.bounds.x));
+      rect.setAttribute('y', String(node.bounds.y));
+      rect.setAttribute('width', String(node.bounds.width));
+      rect.setAttribute('height', String(node.bounds.height));
+      rect.setAttribute('rx', String(node.is_leaf ? Math.min(this.theme.nodeBorderRadius, 6) : 5));
+      rect.setAttribute('stroke', this.theme.colors.nodeStroke);
+      rect.setAttribute('stroke-width', node.is_leaf ? '1.25' : '1.5');
+      if (node.is_leaf) {
+        rect.setAttribute('fill', leafPalette[leafIndex % leafPalette.length]!);
+        rect.setAttribute('fill-opacity', '.84');
+        leafIndex += 1;
+      } else {
+        rect.setAttribute('fill', this.theme.colors.subgraphFill);
+        rect.setAttribute('fill-opacity', '.18');
+      }
+      const description = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+      description.textContent = `${node.label}: ${node.value}`;
+      rect.appendChild(description);
+      cell.appendChild(rect);
+      if (node.bounds.width >= 56 && node.bounds.height >= 28) {
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.classList.add(node.is_leaf ? 'treemap-leaf-label' : 'treemap-group-label');
+        text.setAttribute('x', String(node.bounds.x + 8));
+        text.setAttribute('y', String(node.bounds.y + (node.is_leaf ? 19 : 16)));
+        text.setAttribute('fill', node.is_leaf ? this.theme.colors.nodeText : this.theme.colors.edgeLabel);
+        text.setAttribute('font-family', this.theme.fontFamily);
+        text.setAttribute('font-size', String(Math.max(10, this.theme.fontSize - (node.is_leaf ? 1 : 2))));
+        text.setAttribute('font-weight', node.is_leaf ? '600' : '700');
+        text.textContent = node.is_leaf ? `${node.label} · ${node.value}` : node.label;
+        cell.appendChild(text);
+      }
+      group.appendChild(cell);
     }
     svg.appendChild(group);
   }

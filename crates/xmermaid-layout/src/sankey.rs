@@ -77,6 +77,6 @@ pub fn layout(chart: &SankeyAst, config: &LayoutConfig) -> LayoutResult {
         sankey: Some(SankeyLayout { nodes, links }),
         quadrant_chart: None,
         block_diagram: None,
-        kanban_board: None,
+        kanban_board: None, treemap: None,
     }
 }

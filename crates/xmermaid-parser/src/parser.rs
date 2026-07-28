@@ -81,6 +81,7 @@ impl<'a> Parser<'a> {
         if self.input.trim_start().starts_with("architecture-beta") { return self.parse_architecture(); }
         if self.input.trim_start().starts_with("block-beta") { return self.parse_block(); }
         if self.input.trim_start().starts_with("kanban") { return self.parse_kanban(); }
+        if self.input.trim_start().starts_with("treemap-beta") { return self.parse_treemap(); }
         let keyword = self.expect(TokenType::Keyword)?;
 
         match keyword.as_str() {
@@ -701,6 +702,50 @@ impl<'a> Parser<'a> {
             }
         }
         Ok(DiagramAst::Block(BlockAst { columns, blocks, relationships }))
+    }
+
+    fn parse_treemap(&self) -> Result<DiagramAst, ParseError> {
+        let mut lines = self.input.lines().filter(|line| !line.trim().is_empty() && !line.trim_start().starts_with("%%"));
+        if lines.next().map(str::trim) != Some("treemap-beta") {
+            return Err(ParseError::UnexpectedToken("Treemap diagrams must start with treemap-beta.".to_string()));
+        }
+
+        let mut nodes: Vec<TreemapNode> = Vec::new();
+        let mut parents: Vec<String> = Vec::new();
+        let mut base_indent = None;
+        for line in lines {
+            if line.contains('\t') {
+                return Err(ParseError::UnexpectedToken("Treemap indentation must use spaces.".to_string()));
+            }
+            let indent = line.len() - line.trim_start().len();
+            let base = *base_indent.get_or_insert(indent);
+            if indent < base || (indent - base) % 4 != 0 {
+                return Err(ParseError::UnexpectedToken(format!("Treemap entries must use four-space indentation: {}", line.trim())));
+            }
+            let depth = (indent - base) / 4;
+            if depth > parents.len() {
+                return Err(ParseError::UnexpectedToken(format!("Treemap entries cannot skip hierarchy levels: {}", line.trim())));
+            }
+
+            let (label, value) = parse_treemap_entry(line.trim())?;
+            if nodes.iter().any(|node| node.label == label) {
+                return Err(ParseError::UnexpectedToken(format!("Treemap labels must be unique: {}", label)));
+            }
+            let parent = if depth == 0 { None } else { Some(parents[depth - 1].clone()) };
+            if let Some(parent_label) = &parent {
+                if nodes.iter().any(|node| node.label == *parent_label && node.value.is_some()) {
+                    return Err(ParseError::UnexpectedToken(format!("Treemap leaves cannot contain children: {}", parent_label)));
+                }
+            }
+            parents.truncate(depth);
+            parents.push(label.clone());
+            nodes.push(TreemapNode { label, value, parent });
+        }
+
+        if nodes.is_empty() || !nodes.iter().any(|node| node.value.is_some()) {
+            return Err(ParseError::EmptyInput);
+        }
+        Ok(DiagramAst::Treemap(TreemapAst { nodes }))
     }
 
     fn parse_kanban(&self) -> Result<DiagramAst, ParseError> {
@@ -1457,6 +1502,21 @@ fn split_block_cells(statement: &str) -> Result<Vec<String>, ParseError> {
         cells.push(cell);
     }
     Ok(cells)
+}
+
+fn parse_treemap_entry(statement: &str) -> Result<(String, Option<f64>), ParseError> {
+    let (label, value) = match statement.rsplit_once(':') {
+        Some((label, value)) => {
+            let value = value.trim().parse::<f64>().ok().filter(|value| value.is_finite() && *value > 0.0)
+                .ok_or_else(|| ParseError::UnexpectedToken(format!("Treemap leaf values must be positive numbers: {}", statement)))?;
+            (label.trim(), Some(value))
+        }
+        None => (statement.trim(), None),
+    };
+    let label = label.strip_prefix('"').and_then(|value| value.strip_suffix('"'))
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| ParseError::UnexpectedToken(format!("Treemap labels must use double quotes: {}", statement)))?;
+    Ok((label.to_string(), value))
 }
 
 fn parse_block_cell(value: &str) -> Result<(String, String, usize, bool), ParseError> {

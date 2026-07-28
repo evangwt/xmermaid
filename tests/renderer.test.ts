@@ -188,6 +188,28 @@ describe('SVGRenderer', () => {
     expect(svg.querySelector('.kanban-task-label')?.textContent).toBe('Write docs');
   });
 
+  it('renders nested treemap groups and proportioned leaf cells as native SVG', () => {
+    const layout = {
+      nodes: [],
+      edges: [],
+      dimensions: { width: 720, height: 480 },
+      treemap: {
+        nodes: [
+          { label: 'Category A', value: 30, bounds: { x: 40, y: 40, width: 300, height: 400 }, depth: 0, is_leaf: false },
+          { label: 'Item A1', value: 10, bounds: { x: 48, y: 62, width: 94, height: 370 }, depth: 1, is_leaf: true },
+          { label: 'Item A2', value: 20, bounds: { x: 142, y: 62, width: 190, height: 370 }, depth: 1, is_leaf: true },
+        ],
+      },
+    } as LayoutResult;
+
+    const svg = new SVGRenderer(DARK_THEME).render(layout);
+
+    expect(svg.querySelectorAll('.treemap-group')).toHaveLength(1);
+    expect(svg.querySelectorAll('.treemap-leaf')).toHaveLength(2);
+    expect(svg.querySelector('.treemap-leaf-label')?.textContent).toContain('Item A1');
+    expect(svg.querySelectorAll('.node')).toHaveLength(0);
+  });
+
   it('creates an SVG element with correct dimensions', () => {
     const renderer = new SVGRenderer();
     const layout = createTestLayout();
