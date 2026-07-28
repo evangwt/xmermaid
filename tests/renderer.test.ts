@@ -242,6 +242,30 @@ describe('SVGRenderer', () => {
     expect(svg.querySelectorAll('.node')).toHaveLength(0);
   });
 
+  it('renders Packet bit fields as a native structured grid', () => {
+    const layout = {
+      nodes: [],
+      edges: [],
+      dimensions: { width: 656, height: 210 },
+      packet: {
+        title: 'UDP Packet',
+        fields: [
+          { start: 0, end: 15, label: 'Source Port', segments: [{ x: 40, y: 74, width: 288, height: 44 }] },
+          { start: 16, end: 31, label: 'Destination Port', segments: [{ x: 328, y: 74, width: 288, height: 44 }] },
+          { start: 32, end: 63, label: 'Length and Checksum', segments: [{ x: 40, y: 130, width: 576, height: 44 }] },
+        ],
+      },
+    } as unknown as LayoutResult;
+
+    const svg = new SVGRenderer(DARK_THEME).render(layout);
+
+    expect(svg.querySelector('.packet')).not.toBeNull();
+    expect(svg.querySelectorAll('.packet-field')).toHaveLength(3);
+    expect(svg.querySelectorAll('.packet-segment')).toHaveLength(3);
+    expect(svg.querySelector('.packet-title')?.textContent).toBe('UDP Packet');
+    expect(svg.querySelector('.packet-field-label')?.textContent).toBe('Source Port');
+  });
+
   it('creates an SVG element with correct dimensions', () => {
     const renderer = new SVGRenderer();
     const layout = createTestLayout();

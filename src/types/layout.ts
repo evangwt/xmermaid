@@ -180,6 +180,18 @@ export interface RadarLayout {
   max: number;
 }
 
+export interface PacketFieldLayout {
+  start: number;
+  end: number;
+  label: string;
+  segments: Bounds[];
+}
+
+export interface PacketLayout {
+  title: string;
+  fields: PacketFieldLayout[];
+}
+
 export interface LayoutResult {
   nodes: LayoutNode[];
   edges: LayoutEdge[];
@@ -192,4 +204,5 @@ export interface LayoutResult {
   kanban_board?: KanbanBoardLayout;
   treemap?: TreemapLayout;
   radar?: RadarLayout;
+  packet?: PacketLayout;
 }
