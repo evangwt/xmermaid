@@ -57,6 +57,10 @@ export class SVGRenderer {
       this.renderPacket(svg, layout);
       return svg;
     }
+    if (layout.venn) {
+      this.renderVenn(svg, layout);
+      return svg;
+    }
 
     // Build node index for bounds lookup
     const nodeMap = new Map<string, LayoutNode>();
@@ -602,6 +606,21 @@ export class SVGRenderer {
       });
       group.appendChild(fieldGroup);
     });
+    svg.appendChild(group);
+  }
+
+  private renderVenn(svg: SVGSVGElement, layout: LayoutResult): void {
+    const chart = layout.venn!;
+    const group = document.createElementNS('http://www.w3.org/2000/svg', 'g'); group.classList.add('venn');
+    const title = document.createElementNS('http://www.w3.org/2000/svg', 'title'); title.textContent = chart.title || 'Venn diagram'; group.appendChild(title);
+    const palette = ['#8b5cf6', '#38bdf8', '#f472b6', '#fbbf24'];
+    chart.sets.forEach((set, index) => {
+      const setGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g'); setGroup.classList.add('venn-set');
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle'); circle.setAttribute('cx', String(set.center.x)); circle.setAttribute('cy', String(set.center.y)); circle.setAttribute('r', String(set.radius)); circle.setAttribute('fill', palette[index % palette.length]!); circle.setAttribute('fill-opacity', '.25'); circle.setAttribute('stroke', palette[index % palette.length]!); circle.setAttribute('stroke-width', '2'); setGroup.appendChild(circle);
+      const label = document.createElementNS('http://www.w3.org/2000/svg', 'text'); label.classList.add('venn-set-label'); label.textContent = set.label; label.setAttribute('x', String(set.center.x)); label.setAttribute('y', String(set.center.y - set.radius * .58)); label.setAttribute('text-anchor', 'middle'); label.setAttribute('fill', this.theme.colors.nodeText); label.setAttribute('font-family', this.theme.fontFamily); label.setAttribute('font-size', String(this.theme.fontSize)); label.setAttribute('font-weight', '700'); setGroup.appendChild(label); group.appendChild(setGroup);
+    });
+    chart.unions.forEach(union => { const label = document.createElementNS('http://www.w3.org/2000/svg', 'text'); label.classList.add('venn-union-label'); label.textContent = union.label; label.setAttribute('x', String(union.position.x)); label.setAttribute('y', String(union.position.y)); label.setAttribute('text-anchor', 'middle'); label.setAttribute('dominant-baseline', 'middle'); label.setAttribute('fill', this.theme.colors.nodeText); label.setAttribute('font-family', this.theme.fontFamily); label.setAttribute('font-size', String(this.theme.fontSize + 1)); label.setAttribute('font-weight', '700'); group.appendChild(label); });
+    if (chart.title) { const text = document.createElementNS('http://www.w3.org/2000/svg', 'text'); text.classList.add('venn-title'); text.textContent = chart.title; text.setAttribute('x', String(layout.dimensions.width / 2)); text.setAttribute('y', '58'); text.setAttribute('text-anchor', 'middle'); text.setAttribute('fill', this.theme.colors.nodeText); text.setAttribute('font-family', this.theme.fontFamily); text.setAttribute('font-size', String(this.theme.fontSize + 3)); text.setAttribute('font-weight', '700'); group.appendChild(text); }
     svg.appendChild(group);
   }
 

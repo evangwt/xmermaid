@@ -54,7 +54,8 @@ export type UnsupportedFeatureId =
   | 'kanban.advanced'
   | 'treemap.advanced'
   | 'radar.advanced'
-  | 'packet.advanced';
+  | 'packet.advanced'
+  | 'venn.advanced';
 
 export interface SupportSourceRange {
   startOffset: number;
@@ -187,6 +188,8 @@ const SUPPORT_MATRIX: SupportMatrix = {
                                   ? partialRadar()
                                   : diagramType === 'packet'
                                     ? partialPacket()
+                                    : diagramType === 'venn'
+                                      ? partialVenn()
                             : planned(diagramType)),
   ],
 };
@@ -265,6 +268,7 @@ export function detectUnsupportedFeatures(source: string): UnsupportedFeature[] 
   if (diagramType === 'packet') {
     return detectUnsupportedPacketFeatures(source);
   }
+  if (diagramType === 'venn') return detectUnsupportedVennFeatures(source);
   if (diagramType === 'state') return [];
   if (diagramType === 'er') return [];
   if (diagramType === 'gantt') return [];
@@ -671,6 +675,16 @@ function detectUnsupportedPacketFeatures(source: string): UnsupportedFeature[] {
   return features;
 }
 
+function detectUnsupportedVennFeatures(source: string): UnsupportedFeature[] {
+  return linesWithRanges(source).flatMap(line => {
+    const trimmed = line.text.trim();
+    if (!trimmed || trimmed.startsWith('%%') || trimmed === 'venn-beta') return [];
+    return /^(?:---|config:|themeVariables:|classDef\b|class\b|style\b|text\b|accTitle:|accDescr:)/i.test(trimmed) || /:::[A-Za-z0-9_-]+/.test(trimmed)
+      ? [unsupportedSyntax('venn.advanced', line, 'Venn configuration, styles, text annotations, and accessibility directives are not supported yet.', 'error')]
+      : [];
+  });
+}
+
 function parseSankeyCsvRecord(line: string): string[] | null {
   const fields: string[] = [];
   let field = '';
@@ -830,6 +844,7 @@ function partialKanban(): DiagramSupportEntry { return { diagramType: 'kanban', 
 function partialTreemap(): DiagramSupportEntry { return { diagramType: 'treemap', status: 'partial', supportedSyntax: [{ id: 'treemap.hierarchy', label: 'quoted, space-indented category hierarchy', status: 'supported' }, { id: 'treemap.leaf-value', label: 'positive numeric leaf values', status: 'supported' }], unsupportedSyntax: [{ id: 'treemap.advanced', label: 'YAML configuration, classes, styles, and accessibility directives', status: 'unsupported' }] }; }
 function partialRadar(): DiagramSupportEntry { return { diagramType: 'radar', status: 'partial', supportedSyntax: [{ id: 'radar.axes', label: 'three or more named axes', status: 'supported' }, { id: 'radar.curves', label: 'finite numeric curves with matching axis values', status: 'supported' }, { id: 'radar.range', label: 'title and min/max numeric range', status: 'supported' }], unsupportedSyntax: [{ id: 'radar.advanced', label: 'graticules, YAML configuration, classes, styles, and accessibility directives', status: 'unsupported' }] }; }
 function partialPacket(): DiagramSupportEntry { return { diagramType: 'packet', status: 'partial', supportedSyntax: [{ id: 'packet.bit-range', label: 'ordered absolute start-end bit ranges', status: 'supported' }, { id: 'packet.sequential-width', label: 'ordered +width bit fields', status: 'supported' }, { id: 'packet.title', label: 'optional packet title', status: 'supported' }], unsupportedSyntax: [{ id: 'packet.advanced', label: 'YAML configuration, classes, styles, and accessibility directives', status: 'unsupported' }] }; }
+function partialVenn(): DiagramSupportEntry { return { diagramType: 'venn', status: 'partial', supportedSyntax: [{ id: 'venn.set', label: 'two or more named sets with optional display labels', status: 'supported' }, { id: 'venn.union', label: 'labeled unions of declared sets', status: 'supported' }, { id: 'venn.title', label: 'optional title', status: 'supported' }], unsupportedSyntax: [{ id: 'venn.advanced', label: 'sizes, text annotations, configuration, classes, styles, and accessibility directives', status: 'unsupported' }] }; }
 
 function cloneEntry(entry: DiagramSupportEntry): DiagramSupportEntry {
   return {
