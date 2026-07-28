@@ -284,4 +284,20 @@ export interface BlockAst {
   relationships: BlockAstRelationship[];
 }
 
-export type DiagramAst = FlowchartAst | SequenceAst | ClassAst | StateAst | ErAst | GanttAst | UserJourneyAst | TimelineAst | RequirementAst | GitGraphAst | C4Ast | ZenUmlAst | SankeyAst | QuadrantAst | ArchitectureAst | BlockAst | XyChartAst;
+export interface KanbanTask {
+  id: string;
+  label: string;
+}
+
+export interface KanbanColumn {
+  id: string;
+  label: string;
+  tasks: KanbanTask[];
+}
+
+export interface KanbanAst {
+  type: 'kanban';
+  columns: KanbanColumn[];
+}
+
+export type DiagramAst = FlowchartAst | SequenceAst | ClassAst | StateAst | ErAst | GanttAst | UserJourneyAst | TimelineAst | RequirementAst | GitGraphAst | C4Ast | ZenUmlAst | SankeyAst | QuadrantAst | ArchitectureAst | BlockAst | KanbanAst | XyChartAst;

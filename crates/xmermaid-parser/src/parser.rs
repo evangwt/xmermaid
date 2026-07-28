@@ -80,6 +80,7 @@ impl<'a> Parser<'a> {
         if self.input.trim_start().starts_with("quadrantChart") { return self.parse_quadrant(); }
         if self.input.trim_start().starts_with("architecture-beta") { return self.parse_architecture(); }
         if self.input.trim_start().starts_with("block-beta") { return self.parse_block(); }
+        if self.input.trim_start().starts_with("kanban") { return self.parse_kanban(); }
         let keyword = self.expect(TokenType::Keyword)?;
 
         match keyword.as_str() {
@@ -700,6 +701,51 @@ impl<'a> Parser<'a> {
             }
         }
         Ok(DiagramAst::Block(BlockAst { columns, blocks, relationships }))
+    }
+
+    fn parse_kanban(&self) -> Result<DiagramAst, ParseError> {
+        let mut lines = self.input.lines().filter(|line| !line.trim().is_empty() && !line.trim_start().starts_with("%%"));
+        if lines.next().map(str::trim) != Some("kanban") {
+            return Err(ParseError::UnexpectedToken("Kanban diagrams must start with kanban.".to_string()));
+        }
+        let mut columns: Vec<KanbanColumn> = Vec::new();
+        let mut column_indent = None;
+        let mut task_indent = None;
+        let mut ids = std::collections::HashSet::new();
+        for line in lines {
+            if line.contains('\t') {
+                return Err(ParseError::UnexpectedToken("Kanban indentation must use spaces.".to_string()));
+            }
+            let indent = line.len() - line.trim_start().len();
+            let statement = line.trim();
+            if statement.starts_with("---") || statement.contains("@{") {
+                return Err(ParseError::UnexpectedToken(format!("Kanban configuration and task metadata are not supported: {}", statement)));
+            }
+            let base_indent = *column_indent.get_or_insert(indent);
+            if indent < base_indent {
+                return Err(ParseError::UnexpectedToken(format!("Kanban columns must share one indentation level: {}", statement)));
+            }
+            if indent == base_indent {
+                let (id, label) = parse_kanban_item(statement, "column", ids.len() + 1)?;
+                if !ids.insert(id.clone()) {
+                    return Err(ParseError::UnexpectedToken(format!("Duplicate Kanban id: {}", id)));
+                }
+                columns.push(KanbanColumn { id, label, tasks: vec![] });
+            } else {
+                let expected_task_indent = *task_indent.get_or_insert(indent);
+                if indent != expected_task_indent {
+                    return Err(ParseError::UnexpectedToken(format!("Kanban tasks must share one indentation level: {}", statement)));
+                }
+                let column = columns.last_mut().ok_or_else(|| ParseError::UnexpectedToken(format!("Kanban tasks require a preceding column: {}", statement)))?;
+                let (id, label) = parse_kanban_item(statement, "task", ids.len() + 1)?;
+                if !ids.insert(id.clone()) {
+                    return Err(ParseError::UnexpectedToken(format!("Duplicate Kanban id: {}", id)));
+                }
+                column.tasks.push(KanbanTask { id, label });
+            }
+        }
+        if columns.is_empty() { return Err(ParseError::EmptyInput); }
+        Ok(DiagramAst::Kanban(KanbanAst { columns }))
     }
 
     fn add_class_if_new(classes: &mut Vec<ClassDefinition>, id: &str) {
@@ -1456,6 +1502,26 @@ fn block_identifier(value: &str) -> bool {
     let mut characters = value.chars();
     matches!(characters.next(), Some(character) if character.is_ascii_alphabetic() || character == '_')
         && characters.all(|character| character.is_ascii_alphanumeric() || character == '_')
+}
+
+fn parse_kanban_item(statement: &str, prefix: &str, index: usize) -> Result<(String, String), ParseError> {
+    if let Some(label) = statement.strip_prefix('[').and_then(|value| value.strip_suffix(']')) {
+        if label.trim().is_empty() {
+            return Err(ParseError::UnexpectedToken(format!("Kanban labels cannot be empty: {}", statement)));
+        }
+        return Ok((format!("{}-{}", prefix, index), label.trim().to_string()));
+    }
+    if let Some((id, label)) = statement.split_once('[') {
+        let label = label.strip_suffix(']').ok_or_else(|| ParseError::UnexpectedToken(format!("Kanban labels require id[Label] syntax: {}", statement)))?;
+        if !block_identifier(id) || label.trim().is_empty() {
+            return Err(ParseError::UnexpectedToken(format!("Kanban ids must be identifiers and labels non-empty: {}", statement)));
+        }
+        return Ok((id.to_string(), label.trim().to_string()));
+    }
+    if statement.trim().is_empty() {
+        return Err(ParseError::UnexpectedToken("Kanban labels cannot be empty.".to_string()));
+    }
+    Ok((format!("{}-{}", prefix, index), statement.trim().to_string()))
 }
 
 pub fn parse_input(input: &str) -> Result<DiagramAst, ParseError> {

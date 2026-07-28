@@ -39,6 +39,7 @@ fn test_get_diagram_type_flowchart() {
         DiagramAst::Quadrant(_) => "quadrant",
         DiagramAst::Architecture(_) => "architecture",
         DiagramAst::Block(_) => "block",
+        DiagramAst::Kanban(_) => "kanban",
     };
     assert_eq!(type_str, "flowchart");
 }

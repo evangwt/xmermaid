@@ -41,6 +41,10 @@ export class SVGRenderer {
       this.renderBlockDiagram(svg, layout);
       return svg;
     }
+    if (layout.kanban_board) {
+      this.renderKanbanBoard(svg, layout);
+      return svg;
+    }
 
     // Build node index for bounds lookup
     const nodeMap = new Map<string, LayoutNode>();
@@ -333,6 +337,61 @@ export class SVGRenderer {
       group.appendChild(rendered);
     }
     svg.appendChild(group);
+  }
+
+  private renderKanbanBoard(svg: SVGSVGElement, layout: LayoutResult): void {
+    const board = layout.kanban_board!;
+    const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    group.classList.add('kanban-board');
+    const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+    title.textContent = `Kanban board with ${board.columns.length} columns`;
+    group.appendChild(title);
+    for (const column of board.columns) {
+      const columnGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      columnGroup.classList.add('kanban-column');
+      const header = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      header.classList.add('kanban-header');
+      header.setAttribute('x', String(column.header.x));
+      header.setAttribute('y', String(column.header.y));
+      header.setAttribute('width', String(column.header.width));
+      header.setAttribute('height', String(column.header.height));
+      header.setAttribute('rx', String(Math.max(6, this.theme.nodeBorderRadius)));
+      header.setAttribute('fill', this.theme.colors.nodeStroke);
+      header.setAttribute('fill-opacity', '.8');
+      columnGroup.appendChild(header);
+      this.appendKanbanText(columnGroup, column.label, column.header, this.theme.colors.background, this.theme.fontSize, 'kanban-column-label');
+      for (const task of column.tasks) {
+        const card = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        card.classList.add('kanban-task');
+        card.setAttribute('x', String(task.bounds.x));
+        card.setAttribute('y', String(task.bounds.y));
+        card.setAttribute('width', String(task.bounds.width));
+        card.setAttribute('height', String(task.bounds.height));
+        card.setAttribute('rx', String(Math.max(6, this.theme.nodeBorderRadius)));
+        card.setAttribute('fill', this.theme.colors.nodeFill);
+        card.setAttribute('stroke', this.theme.colors.nodeStroke);
+        card.setAttribute('stroke-width', '1.5');
+        const taskTitle = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+        taskTitle.textContent = task.label;
+        card.appendChild(taskTitle);
+        columnGroup.appendChild(card);
+        this.appendKanbanText(columnGroup, task.label, task.bounds, this.theme.colors.nodeText, this.theme.fontSize - 1, 'kanban-task-label');
+      }
+      group.appendChild(columnGroup);
+    }
+    svg.appendChild(group);
+  }
+
+  private appendKanbanText(group: SVGGElement, value: string, bounds: { x: number; y: number; width: number; height: number }, fill: string, size: number, className: string): void {
+    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    text.classList.add(className);
+    text.setAttribute('x', String(bounds.x + bounds.width / 2));
+    text.setAttribute('text-anchor', 'middle');
+    text.setAttribute('fill', fill);
+    text.setAttribute('font-family', this.theme.fontFamily);
+    text.setAttribute('font-size', String(size));
+    this.setTextLines(text, [value], { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }, size);
+    group.appendChild(text);
   }
 
   private renderNode(node: LayoutNode): SVGGElement {

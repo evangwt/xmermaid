@@ -50,7 +50,8 @@ export type UnsupportedFeatureId =
   | 'sankey.advanced'
   | 'quadrant.advanced'
   | 'architecture.advanced'
-  | 'block.advanced';
+  | 'block.advanced'
+  | 'kanban.advanced';
 
 export interface SupportSourceRange {
   startOffset: number;
@@ -175,6 +176,8 @@ const SUPPORT_MATRIX: SupportMatrix = {
                                 ? partialArchitecture()
                               : diagramType === 'block'
                                 ? partialBlock()
+                              : diagramType === 'kanban'
+                                ? partialKanban()
                             : planned(diagramType)),
   ],
 };
@@ -240,6 +243,9 @@ export function detectUnsupportedFeatures(source: string): UnsupportedFeature[] 
   }
   if (diagramType === 'block') {
     return detectUnsupportedBlockFeatures(source);
+  }
+  if (diagramType === 'kanban') {
+    return detectUnsupportedKanbanFeatures(source);
   }
   if (diagramType === 'state') return [];
   if (diagramType === 'er') return [];
@@ -578,6 +584,24 @@ function detectUnsupportedBlockFeatures(source: string): UnsupportedFeature[] {
   return features;
 }
 
+function detectUnsupportedKanbanFeatures(source: string): UnsupportedFeature[] {
+  const features: UnsupportedFeature[] = [];
+  for (const line of linesWithRanges(source)) {
+    const trimmed = line.text.trim();
+    if (!trimmed || trimmed.startsWith('%%') || trimmed === 'kanban') continue;
+    const item = /^(?:[A-Za-z_][A-Za-z0-9_]*\[[^\]\r\n]+\]|\[[^\]\r\n]+\]|[^@\[\]\r\n]+)$/.test(trimmed);
+    if (!item || trimmed.includes('@{') || /^(?:---|config:|ticketBaseUrl:)/.test(trimmed)) {
+      features.push(unsupportedSyntax(
+        'kanban.advanced',
+        line,
+        'Kanban task metadata, ticket configuration, YAML, custom styles, and advanced syntax are not supported yet.',
+        'error',
+      ));
+    }
+  }
+  return features;
+}
+
 function parseSankeyCsvRecord(line: string): string[] | null {
   const fields: string[] = [];
   let field = '';
@@ -733,6 +757,7 @@ function partialQuadrant(): DiagramSupportEntry { return { diagramType: 'quadran
 function partialXyChart(): DiagramSupportEntry { return { diagramType: 'xychart', status: 'partial', supportedSyntax: [{ id: 'xychart.categorical-axis', label: 'categorical x-axis labels and numeric y-axis ranges', status: 'supported' }, { id: 'xychart.bar-line-series', label: 'ordered bar and line series', status: 'supported' }], unsupportedSyntax: [{ id: 'xychart.numericXAxis', label: 'numeric x-axis ranges', status: 'unsupported' }, { id: 'xychart.horizontal', label: 'horizontal XY chart orientation', status: 'unsupported' }, { id: 'xychart.advanced', label: 'advanced directives and custom chart configuration', status: 'unsupported' }] }; }
 function partialArchitecture(): DiagramSupportEntry { return { diagramType: 'architecture', status: 'partial', supportedSyntax: [{ id: 'architecture.service', label: 'top-level labeled services with validated icon identifiers', status: 'supported' }, { id: 'architecture.relationship', label: 'direct port-to-port lines and target arrows', status: 'supported' }], unsupportedSyntax: [{ id: 'architecture.advanced', label: 'groups, junctions, align directives, configuration, service membership, icon glyphs, and bidirectional arrows', status: 'unsupported' }] }; }
 function partialBlock(): DiagramSupportEntry { return { diagramType: 'block', status: 'partial', supportedSyntax: [{ id: 'block.grid', label: 'flat rows, columns, and span declarations', status: 'supported' }, { id: 'block.relationship', label: 'direct -- and --> relationships between declared blocks', status: 'supported' }], unsupportedSyntax: [{ id: 'block.advanced', label: 'nested blocks, block arrows, custom shapes, classes, styles, configuration, and edge labels', status: 'unsupported' }] }; }
+function partialKanban(): DiagramSupportEntry { return { diagramType: 'kanban', status: 'partial', supportedSyntax: [{ id: 'kanban.columns', label: 'ordered columns with bracketed or bare labels', status: 'supported' }, { id: 'kanban.tasks', label: 'space-indented tasks within columns', status: 'supported' }], unsupportedSyntax: [{ id: 'kanban.advanced', label: 'task metadata, ticket configuration, YAML, styles, and advanced syntax', status: 'unsupported' }] }; }
 
 function cloneEntry(entry: DiagramSupportEntry): DiagramSupportEntry {
   return {

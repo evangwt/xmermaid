@@ -7,6 +7,7 @@ pub mod block;
 pub mod error;
 pub mod flowchart;
 pub mod gantt;
+pub mod kanban;
 pub mod pie;
 pub mod quadrant;
 pub mod sankey;
@@ -17,5 +18,5 @@ pub use engine::compute_layout;
 pub use error::LayoutError;
 pub use types::{
     Bounds, Dimensions, FlowDirection, LayoutConfig, LayoutEdge, LayoutNode, LayoutResult,
-    BlockDiagramLayout, BlockLayout, NodeShape, Point, QuadrantChartLayout, QuadrantPointLayout, SankeyLayout, SankeyLink, SankeyNode, XyChartLayout, XyChartSeries, XySeriesKind,
+    BlockDiagramLayout, BlockLayout, KanbanBoardLayout, KanbanColumnLayout, KanbanTaskLayout, NodeShape, Point, QuadrantChartLayout, QuadrantPointLayout, SankeyLayout, SankeyLink, SankeyNode, XyChartLayout, XyChartSeries, XySeriesKind,
 };

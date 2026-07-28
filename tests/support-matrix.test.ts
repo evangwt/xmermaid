@@ -31,7 +31,7 @@ describe('support matrix production contract', () => {
     ]));
     expect(matrix.entries).toHaveLength(30);
     expect(matrix.entries.find(item => item.diagramType === 'sequence')?.status).toBe('partial');
-    expect(matrix.entries.filter(item => !['flowchart', 'sequence', 'class', 'state', 'er', 'user-journey', 'gantt', 'pie', 'quadrant', 'mindmap', 'timeline', 'requirement', 'gitgraph', 'c4', 'zenuml', 'sankey', 'xychart', 'architecture', 'block'].includes(item.diagramType)).every(item => item.status === 'planned')).toBe(true);
+    expect(matrix.entries.filter(item => !['flowchart', 'sequence', 'class', 'state', 'er', 'user-journey', 'gantt', 'pie', 'quadrant', 'mindmap', 'timeline', 'requirement', 'gitgraph', 'c4', 'zenuml', 'sankey', 'xychart', 'architecture', 'block', 'kanban'].includes(item.diagramType)).every(item => item.status === 'planned')).toBe(true);
   });
 
   it('reports flowchart, sequence, Sankey, and Quadrant sources as partial while planned diagrams stay explicit', () => {
@@ -76,6 +76,11 @@ describe('support matrix production contract', () => {
     });
     expect(analyzeSupport('block-beta\n  columns 3\n  A B C\n  Wide:2 D\n  A --> B')).toMatchObject({
       diagramType: 'block',
+      status: 'partial',
+      unsupportedFeatures: [],
+    });
+    expect(analyzeSupport('kanban\n  todo[To do]\n    write[Write documentation]\n  done[Done]')).toMatchObject({
+      diagramType: 'kanban',
       status: 'partial',
       unsupportedFeatures: [],
     });
@@ -202,6 +207,16 @@ describe('support matrix production contract', () => {
       status: 'partial',
       unsupportedFeatures: expect.arrayContaining([
         expect.objectContaining({ id: 'block.advanced', severity: 'error' }),
+      ]),
+    });
+  });
+
+  it('keeps Kanban task metadata and configuration outside the native subset', () => {
+    expect(analyzeSupport('kanban\n  todo[To do]\n    task[Write docs]@{ priority: \'High\' }')).toMatchObject({
+      diagramType: 'kanban',
+      status: 'partial',
+      unsupportedFeatures: expect.arrayContaining([
+        expect.objectContaining({ id: 'kanban.advanced', severity: 'error' }),
       ]),
     });
   });
