@@ -68,6 +68,7 @@ impl<'a> Parser<'a> {
         if self.input.trim_start().starts_with("erDiagram") { return self.parse_er(); }
         if self.input.trim_start().starts_with("gantt") { return self.parse_gantt(); }
         if self.input.trim_start().starts_with("pie") { return self.parse_pie(); }
+        if self.input.trim_start().starts_with("mindmap") { return self.parse_mindmap(); }
         let keyword = self.expect(TokenType::Keyword)?;
 
         match keyword.as_str() {
@@ -284,6 +285,15 @@ impl<'a> Parser<'a> {
         }
         if slices.is_empty() { return Err(ParseError::EmptyInput); }
         Ok(DiagramAst::Pie(PieAst { title, slices }))
+    }
+    fn parse_mindmap(&self) -> Result<DiagramAst, ParseError> {
+        let mut nodes = Vec::new(); let mut parents: Vec<String> = Vec::new(); let mut base_indent = None;
+        for line in self.input.lines().skip(1) { let raw = line.trim_end(); if raw.trim().is_empty() { continue; }
+            let depth = raw.len() - raw.trim_start().len(); let base = *base_indent.get_or_insert(depth); let level = (depth.saturating_sub(base)) / 2; let label = raw.trim();
+            if level > parents.len() || label.is_empty() { return Err(ParseError::UnexpectedToken(format!("Invalid Mindmap indentation: {}", raw))); }
+            let id = format!("mindmap-{}", nodes.len()); let parent = if level == 0 { None } else { Some(parents[level - 1].clone()) };
+            parents.truncate(level); parents.push(id.clone()); nodes.push(MindmapNode { id, label: label.to_string(), parent }); }
+        if nodes.is_empty() { return Err(ParseError::EmptyInput); } Ok(DiagramAst::Mindmap(MindmapAst { nodes }))
     }
 
     fn add_class_if_new(classes: &mut Vec<ClassDefinition>, id: &str) {
