@@ -29,9 +29,12 @@ describe('support matrix production contract', () => {
       'flowchart.edgeToSubgraph',
       'flowchart.hyphenatedNodeId',
     ]));
+    expect(matrix.entries).toHaveLength(30);
+    expect(matrix.entries.filter(item => item.diagramType !== 'flowchart').every(item => item.status === 'planned')).toBe(true);
   });
 
-  it('reports flowchart sources as partial and sequence diagrams as unsupported', () => {
+  it('reports flowchart sources as partial and planned diagrams explicitly', () => {
+    expect(getSupportMatrix().mermaidVersion).toBe('11.16.0');
     expect(analyzeSupport('graph TD\n  A-->B')).toMatchObject({
       diagramType: 'flowchart',
       status: 'partial',
@@ -40,7 +43,7 @@ describe('support matrix production contract', () => {
 
     expect(analyzeSupport('sequenceDiagram\n  A->>B: Hi')).toMatchObject({
       diagramType: 'sequence',
-      status: 'unsupported',
+      status: 'planned',
       unsupportedFeatures: [
         expect.objectContaining({
           id: 'diagram.sequence',
@@ -53,6 +56,11 @@ describe('support matrix production contract', () => {
           }),
         }),
       ],
+    });
+
+    expect(analyzeSupport('architecture-beta\nservice api(server)')).toMatchObject({
+      diagramType: 'architecture',
+      status: 'planned',
     });
   });
 

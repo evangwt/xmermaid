@@ -20,6 +20,7 @@ export { computeEdgePath, computeBezierPath, computeStepPath, computeStraightPat
 export { DEFAULT_THEME, DARK_THEME, LIGHT_THEME, MINIMAL_THEME, createTheme } from './types/theme';
 export { initWasm, isWasmReady } from './wasm';
 export { XMermaidError } from './types/error';
+export { DIAGRAM_CATALOG, MERMAID_COMPATIBILITY_VERSION, detectDiagramType } from './diagram-catalog';
 export { getSupportMatrix, getDiagramSupport, analyzeSupport, detectUnsupportedFeatures } from './support';
 export { DEFAULT_SECURITY_POLICY } from './security';
 export type { RenderTheme, ThemeColors, ArrowStyle, CurveStyle } from './types/theme';
@@ -29,6 +30,8 @@ export type { SourceRange, XMermaidDiagnostic, XMermaidDiagnosticCode } from './
 export type { SecurityLevel, SecurityPolicy } from './security';
 export type {
   DiagramType,
+  DetectedDiagramType,
+  DiagramSupportStatus,
   SupportStatus,
   SyntaxCapability,
   DiagramSupportEntry,

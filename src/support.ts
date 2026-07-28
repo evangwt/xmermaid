@@ -1,25 +1,18 @@
-export type DiagramType =
-  | 'flowchart'
-  | 'sequence'
-  | 'class'
-  | 'state'
-  | 'er'
-  | 'gantt'
-  | 'pie'
-  | 'mindmap'
-  | 'unknown';
+import {
+  DIAGRAM_CATALOG,
+  MERMAID_COMPATIBILITY_VERSION,
+  detectDiagramType,
+  type DetectedDiagramType,
+  type DiagramType,
+} from './diagram-catalog';
+
+export type { DetectedDiagramType, DiagramType } from './diagram-catalog';
 
 export type SupportStatus = 'supported' | 'partial' | 'unsupported';
+export type DiagramSupportStatus = 'supported' | 'partial' | 'planned';
 
 export type UnsupportedFeatureId =
-  | 'diagram.sequence'
-  | 'diagram.class'
-  | 'diagram.state'
-  | 'diagram.er'
-  | 'diagram.gantt'
-  | 'diagram.pie'
-  | 'diagram.mindmap'
-  | 'diagram.unknown'
+  | `diagram.${DetectedDiagramType}`
   | 'flowchart.class'
   | 'flowchart.classDef'
   | 'flowchart.style'
@@ -71,25 +64,27 @@ export interface SyntaxCapability {
 
 export interface DiagramSupportEntry {
   diagramType: DiagramType;
-  status: SupportStatus;
+  status: DiagramSupportStatus;
   supportedSyntax: SyntaxCapability[];
   unsupportedSyntax: SyntaxCapability[];
 }
 
 export interface SupportMatrix {
   version: string;
+  mermaidVersion: typeof MERMAID_COMPATIBILITY_VERSION;
   entries: DiagramSupportEntry[];
 }
 
 export interface SupportReport {
-  diagramType: DiagramType;
-  status: SupportStatus;
+  diagramType: DetectedDiagramType;
+  status: DiagramSupportStatus | 'unsupported';
   message: string;
   unsupportedFeatures: UnsupportedFeature[];
 }
 
 const SUPPORT_MATRIX: SupportMatrix = {
   version: '0.1.0',
+  mermaidVersion: MERMAID_COMPATIBILITY_VERSION,
   entries: [
     {
       diagramType: 'flowchart',
@@ -129,20 +124,16 @@ const SUPPORT_MATRIX: SupportMatrix = {
         { id: 'flowchart.linkStyle', label: 'linkStyle statements', status: 'unsupported' },
       ],
     },
-    unsupported('sequence', 'sequenceDiagram'),
-    unsupported('class', 'classDiagram'),
-    unsupported('state', 'stateDiagram'),
-    unsupported('er', 'erDiagram'),
-    unsupported('gantt', 'gantt'),
-    unsupported('pie', 'pie'),
-    unsupported('mindmap', 'mindmap'),
-    unsupported('unknown', 'unknown diagram type'),
+    ...DIAGRAM_CATALOG
+      .filter(([diagramType]) => diagramType !== 'flowchart')
+      .map(([diagramType]) => planned(diagramType)),
   ],
 };
 
 export function getSupportMatrix(): SupportMatrix {
   return {
     version: SUPPORT_MATRIX.version,
+    mermaidVersion: SUPPORT_MATRIX.mermaidVersion,
     entries: SUPPORT_MATRIX.entries.map(cloneEntry),
   };
 }
@@ -155,7 +146,7 @@ export function getDiagramSupport(diagramType: DiagramType): DiagramSupportEntry
 export function analyzeSupport(source: string): SupportReport {
   const diagramType = detectDiagramType(source);
   const unsupportedFeatures = detectUnsupportedFeatures(source);
-  const support = getDiagramSupport(diagramType);
+  const support = diagramType === 'unknown' ? undefined : getDiagramSupport(diagramType);
   if (!support) {
     return {
       diagramType,
@@ -372,15 +363,15 @@ function edgeContainsHyphenatedNodeId(line: string): boolean {
   return edgeMatch[1].includes('-') || edgeMatch[2].includes('-');
 }
 
-function unsupported(diagramType: DiagramType, label: string): DiagramSupportEntry {
+function planned(diagramType: DiagramType): DiagramSupportEntry {
   return {
     diagramType,
-    status: 'unsupported',
+    status: 'planned',
     supportedSyntax: [],
     unsupportedSyntax: [
       {
         id: `diagram.${diagramType}`,
-        label,
+        label: `${diagramType} diagrams`,
         status: 'unsupported',
         notes: 'Planned for a future compatibility roadmap.',
       },
@@ -397,19 +388,6 @@ function cloneEntry(entry: DiagramSupportEntry): DiagramSupportEntry {
   };
 }
 
-function detectDiagramType(source: string): DiagramType {
-  const firstLine = source.trimStart().split(/\r?\n/, 1)[0]?.trim() ?? '';
-  if (/^(graph|flowchart)\b/i.test(firstLine)) return 'flowchart';
-  if (/^sequenceDiagram\b/i.test(firstLine)) return 'sequence';
-  if (/^classDiagram\b/i.test(firstLine)) return 'class';
-  if (/^stateDiagram(?:-v2)?\b/i.test(firstLine)) return 'state';
-  if (/^erDiagram\b/i.test(firstLine)) return 'er';
-  if (/^gantt\b/i.test(firstLine)) return 'gantt';
-  if (/^pie\b/i.test(firstLine)) return 'pie';
-  if (/^mindmap\b/i.test(firstLine)) return 'mindmap';
-  return 'unknown';
-}
-
 interface SourceLine {
   text: string;
   startOffset: number;
@@ -417,7 +395,7 @@ interface SourceLine {
   lineNumber: number;
 }
 
-function unsupportedDiagramFeature(source: string, diagramType: DiagramType): UnsupportedFeature {
+function unsupportedDiagramFeature(source: string, diagramType: DetectedDiagramType): UnsupportedFeature {
   return {
     id: `diagram.${diagramType}` as UnsupportedFeatureId,
     range: firstLineRange(source),
@@ -426,7 +404,7 @@ function unsupportedDiagramFeature(source: string, diagramType: DiagramType): Un
   };
 }
 
-function unsupportedDiagramMessage(diagramType: DiagramType): string {
+function unsupportedDiagramMessage(diagramType: DetectedDiagramType): string {
   return diagramType === 'unknown'
     ? 'Unknown diagram type is not supported yet.'
     : `${diagramType} diagrams are not supported yet.`;
