@@ -1,6 +1,27 @@
 use xmermaid_parser::{parse, DiagramAst, EdgeStyle, FlowDirection, NodeShape};
 
 #[test]
+fn parses_sankey_csv_with_quoted_labels_and_blank_rows() {
+    let ast = parse("sankey\n\nSource,\"Target, with comma\",12.5\nSource,Other,3\n").unwrap();
+
+    match ast {
+        DiagramAst::Sankey(chart) => {
+            assert_eq!(chart.nodes, vec!["Source", "Target, with comma", "Other"]);
+            assert_eq!(chart.links.len(), 2);
+            assert_eq!(chart.links[0].value, 12.5);
+        }
+        _ => panic!("expected sankey diagram"),
+    }
+}
+
+#[test]
+fn rejects_malformed_or_non_positive_sankey_rows() {
+    for source in ["sankey\nA,B", "sankey\nA,B,0", "sankey\nA,B,-1", "sankey\nA,B,nope"] {
+        assert!(parse(source).is_err(), "{source}");
+    }
+}
+
+#[test]
 fn test_parse_simple_flowchart() {
     let input = "graph TD\n  A-->B";
     let result = parse(input);
