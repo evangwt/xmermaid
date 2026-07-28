@@ -104,6 +104,20 @@ export interface SankeyLayout {
   links: SankeyLink[];
 }
 
+export interface QuadrantPointLayout {
+  label: string;
+  center: Point;
+}
+
+export interface QuadrantChartLayout {
+  title: string;
+  plot: Bounds;
+  x_axis: [string, string] | null;
+  y_axis: [string, string] | null;
+  quadrants: [string, string, string, string];
+  points: QuadrantPointLayout[];
+}
+
 export interface LayoutResult {
   nodes: LayoutNode[];
   edges: LayoutEdge[];
@@ -111,4 +125,5 @@ export interface LayoutResult {
   pie_slices?: PieSlice[];
   xy_chart?: XyChartLayout;
   sankey?: SankeyLayout;
+  quadrant_chart?: QuadrantChartLayout;
 }
