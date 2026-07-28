@@ -64,6 +64,7 @@ impl<'a> Parser<'a> {
         if self.input.trim_start().starts_with("classDiagram") {
             return self.parse_class();
         }
+        if self.input.trim_start().starts_with("stateDiagram") { return self.parse_state(); }
         let keyword = self.expect(TokenType::Keyword)?;
 
         match keyword.as_str() {
@@ -166,6 +167,22 @@ impl<'a> Parser<'a> {
             return Err(ParseError::EmptyInput);
         }
         Ok(DiagramAst::Class(ClassAst { classes, relations }))
+    }
+
+    fn parse_state(&self) -> Result<DiagramAst, ParseError> {
+        let mut states = Vec::new(); let mut transitions = Vec::new();
+        for line in self.input.lines().skip(1) {
+            let statement = line.trim(); if statement.is_empty() || statement.starts_with("%%") { continue; }
+            let (from, rest) = statement.split_once("-->").ok_or_else(|| ParseError::UnexpectedToken(format!("Invalid state statement: {}", statement)))?;
+            let (to, label) = rest.split_once(':').map_or((rest, ""), |(to, label)| (to, label));
+            let (from, to) = (from.trim(), to.trim());
+            if from.is_empty() || to.is_empty() { return Err(ParseError::UnexpectedToken(format!("Invalid state statement: {}", statement))); }
+            if from == "[*]" || to == "[*]" { return Err(ParseError::UnexpectedToken("State start/end pseudostates are not supported yet.".to_string())); }
+            for state in [from, to] { if !states.iter().any(|item| item == state) { states.push(state.to_string()); } }
+            transitions.push(StateTransition { from: from.to_string(), to: to.to_string(), label: label.trim().to_string() });
+        }
+        if states.is_empty() { return Err(ParseError::EmptyInput); }
+        Ok(DiagramAst::State(StateAst { states, transitions }))
     }
 
     fn add_class_if_new(classes: &mut Vec<ClassDefinition>, id: &str) {

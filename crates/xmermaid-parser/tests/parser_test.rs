@@ -103,6 +103,18 @@ fn test_parse_class_definitions_and_inheritance_relation() {
 }
 
 #[test]
+fn test_parse_state_transitions_with_event_labels() {
+    let ast = parse("stateDiagram-v2\n  Idle --> Running : start\n  Running --> Idle : stop").unwrap();
+    let json = serde_json::to_value(ast).unwrap();
+
+    assert_eq!(json["type"], "state");
+    assert_eq!(json["states"].as_array().map(Vec::len), Some(2));
+    assert_eq!(json["transitions"][0]["from"], "Idle");
+    assert_eq!(json["transitions"][0]["to"], "Running");
+    assert_eq!(json["transitions"][0]["label"], "start");
+}
+
+#[test]
 fn test_parse_flowchart_multiple_edges() {
     let input = "graph TD\n  A-->B\n  B-->C";
     let result = parse(input);

@@ -74,4 +74,16 @@ export interface ClassRelation {
   to: string;
 }
 
-export type DiagramAst = FlowchartAst | SequenceAst | ClassAst;
+export interface StateAst {
+  type: 'state';
+  states: string[];
+  transitions: StateTransition[];
+}
+
+export interface StateTransition {
+  from: string;
+  to: string;
+  label: string;
+}
+
+export type DiagramAst = FlowchartAst | SequenceAst | ClassAst | StateAst;

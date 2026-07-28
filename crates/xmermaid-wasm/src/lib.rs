@@ -40,6 +40,7 @@ pub fn get_diagram_type(ast_json: &str) -> Result<String, JsValue> {
         DiagramAst::Flowchart(_) => "flowchart",
         DiagramAst::Sequence(_) => "sequence",
         DiagramAst::Class(_) => "class",
+        DiagramAst::State(_) => "state",
     };
 
     Ok(type_str.to_string())
