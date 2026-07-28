@@ -104,6 +104,7 @@ pub fn layout(chart: &XyChartAst, config: &LayoutConfig) -> LayoutResult {
             y_max: chart.y_max,
             series,
         }),
+        sankey: None,
     }
 }
 

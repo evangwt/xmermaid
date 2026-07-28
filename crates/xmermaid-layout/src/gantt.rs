@@ -31,6 +31,7 @@ pub fn layout(gantt: &GanttAst, config: &LayoutConfig) -> LayoutResult {
         dimensions: Dimensions { width, height: config.padding * 2.0 + gantt.tasks.len() as f64 * ROW_HEIGHT },
         pie_slices: vec![],
         xy_chart: None,
+        sankey: None,
     }
 }
 
