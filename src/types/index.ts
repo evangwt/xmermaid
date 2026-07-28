@@ -20,6 +20,8 @@ export type {
   C4Ast,
   C4Element,
   C4Relationship,
+  ZenUmlAst,
+  ZenUmlMessage,
   EdgeStyle,
   FlowchartNode,
   FlowchartEdge,

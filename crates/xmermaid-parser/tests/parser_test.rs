@@ -258,6 +258,23 @@ fn test_parse_c4_context_elements_and_relationships() {
 }
 
 #[test]
+fn test_parse_zenuml_messages_and_return_values() {
+    let ast = parse(
+        "zenuml\n\
+  Alice->Bob: Authenticate\n\
+  Bob-->Alice: Token",
+    )
+    .unwrap();
+    let json = serde_json::to_value(ast).unwrap();
+
+    assert_eq!(json["type"], "zenuml");
+    assert_eq!(json["participants"], serde_json::json!(["Alice", "Bob"]));
+    assert_eq!(json["messages"].as_array().map(Vec::len), Some(2));
+    assert_eq!(json["messages"][0]["label"], "Authenticate");
+    assert_eq!(json["messages"][1]["kind"], "return");
+}
+
+#[test]
 fn test_parse_indented_mindmap_hierarchy() {
     let ast = parse("mindmap\n  Root\n    Product\n      Editor\n    Renderer").unwrap();
     let json = serde_json::to_value(ast).unwrap();
