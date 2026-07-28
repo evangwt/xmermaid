@@ -72,6 +72,7 @@ impl<'a> Parser<'a> {
         if self.input.trim_start().starts_with("timeline") { return self.parse_timeline(); }
         if self.input.trim_start().starts_with("mindmap") { return self.parse_mindmap(); }
         if self.input.trim_start().starts_with("requirementDiagram") { return self.parse_requirement(); }
+        if self.input.trim_start().starts_with("gitGraph") { return self.parse_gitgraph(); }
         let keyword = self.expect(TokenType::Keyword)?;
 
         match keyword.as_str() {
@@ -381,6 +382,58 @@ impl<'a> Parser<'a> {
 
         if requirements.is_empty() { return Err(ParseError::EmptyInput); }
         Ok(DiagramAst::Requirement(RequirementAst { requirements, relationships }))
+    }
+
+    fn parse_gitgraph(&self) -> Result<DiagramAst, ParseError> {
+        let mut commits = Vec::new();
+        let mut heads = std::collections::HashMap::<String, Option<String>>::new();
+        heads.insert("main".to_string(), None);
+        let mut current_branch = "main".to_string();
+
+        for line in self.input.lines().skip(1) {
+            let statement = line.trim();
+            if statement.is_empty() || statement.starts_with("%%") { continue; }
+            if let Some(name) = statement.strip_prefix("branch ") {
+                let name = name.split_whitespace().next().unwrap_or_default();
+                if name.is_empty() || heads.contains_key(name) { return Err(ParseError::UnexpectedToken(format!("Invalid GitGraph branch: {}", statement))); }
+                heads.insert(name.to_string(), heads.get(&current_branch).cloned().flatten());
+                continue;
+            }
+            if let Some(name) = statement.strip_prefix("checkout ") {
+                let name = name.trim();
+                if !heads.contains_key(name) { return Err(ParseError::UnexpectedToken(format!("GitGraph branch does not exist: {}", name))); }
+                current_branch = name.to_string();
+                continue;
+            }
+            if let Some(attributes) = statement.strip_prefix("commit") {
+                let attributes = parse_gitgraph_attributes(attributes)?;
+                let id = attributes.get("id").cloned().unwrap_or_else(|| format!("commit-{}", commits.len() + 1));
+                if commits.iter().any(|commit: &GitCommit| commit.id == id) { return Err(ParseError::UnexpectedToken(format!("Duplicate GitGraph commit id: {}", id))); }
+                let parents = heads.get(&current_branch).and_then(Clone::clone).into_iter().collect();
+                heads.insert(current_branch.clone(), Some(id.clone()));
+                commits.push(GitCommit { id, branch: current_branch.clone(), tag: attributes.get("tag").cloned(), commit_type: attributes.get("type").cloned(), parents });
+                continue;
+            }
+            if let Some(merge) = statement.strip_prefix("merge ") {
+                let mut parts = merge.splitn(2, char::is_whitespace);
+                let source_branch = parts.next().unwrap_or_default();
+                let attributes = parse_gitgraph_attributes(parts.next().unwrap_or_default())?;
+                let source_head = heads.get(source_branch).ok_or_else(|| ParseError::UnexpectedToken(format!("GitGraph branch does not exist: {}", source_branch)))?.clone();
+                let target_head = heads.get(&current_branch).and_then(Clone::clone);
+                let mut parents = target_head.into_iter().collect::<Vec<_>>();
+                if let Some(source_head) = source_head { parents.push(source_head); }
+                if parents.is_empty() { return Err(ParseError::UnexpectedToken(format!("GitGraph merge requires a commit on either branch: {}", statement))); }
+                let id = attributes.get("id").cloned().unwrap_or_else(|| format!("merge-{}", commits.len() + 1));
+                if commits.iter().any(|commit: &GitCommit| commit.id == id) { return Err(ParseError::UnexpectedToken(format!("Duplicate GitGraph commit id: {}", id))); }
+                heads.insert(current_branch.clone(), Some(id.clone()));
+                commits.push(GitCommit { id, branch: current_branch.clone(), tag: attributes.get("tag").cloned(), commit_type: attributes.get("type").cloned(), parents });
+                continue;
+            }
+            return Err(ParseError::UnexpectedToken(format!("Unsupported GitGraph statement: {}", statement)));
+        }
+
+        if commits.is_empty() { return Err(ParseError::EmptyInput); }
+        Ok(DiagramAst::GitGraph(GitGraphAst { commits }))
     }
 
     fn add_class_if_new(classes: &mut Vec<ClassDefinition>, id: &str) {
@@ -879,6 +932,30 @@ impl<'a> Parser<'a> {
 
         Ok(())
     }
+}
+
+fn parse_gitgraph_attributes(input: &str) -> Result<std::collections::HashMap<String, String>, ParseError> {
+    let mut attributes = std::collections::HashMap::new();
+    let mut rest = input.trim();
+    while !rest.is_empty() {
+        let colon = rest.find(':').ok_or_else(|| ParseError::UnexpectedToken(format!("GitGraph attributes require key: value syntax: {}", rest)))?;
+        let key = rest[..colon].trim();
+        if !matches!(key, "id" | "tag" | "type") || attributes.contains_key(key) {
+            return Err(ParseError::UnexpectedToken(format!("Unsupported or duplicate GitGraph attribute: {}", key)));
+        }
+        rest = rest[colon + 1..].trim_start();
+        let (value, next) = if let Some(quoted) = rest.strip_prefix('"') {
+            let end = quoted.find('"').ok_or_else(|| ParseError::UnexpectedToken(format!("Unterminated GitGraph attribute value: {}", rest)))?;
+            (&quoted[..end], &quoted[end + 1..])
+        } else {
+            let end = rest.find(char::is_whitespace).unwrap_or(rest.len());
+            (&rest[..end], &rest[end..])
+        };
+        if value.is_empty() { return Err(ParseError::UnexpectedToken(format!("GitGraph attribute cannot be empty: {}", key))); }
+        attributes.insert(key.to_string(), value.to_string());
+        rest = next.trim_start();
+    }
+    Ok(attributes)
 }
 
 fn is_iso_date(value: &str) -> bool {

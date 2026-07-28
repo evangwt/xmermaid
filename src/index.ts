@@ -67,4 +67,4 @@ export type {
   FlowchartDslParser,
   FlowchartDslRenderer,
 } from './editor';
-export type { DiagramAst, FlowchartAst, SequenceAst, SequenceMessage, ClassAst, ClassDefinition, ClassRelation, StateAst, StateTransition, ErAst, ErRelationship, GanttAst, GanttTask, RequirementAst, Requirement, RequirementRelationship, EdgeStyle, FlowchartNode, FlowchartEdge, Subgraph } from './types/ast';
+export type { DiagramAst, FlowchartAst, SequenceAst, SequenceMessage, ClassAst, ClassDefinition, ClassRelation, StateAst, StateTransition, ErAst, ErRelationship, GanttAst, GanttTask, RequirementAst, Requirement, RequirementRelationship, GitGraphAst, GitCommit, EdgeStyle, FlowchartNode, FlowchartEdge, Subgraph } from './types/ast';
