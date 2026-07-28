@@ -230,4 +230,19 @@ export interface SankeyAst {
   links: SankeyAstLink[];
 }
 
-export type DiagramAst = FlowchartAst | SequenceAst | ClassAst | StateAst | ErAst | GanttAst | UserJourneyAst | TimelineAst | RequirementAst | GitGraphAst | C4Ast | ZenUmlAst | SankeyAst | XyChartAst;
+export interface QuadrantPoint {
+  label: string;
+  x: number;
+  y: number;
+}
+
+export interface QuadrantAst {
+  type: 'quadrant';
+  title: string;
+  x_axis: [string, string] | null;
+  y_axis: [string, string] | null;
+  quadrants: [string, string, string, string];
+  points: QuadrantPoint[];
+}
+
+export type DiagramAst = FlowchartAst | SequenceAst | ClassAst | StateAst | ErAst | GanttAst | UserJourneyAst | TimelineAst | RequirementAst | GitGraphAst | C4Ast | ZenUmlAst | SankeyAst | QuadrantAst | XyChartAst;
