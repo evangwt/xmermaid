@@ -115,6 +115,18 @@ fn test_parse_state_transitions_with_event_labels() {
 }
 
 #[test]
+fn test_parse_er_relationship_with_cardinality_and_label() {
+    let ast = parse("erDiagram\n  CUSTOMER ||--o{ ORDER : places").unwrap();
+    let json = serde_json::to_value(ast).unwrap();
+
+    assert_eq!(json["type"], "er");
+    assert_eq!(json["entities"].as_array().map(Vec::len), Some(2));
+    assert_eq!(json["relationships"][0]["from"], "CUSTOMER");
+    assert_eq!(json["relationships"][0]["to"], "ORDER");
+    assert_eq!(json["relationships"][0]["label"], "places");
+}
+
+#[test]
 fn test_parse_flowchart_multiple_edges() {
     let input = "graph TD\n  A-->B\n  B-->C";
     let result = parse(input);

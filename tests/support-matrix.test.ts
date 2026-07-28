@@ -31,7 +31,7 @@ describe('support matrix production contract', () => {
     ]));
     expect(matrix.entries).toHaveLength(30);
     expect(matrix.entries.find(item => item.diagramType === 'sequence')?.status).toBe('partial');
-    expect(matrix.entries.filter(item => !['flowchart', 'sequence', 'class', 'state'].includes(item.diagramType)).every(item => item.status === 'planned')).toBe(true);
+    expect(matrix.entries.filter(item => !['flowchart', 'sequence', 'class', 'state', 'er'].includes(item.diagramType)).every(item => item.status === 'planned')).toBe(true);
   });
 
   it('reports flowchart and sequence sources as partial while planned diagrams stay explicit', () => {
@@ -81,6 +81,12 @@ describe('support matrix production contract', () => {
       diagramType: 'state',
       status: 'partial',
       unsupportedFeatures: [],
+    });
+  });
+
+  it('reports basic ER relationships as partial instead of planned', () => {
+    expect(analyzeSupport('erDiagram\n  CUSTOMER ||--o{ ORDER : places')).toMatchObject({
+      diagramType: 'er', status: 'partial', unsupportedFeatures: [],
     });
   });
 

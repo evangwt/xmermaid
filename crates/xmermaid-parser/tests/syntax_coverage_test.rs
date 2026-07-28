@@ -1041,8 +1041,8 @@ fn test_falsify_state_diagram() {
 }
 
 #[test]
-fn test_falsify_er_diagram() {
-    assert!(parse("erDiagram\n  A||--o{B:contains").is_err());
+fn test_er_diagram_is_parsed() {
+    assert!(matches!(parse("erDiagram\n  A||--o{B:contains"), Ok(DiagramAst::Er(_))));
 }
 
 #[test]

@@ -65,6 +65,7 @@ impl<'a> Parser<'a> {
             return self.parse_class();
         }
         if self.input.trim_start().starts_with("stateDiagram") { return self.parse_state(); }
+        if self.input.trim_start().starts_with("erDiagram") { return self.parse_er(); }
         let keyword = self.expect(TokenType::Keyword)?;
 
         match keyword.as_str() {
@@ -183,6 +184,48 @@ impl<'a> Parser<'a> {
         }
         if states.is_empty() { return Err(ParseError::EmptyInput); }
         Ok(DiagramAst::State(StateAst { states, transitions }))
+    }
+    fn parse_er(&self) -> Result<DiagramAst, ParseError> {
+        let mut entities = Vec::new();
+        let mut relationships = Vec::new();
+
+        for line in self.input.lines().skip(1) {
+            let statement = line.trim();
+            if statement.is_empty() || statement.starts_with("%%") {
+                continue;
+            }
+            let (from, rest) = statement.split_once("||--o{").ok_or_else(|| {
+                ParseError::UnexpectedToken(format!("Invalid ER statement: {}", statement))
+            })?;
+            let (to, label) = rest
+                .split_once(':')
+                .map_or((rest, ""), |(to, label)| (to, label));
+            let (from, to) = (from.trim(), to.trim());
+            if from.is_empty() || to.is_empty() {
+                return Err(ParseError::UnexpectedToken(format!(
+                    "Invalid ER statement: {}",
+                    statement
+                )));
+            }
+            for entity in [from, to] {
+                if !entities.iter().any(|item| item == entity) {
+                    entities.push(entity.to_string());
+                }
+            }
+            relationships.push(ErRelationship {
+                from: from.to_string(),
+                to: to.to_string(),
+                label: label.trim().to_string(),
+            });
+        }
+
+        if entities.is_empty() {
+            return Err(ParseError::EmptyInput);
+        }
+        Ok(DiagramAst::Er(ErAst {
+            entities,
+            relationships,
+        }))
     }
 
     fn add_class_if_new(classes: &mut Vec<ClassDefinition>, id: &str) {

@@ -134,6 +134,8 @@ const SUPPORT_MATRIX: SupportMatrix = {
           ? partialClass()
           : diagramType === 'state'
             ? partialState()
+            : diagramType === 'er'
+              ? partialEr()
           : planned(diagramType)),
   ],
 };
@@ -183,6 +185,7 @@ export function detectUnsupportedFeatures(source: string): UnsupportedFeature[] 
     return detectUnsupportedClassFeatures(source);
   }
   if (diagramType === 'state') return [];
+  if (diagramType === 'er') return [];
   if (diagramType !== 'flowchart') {
     return [unsupportedDiagramFeature(source, diagramType)];
   }
@@ -457,6 +460,14 @@ function partialState(): DiagramSupportEntry {
     { id: 'state.transition', label: 'named states and directed transitions', status: 'supported' },
   ], unsupportedSyntax: [
     { id: 'state.advanced', label: 'start/end pseudostates, composites, and notes', status: 'unsupported' },
+  ] };
+}
+
+function partialEr(): DiagramSupportEntry {
+  return { diagramType: 'er', status: 'partial', supportedSyntax: [
+    { id: 'er.relationship', label: 'basic crow’s-foot relationships with labels', status: 'supported' },
+  ], unsupportedSyntax: [
+    { id: 'er.attributes', label: 'entity attribute blocks and extended cardinalities', status: 'unsupported' },
   ] };
 }
 

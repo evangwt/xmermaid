@@ -103,6 +103,18 @@ pub struct ClassRelation {
 pub struct StateAst { pub states: Vec<String>, pub transitions: Vec<StateTransition> }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StateTransition { pub from: String, pub to: String, pub label: String }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ErAst {
+    pub entities: Vec<String>,
+    pub relationships: Vec<ErRelationship>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ErRelationship {
+    pub from: String,
+    pub to: String,
+    pub label: String,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
@@ -111,4 +123,5 @@ pub enum DiagramAst {
     Sequence(SequenceAst),
     Class(ClassAst),
     State(StateAst),
+    Er(ErAst),
 }
