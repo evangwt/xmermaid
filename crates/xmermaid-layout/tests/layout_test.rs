@@ -1,7 +1,7 @@
 mod common;
 
 use common::config_for_ast;
-use xmermaid_layout::compute_layout;
+use xmermaid_layout::{compute_layout, types::EdgeStyle};
 use xmermaid_parser::parse;
 
 #[test]
@@ -107,4 +107,21 @@ fn test_layout_c4_context_relationships_from_left_to_right() {
     assert_eq!(result.nodes.len(), 2);
     assert_eq!(result.edges[0].label.as_deref(), Some("Uses"));
     assert!(customer.center.x < banking.center.x);
+}
+
+#[test]
+fn test_layout_zenuml_calls_and_returns_preserve_arrow_semantics() {
+    let ast = parse(
+        "zenuml\n\
+  Alice->Bob: Authenticate\n\
+  Bob-->Alice: Token",
+    )
+    .unwrap();
+    let result = compute_layout(&ast, &config_for_ast(&ast));
+
+    assert_eq!(result.nodes.len(), 2);
+    assert_eq!(result.edges.len(), 2);
+    assert_eq!(result.edges[0].style, EdgeStyle::Arrow);
+    assert_eq!(result.edges[1].style, EdgeStyle::Dotted);
+    assert_eq!(result.edges[1].label.as_deref(), Some("Token"));
 }

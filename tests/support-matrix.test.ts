@@ -31,7 +31,7 @@ describe('support matrix production contract', () => {
     ]));
     expect(matrix.entries).toHaveLength(30);
     expect(matrix.entries.find(item => item.diagramType === 'sequence')?.status).toBe('partial');
-    expect(matrix.entries.filter(item => !['flowchart', 'sequence', 'class', 'state', 'er', 'user-journey', 'gantt', 'pie', 'mindmap', 'timeline', 'requirement', 'gitgraph', 'c4'].includes(item.diagramType)).every(item => item.status === 'planned')).toBe(true);
+    expect(matrix.entries.filter(item => !['flowchart', 'sequence', 'class', 'state', 'er', 'user-journey', 'gantt', 'pie', 'mindmap', 'timeline', 'requirement', 'gitgraph', 'c4', 'zenuml'].includes(item.diagramType)).every(item => item.status === 'planned')).toBe(true);
   });
 
   it('reports flowchart and sequence sources as partial while planned diagrams stay explicit', () => {
@@ -44,6 +44,12 @@ describe('support matrix production contract', () => {
 
     expect(analyzeSupport('sequenceDiagram\n  A->>B: Hi')).toMatchObject({
       diagramType: 'sequence',
+      status: 'partial',
+      unsupportedFeatures: [],
+    });
+
+    expect(analyzeSupport('zenuml\n  Alice->Bob: Authenticate\n  Bob-->Alice: Token')).toMatchObject({
+      diagramType: 'zenuml',
       status: 'partial',
       unsupportedFeatures: [],
     });
@@ -65,6 +71,20 @@ describe('support matrix production contract', () => {
           range: expect.objectContaining({ startLine: 2, startColumn: 3 }),
         }),
       ],
+    });
+  });
+
+  it('surfaces advanced ZenUML syntax before the WASM render path', () => {
+    expect(analyzeSupport('zenuml\n  Alice->Bob: Authenticate {\n    return Token\n  }')).toMatchObject({
+      diagramType: 'zenuml',
+      status: 'partial',
+      unsupportedFeatures: expect.arrayContaining([
+        expect.objectContaining({
+          id: 'zenuml.advanced',
+          severity: 'error',
+          range: expect.objectContaining({ startLine: 2, startColumn: 3 }),
+        }),
+      ]),
     });
   });
 

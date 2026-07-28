@@ -151,6 +151,19 @@ pub struct TimelineEntry { pub period: String, pub events: Vec<String> }
 #[derive(Debug, Clone, Serialize, Deserialize)] pub struct C4Ast { pub diagram_kind: String, pub title: String, pub elements: Vec<C4Element>, pub relationships: Vec<C4Relationship> }
 #[derive(Debug, Clone, Serialize, Deserialize)] pub struct C4Element { pub kind: String, pub id: String, pub label: String, pub description: Option<String> }
 #[derive(Debug, Clone, Serialize, Deserialize)] pub struct C4Relationship { pub from: String, pub to: String, pub label: String }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ZenUmlAst {
+    pub participants: Vec<String>,
+    pub messages: Vec<ZenUmlMessage>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ZenUmlMessage {
+    pub from: String,
+    pub to: String,
+    pub label: String,
+    pub kind: String,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
@@ -168,4 +181,5 @@ pub enum DiagramAst {
     Requirement(RequirementAst),
     GitGraph(GitGraphAst),
     C4(C4Ast),
+    ZenUml(ZenUmlAst),
 }

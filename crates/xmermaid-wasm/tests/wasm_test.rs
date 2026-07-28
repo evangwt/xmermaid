@@ -33,8 +33,17 @@ fn test_get_diagram_type_flowchart() {
         DiagramAst::Requirement(_) => "requirement",
         DiagramAst::GitGraph(_) => "gitgraph",
         DiagramAst::C4(_) => "c4",
+        DiagramAst::ZenUml(_) => "zenuml",
     };
     assert_eq!(type_str, "flowchart");
+}
+
+#[test]
+fn test_parse_dsl_zenuml() {
+    let ast = xmermaid_parser::parse("zenuml\n  Alice->Bob: Authenticate\n  Bob-->Alice: Token")
+        .unwrap();
+
+    assert!(matches!(ast, DiagramAst::ZenUml(_)));
 }
 
 #[test]

@@ -64,7 +64,7 @@ xmermaid 当前已落地的主链路是四层结构：
 
 SVG renderer 的主题合同是 `RenderTheme`，当前内置兼容默认 `DEFAULT_THEME`、配套 `LIGHT_THEME` / `DARK_THEME` 和 `MINIMAL_THEME`。主题控制颜色、箭头样式、曲线样式、edge gap、arrow size、圆角和字体；`edgeGap` 只表示 marker-to-node clearance，line-to-marker 接合由 renderer 按 marker footprint 计算。`XMermaidOptions` 暴露 `theme` 与 `layoutConfig`，`XMermaid.render()` 负责 WASM 初始化、布局调用、WASM enum 归一化和 DOM 替换。
 
-公开 SDK 现在同时提供容器替换路径和可复用 SVG 输出路径。`XMermaid.render(input): Promise<void>` 保持兼容：清空 constructor 传入的 container 并插入 SVG。`XMermaid.run()` 仍是 DOM scan 兼容入口；失败时保留写入错误文本的行为，同时在失败的 `.mermaid` 元素上写入 `data-xmermaid-error-code` 和 JSON `data-xmermaid-diagnostics`。`XMermaid.renderToSVGElement(input, options?)` 是主输出 API，返回 `RenderResult`，包含 `diagramType`、`diagnostics`、`dimensions` 和 `svg: SVGSVGElement`；成功渲染 partial flowchart 时，support analyzer 发现的 warning-level unsupported syntax 会随 `RenderResult.diagnostics` 返回，error-level unsupported syntax 和 unsupported diagram family 会在调用 WASM 前抛 `XMermaidError`。`XMermaid.renderToSVGString(input, options?)` 是 element API 的序列化包装，不另走第二套渲染逻辑。`RenderOptions` 支持单次 `theme`、`layoutConfig`、`wasm.wasmUrl` 和 `wasm.fetch`；显式 `wasm.wasmUrl` 会传给 wasm-pack 初始化，用于自定义 WASM asset base path；同时传入 `wasm.fetch` 时，loader 用该 fetch 获取 wasm Response 后交给 wasm-pack 初始化。WASM 初始化是进程级单例：首次初始化后后续 render 复用同一个 module，不在多次 render 间切换 `wasmUrl` / `fetch`。
+公开 SDK 现在同时提供容器替换路径和可复用 SVG 输出路径。`XMermaid.render(input): Promise<void>` 保持兼容：清空 constructor 传入的 container 并插入 SVG。`XMermaid.run()` 仍是 DOM scan 兼容入口；失败时保留写入错误文本的行为，同时在失败的 `.mermaid` 元素上写入 `data-xmermaid-error-code` 和 JSON `data-xmermaid-diagnostics`。`XMermaid.renderToSVGElement(input, options?)` 是主输出 API，返回 `RenderResult`，包含 `diagramType`、`diagnostics`、`dimensions` 和 `svg: SVGSVGElement`；成功渲染 partial diagram 时，support analyzer 发现的 warning-level unsupported syntax 会随 `RenderResult.diagnostics` 返回，error-level unsupported syntax 和 unsupported diagram family 会在调用 WASM 前抛 `XMermaidError`。`XMermaid.renderToSVGString(input, options?)` 是 element API 的序列化包装，不另走第二套渲染逻辑。`RenderOptions` 支持单次 `theme`、`layoutConfig`、`wasm.wasmUrl` 和 `wasm.fetch`；显式 `wasm.wasmUrl` 会传给 wasm-pack 初始化，用于自定义 WASM asset base path；同时传入 `wasm.fetch` 时，loader 用该 fetch 获取 wasm Response 后交给 wasm-pack 初始化。WASM 初始化是进程级单例：首次初始化后后续 render 复用同一个 module，不在多次 render 间切换 `wasmUrl` / `fetch`。
 
 `src/types/diagnostics.ts` 是 SDK、错误对象、live editor 和 repair engine 共享的诊断合同。`XMermaidDiagnosticCode` 当前覆盖 `parse_error`、`unsupported_diagram_type`、`unsupported_syntax`、`layout_error`、`render_error`、`wasm_init_error` 以及后续 security policy 预留的 `security_blocked_url`、`security_blocked_html`、`security_blocked_click`。`SourceRange` 使用 JS string offset，line/column 为 1-based，endOffset/endColumn 为 exclusive。`XMermaidError` 仍保留 `code` 与 `details`，并新增 `diagnostics: XMermaidDiagnostic[]`；WASM parse/layout/render/init 失败会被归一化为相同诊断对象。Rust parser 当前没有输出结构化 offset/column，所以这类 WASM 错误的 diagnostic range 为 `null`，不从 message 中伪造 token 位置。
 
@@ -86,14 +86,15 @@ SVG renderer 的主题合同是 `RenderTheme`，当前内置兼容默认 `DEFAUL
 | 模块 | 功能 | 说明 |
 |------|------|------|
 | `Lexer` | 词法分析 | 手写 lexer，识别关键字、标识符、方向、箭头、标签、shape token 等 |
-| `Parser` | 语法分析 | 手写 parser，当前 `parse()` 只把 `graph` / `flowchart` 送入 `parse_flowchart()`；其他 diagram keyword 返回 `UnsupportedDiagramType` |
+| `Parser` | 语法分析 | 手写 parser，按图表关键字分派到各个已支持子集；不在 support matrix 中的 diagram family 返回 `UnsupportedDiagramType` |
 | `FlowchartAst` | AST 合同 | 保留 direction、node shape、edge style、edge label、`min_length` 和 subgraph |
 | `support.ts` analyzer | 生产支持边界 | 在 render 前识别 unsupported diagram / syntax，输出 diagnostics；不替代 Rust parser |
 
 ### 当前支持的图表类型
 
 - `graph` / `flowchart`：partial support，覆盖基础节点、边、常见 label、核心 shape 和部分 subgraph。
-- `sequenceDiagram`、`classDiagram`、`stateDiagram`、`erDiagram`、`gantt`、`pie`、`mindmap`：当前 unsupported，通过 support matrix / diagnostics 暴露。
+- `sequenceDiagram`、`classDiagram`、`stateDiagram`、`erDiagram`、`journey`、`gantt`、`pie`、`mindmap`、`timeline`、`requirementDiagram`、`gitGraph`、C4 系列和 `zenuml`：均为 partial support；每个子集与明确 unsupported 语法由 `support.ts` / `README` 的 production contract 定义。
+- `zenuml` 当前只接收带 label 的 `->` call 和 `-->` return；return 在 layout 中投影为虚线箭头，block、declaration、async 与 control syntax 在 WASM 前拒绝。
 - `class`、`classDef`、`style`、`click`、`linkStyle`、HTML label、Markdown label、quoted label、entity-code label、FontAwesome label、expanded / stadium / cylinder shape syntax、thick / extended edge forms、bidirectional / circle / cross edge endings、inline edge labels、edge IDs、edges to subgraph ids、hyphenated node ids、inline class assignments：当前 unsupported 或安全阻断；不能把跳过解析或误解析当成完整支持。
 
 ### 技术选型
@@ -121,7 +122,7 @@ SVG renderer 的主题合同是 `RenderTheme`，当前内置兼容默认 `DEFAUL
 
 | 模块 | 功能 | 说明 |
 |------|------|------|
-| `compute_layout()` | layout dispatcher | 当前只对 `DiagramAst::Flowchart` 调用 flowchart layout；其他 AST 返回空 layout result |
+| `compute_layout()` | layout dispatcher | 分派 flowchart、gantt 和 pie 的 layout；关系型 partial diagrams 投影为带样式边的 flowchart layout |
 | `flowchart::layout()` | flowchart 布局 | Sugiyama-style layered graph drawing，支持 TB/BT/LR/RL 方向 |
 | `LayoutConfig` | 布局输入配置 | 节点尺寸、水平/垂直间距、padding、direction |
 | `LayoutResult` | 布局输出合同 | nodes、edges、dimensions；edge 携带 theme-independent geometry v2 字段供 SVG renderer 消费 |
@@ -134,7 +135,7 @@ SVG renderer 的主题合同是 `RenderTheme`，当前内置兼容默认 `DEFAUL
 - 子图当前保留在 AST / visual model 合同中；布局能力以现有 tests 和 release gate 为准，不承诺完整 Mermaid subgraph layout 语义。
 
 **当前不做：**
-- 不提供 sequence/class/state/gantt/mindmap/pie 等专用 layout。
+- 除 gantt / pie 外，不提供 sequence/class/state/mindmap/ZenUML 等专用 layout；这些 partial diagrams 以明确受限的关系图投影渲染。
 - 不提供 constraint solver、obstacle avoidance、port routing 或 parallel edge bundling。
 - 不承诺 layout 性能 SLA 或增量布局。
 
@@ -230,7 +231,7 @@ Live editor 的 visual edit path 是异步编排：analysis 成功后应用 edit
 
 源码中当前已落地 `src/support.ts`，并通过 `src/index.ts` 公开导出 `getSupportMatrix()`、`getDiagramSupport(diagramType)` 和 `analyzeSupport(source)`。这组 API 是生产发布合同的机器可读入口：它描述当前支持范围，而不是增加新的 parser/render 能力。
 
-当前合同把 `flowchart` 标为 `partial`：基础 `graph` / `flowchart` 声明、基础节点和有向边、常见标签、核心 shape 和部分 subgraph parse 属于支持范围；`class`、`classDef`、`style`、`click`、`linkStyle`、HTML label、Markdown label、quoted label、entity-code label、FontAwesome label、expanded / stadium / cylinder shape syntax、thick / extended edge forms、bidirectional / circle / cross edge endings、inline edge labels、edge IDs、edges to subgraph ids、hyphenated node ids、inline class assignments 明确列为 unsupported 或 partial。`sequenceDiagram`、`classDiagram`、`stateDiagram`、`erDiagram`、`gantt`、`pie` 和 `mindmap` 当前仍是 unsupported diagram family。
+当前合同把 `flowchart` 标为 `partial`：基础 `graph` / `flowchart` 声明、基础节点和有向边、常见标签、核心 shape 和部分 subgraph parse 属于支持范围；`class`、`classDef`、`style`、`click`、`linkStyle`、HTML label、Markdown label、quoted label、entity-code label、FontAwesome label、expanded / stadium / cylinder shape syntax、thick / extended edge forms、bidirectional / circle / cross edge endings、inline edge labels、edge IDs、edges to subgraph ids、hyphenated node ids、inline class assignments 明确列为 unsupported 或 partial。`sequenceDiagram`、`classDiagram`、`stateDiagram`、`erDiagram`、`journey`、`gantt`、`pie`、`mindmap`、`timeline`、`requirementDiagram`、`gitGraph`、C4 系列和 `zenuml` 均为 partial diagram family，具体边界由 support matrix 声明；其余 catalog family 则在 WASM 前以 `unsupported_diagram_type` 拒绝。
 
 `analyzeSupport(source)` 仍不替代 Rust parser，但现在会携带 `unsupportedFeatures`。`detectUnsupportedFeatures(source)` 是轻量 production support analyzer：unsupported diagram family 返回 `diagram.*` feature，flowchart 中的 `class`、`classDef`、`style`、`click`、`linkStyle`、HTML label、Markdown label、quoted label、entity-code label、FontAwesome label、invalid direction、expanded/stadium/cylinder shape、thick/extended edge forms、bidirectional/circle/cross edge endings、inline edge labels、edge IDs、edges to subgraph ids、hyphenated node ids 和 inline class assignments 返回对应 `flowchart.*` feature。`SupportSourceRange` 使用 JS string offset，line/column 为 1-based，endOffset/endColumn 为 exclusive。Analyzer 只读 source，不调用 WASM，不修改 render path；它的 feature id 必须映射到 support matrix 的 unsupported syntax id，后续 diagnostics/runtime 只能消费这些结构化输出，不能靠字符串猜。
 

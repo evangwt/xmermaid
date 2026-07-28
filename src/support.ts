@@ -39,7 +39,8 @@ export type UnsupportedFeatureId =
   | 'flowchart.inlineClass'
   | 'flowchart.linkStyle'
   | 'sequence.advanced'
-  | 'class.advanced';
+  | 'class.advanced'
+  | 'zenuml.advanced';
 
 export interface SupportSourceRange {
   startOffset: number;
@@ -152,7 +153,9 @@ const SUPPORT_MATRIX: SupportMatrix = {
                         ? partialGitGraph()
                         : diagramType === 'c4'
                           ? partialC4()
-          : planned(diagramType)),
+                          : diagramType === 'zenuml'
+                            ? partialZenUml()
+                            : planned(diagramType)),
   ],
 };
 
@@ -186,7 +189,7 @@ export function analyzeSupport(source: string): SupportReport {
     diagramType,
     status: support.status,
     message: support.status === 'partial'
-      ? 'Flowchart rendering has partial Mermaid support. Check the support matrix for unsupported syntax.'
+      ? 'Mermaid rendering has partial support. Check the support matrix for unsupported syntax.'
       : unsupportedDiagramMessage(diagramType),
     unsupportedFeatures,
   };
@@ -199,6 +202,9 @@ export function detectUnsupportedFeatures(source: string): UnsupportedFeature[] 
   }
   if (diagramType === 'class') {
     return detectUnsupportedClassFeatures(source);
+  }
+  if (diagramType === 'zenuml') {
+    return detectUnsupportedZenUmlFeatures(source);
   }
   if (diagramType === 'state') return [];
   if (diagramType === 'er') return [];
@@ -413,6 +419,22 @@ function detectUnsupportedClassFeatures(source: string): UnsupportedFeature[] {
   return features;
 }
 
+function detectUnsupportedZenUmlFeatures(source: string): UnsupportedFeature[] {
+  const features: UnsupportedFeature[] = [];
+  for (const line of linesWithRanges(source)) {
+    if (/^\s*(?:participant|actor|create|destroy|if|else|while|for|loop|opt|alt|par|end|return)\b/i.test(line.text)
+      || /(?:--?>{2,}|\{|\})/.test(line.text)) {
+      features.push(unsupportedSyntax(
+        'zenuml.advanced',
+        line,
+        'ZenUML blocks, declarations, async messages, and advanced control syntax are not supported yet.',
+        'error',
+      ));
+    }
+  }
+  return features;
+}
+
 function collectSubgraphIds(lines: SourceLine[]): Set<string> {
   const ids = new Set<string>();
   for (const line of lines) {
@@ -523,6 +545,7 @@ function partialMindmap(): DiagramSupportEntry { return { diagramType: 'mindmap'
 function partialRequirement(): DiagramSupportEntry { return { diagramType: 'requirement', status: 'partial', supportedSyntax: [{ id: 'requirement.block', label: 'typed requirement blocks with id, text, risk, and verification method', status: 'supported' }, { id: 'requirement.relationship', label: 'labeled semantic relationships', status: 'supported' }], unsupportedSyntax: [{ id: 'requirement.advanced', label: 'custom requirement styling and advanced relation syntax', status: 'unsupported' }] }; }
 function partialGitGraph(): DiagramSupportEntry { return { diagramType: 'gitgraph', status: 'partial', supportedSyntax: [{ id: 'gitgraph.commit', label: 'commits with ids, tags, and types', status: 'supported' }, { id: 'gitgraph.branch-merge', label: 'branch, checkout, and merge history', status: 'supported' }], unsupportedSyntax: [{ id: 'gitgraph.advanced', label: 'cherry-pick, custom branch ordering, and advanced commit options', status: 'unsupported' }] }; }
 function partialC4(): DiagramSupportEntry { return { diagramType: 'c4', status: 'partial', supportedSyntax: [{ id: 'c4.element', label: 'people, systems, containers, components, and external elements', status: 'supported' }, { id: 'c4.relationship', label: 'labeled directional relationships', status: 'supported' }], unsupportedSyntax: [{ id: 'c4.advanced', label: 'boundaries, deployment nodes, styling, and advanced relationship macros', status: 'unsupported' }] }; }
+function partialZenUml(): DiagramSupportEntry { return { diagramType: 'zenuml', status: 'partial', supportedSyntax: [{ id: 'zenuml.call', label: 'labeled direct calls', status: 'supported' }, { id: 'zenuml.return', label: 'labeled returns', status: 'supported' }], unsupportedSyntax: [{ id: 'zenuml.advanced', label: 'blocks, declarations, async messages, and advanced control syntax', status: 'unsupported' }] }; }
 
 function cloneEntry(entry: DiagramSupportEntry): DiagramSupportEntry {
   return {

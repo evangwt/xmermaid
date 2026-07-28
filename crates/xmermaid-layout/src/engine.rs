@@ -174,5 +174,40 @@ pub fn compute_layout(ast: &DiagramAst, config: &LayoutConfig) -> LayoutResult {
             cfg.direction = crate::types::FlowDirection::LR;
             flowchart::layout(&ast, &cfg)
         }
+        DiagramAst::ZenUml(zenuml) => {
+            let ast = xmermaid_parser::ast::FlowchartAst {
+                direction: xmermaid_parser::ast::FlowDirection::LR,
+                nodes: zenuml
+                    .participants
+                    .iter()
+                    .map(|id| xmermaid_parser::ast::Node {
+                        id: id.clone(),
+                        label: Some(id.clone()),
+                        shape: xmermaid_parser::ast::NodeShape::Rect,
+                        classes: vec![],
+                        styles: vec![],
+                    })
+                    .collect(),
+                edges: zenuml
+                    .messages
+                    .iter()
+                    .map(|message| xmermaid_parser::ast::Edge {
+                        from: message.from.clone(),
+                        to: message.to.clone(),
+                        style: if message.kind == "return" {
+                            xmermaid_parser::ast::EdgeStyle::Dotted
+                        } else {
+                            xmermaid_parser::ast::EdgeStyle::Arrow
+                        },
+                        label: Some(message.label.clone()),
+                        min_length: 1,
+                    })
+                    .collect(),
+                subgraphs: vec![],
+            };
+            let mut cfg = config.clone();
+            cfg.direction = crate::types::FlowDirection::LR;
+            flowchart::layout(&ast, &cfg)
+        }
     }
 }

@@ -189,4 +189,17 @@ export interface C4Relationship {
   label: string;
 }
 
-export type DiagramAst = FlowchartAst | SequenceAst | ClassAst | StateAst | ErAst | GanttAst | UserJourneyAst | TimelineAst | RequirementAst | GitGraphAst | C4Ast;
+export interface ZenUmlAst {
+  type: 'zenuml';
+  participants: string[];
+  messages: ZenUmlMessage[];
+}
+
+export interface ZenUmlMessage {
+  from: string;
+  to: string;
+  label: string;
+  kind: 'call' | 'return';
+}
+
+export type DiagramAst = FlowchartAst | SequenceAst | ClassAst | StateAst | ErAst | GanttAst | UserJourneyAst | TimelineAst | RequirementAst | GitGraphAst | C4Ast | ZenUmlAst;
