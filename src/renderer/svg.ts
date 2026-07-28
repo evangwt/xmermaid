@@ -25,6 +25,10 @@ export class SVGRenderer {
       this.renderPie(svg, layout);
       return svg;
     }
+    if (layout.xy_chart) {
+      this.renderXyChart(svg, layout);
+      return svg;
+    }
 
     // Build node index for bounds lookup
     const nodeMap = new Map<string, LayoutNode>();
@@ -61,6 +65,79 @@ export class SVGRenderer {
       const mid = (slice.start_angle + slice.end_angle) / 2; const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       text.textContent = `${slice.label} ${slice.value}`; text.setAttribute('x', String(cx + (radius + 28) * Math.cos(mid))); text.setAttribute('y', String(cy + (radius + 28) * Math.sin(mid))); text.setAttribute('fill', this.theme.colors.nodeText); text.setAttribute('font-size', String(this.theme.fontSize)); text.setAttribute('text-anchor', Math.cos(mid) > .2 ? 'start' : Math.cos(mid) < -.2 ? 'end' : 'middle'); svg.appendChild(text);
     });
+  }
+
+  private renderXyChart(svg: SVGSVGElement, layout: LayoutResult): void {
+    const chart = layout.xy_chart!;
+    const plotRight = chart.plot.x + chart.plot.width;
+    const plotBottom = chart.plot.y + chart.plot.height;
+    const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    group.classList.add('xychart');
+    const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+    title.textContent = chart.title || 'XY chart';
+    group.appendChild(title);
+
+    const axis = (x1: number, y1: number, x2: number, y2: number) => {
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.classList.add('xychart-axis');
+      line.setAttribute('x1', String(x1));
+      line.setAttribute('y1', String(y1));
+      line.setAttribute('x2', String(x2));
+      line.setAttribute('y2', String(y2));
+      line.setAttribute('stroke', this.theme.colors.edgeStroke);
+      line.setAttribute('stroke-width', '1.5');
+      group.appendChild(line);
+    };
+    axis(chart.plot.x, plotBottom, plotRight, plotBottom);
+    axis(chart.plot.x, chart.plot.y, chart.plot.x, plotBottom);
+
+    const addText = (value: string, x: number, y: number, anchor: string) => {
+      const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      text.setAttribute('x', String(x));
+      text.setAttribute('y', String(y));
+      text.setAttribute('text-anchor', anchor);
+      text.setAttribute('fill', this.theme.colors.nodeText);
+      text.setAttribute('font-family', this.theme.fontFamily);
+      text.setAttribute('font-size', String(Math.max(10, this.theme.fontSize - 2)));
+      text.textContent = value;
+      group.appendChild(text);
+    };
+    if (chart.title) addText(chart.title, chart.plot.x, chart.plot.y - 18, 'start');
+    addText(String(chart.y_max), chart.plot.x - 10, chart.plot.y + 4, 'end');
+    addText(String(chart.y_min), chart.plot.x - 10, plotBottom + 4, 'end');
+    const categoryWidth = chart.plot.width / chart.x_labels.length;
+    chart.x_labels.forEach((label, index) => {
+      addText(label, chart.plot.x + categoryWidth * (index + .5), plotBottom + 22, 'middle');
+    });
+
+    chart.series.forEach(series => {
+      if (series.kind === 'bar') {
+        series.bars.forEach(bar => {
+          const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+          rect.classList.add('xychart-bar');
+          rect.setAttribute('x', String(bar.x));
+          rect.setAttribute('y', String(bar.y));
+          rect.setAttribute('width', String(bar.width));
+          rect.setAttribute('height', String(bar.height));
+          rect.setAttribute('rx', String(Math.min(4, bar.width / 4)));
+          rect.setAttribute('fill', this.theme.colors.nodeFill);
+          rect.setAttribute('stroke', this.theme.colors.nodeStroke);
+          rect.setAttribute('stroke-width', '1.5');
+          group.appendChild(rect);
+        });
+      } else if (series.points.length) {
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+        line.classList.add('xychart-line');
+        line.setAttribute('points', series.points.map(point => `${point.x},${point.y}`).join(' '));
+        line.setAttribute('fill', 'none');
+        line.setAttribute('stroke', this.theme.colors.edgeStroke);
+        line.setAttribute('stroke-width', '2.5');
+        line.setAttribute('stroke-linecap', 'round');
+        line.setAttribute('stroke-linejoin', 'round');
+        group.appendChild(line);
+      }
+    });
+    svg.appendChild(group);
   }
 
   private renderNode(node: LayoutNode): SVGGElement {

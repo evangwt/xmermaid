@@ -392,6 +392,7 @@ pub fn layout(fc: &FlowchartAst, config: &LayoutConfig) -> LayoutResult {
             nodes: vec![],
             edges: vec![],
             pie_slices: vec![],
+            xy_chart: None,
             dimensions: Dimensions {
                 width: padding * 2.0,
                 height: padding * 2.0,
@@ -980,6 +981,7 @@ pub fn layout(fc: &FlowchartAst, config: &LayoutConfig) -> LayoutResult {
         nodes: final_nodes,
         edges: final_edges,
         pie_slices: vec![],
+        xy_chart: None,
         dimensions: Dimensions {
             width: final_width,
             height: final_height,

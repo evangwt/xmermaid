@@ -1,6 +1,6 @@
 import { beforeAll, describe, it, expect } from 'vitest';
 import { SVGRenderer } from '../src/renderer/svg';
-import { DEFAULT_THEME } from '../src/types/theme';
+import { DARK_THEME, DEFAULT_THEME } from '../src/types/theme';
 import type { LayoutResult, LayoutNode } from '../src/types/layout';
 
 beforeAll(() => {
@@ -72,6 +72,32 @@ function renderedArrowTip(svg: SVGSVGElement): string {
 }
 
 describe('SVGRenderer', () => {
+  it('renders native xychart axes, bars, and a line without flowchart nodes', () => {
+    const layout = {
+      nodes: [],
+      edges: [],
+      dimensions: { width: 480, height: 360 },
+      xy_chart: {
+        title: 'Quarterly revenue',
+        plot: { x: 64, y: 44, width: 388, height: 216 },
+        x_labels: ['Q1', 'Q2'],
+        y_min: 0,
+        y_max: 100,
+        series: [
+          { kind: 'bar', bars: [{ x: 120, y: 180, width: 36, height: 80 }, { x: 314, y: 100, width: 36, height: 160 }], points: [] },
+          { kind: 'line', bars: [], points: [{ x: 138, y: 160 }, { x: 332, y: 140 }] },
+        ],
+      },
+    } as LayoutResult;
+
+    const svg = new SVGRenderer(DARK_THEME).render(layout);
+
+    expect(svg.querySelectorAll('.xychart-axis')).toHaveLength(2);
+    expect(svg.querySelectorAll('.xychart-bar')).toHaveLength(2);
+    expect(svg.querySelector('.xychart-line')).not.toBeNull();
+    expect(svg.querySelectorAll('.node')).toHaveLength(0);
+  });
+
   it('creates an SVG element with correct dimensions', () => {
     const renderer = new SVGRenderer();
     const layout = createTestLayout();

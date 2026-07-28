@@ -75,6 +75,7 @@ impl<'a> Parser<'a> {
         if self.input.trim_start().starts_with("gitGraph") { return self.parse_gitgraph(); }
         if self.input.trim_start().starts_with("C4") { return self.parse_c4(); }
         if self.input.trim_start().starts_with("zenuml") { return self.parse_zenuml(); }
+        if self.input.trim_start().starts_with("xychart-beta") { return self.parse_xychart(); }
         let keyword = self.expect(TokenType::Keyword)?;
 
         match keyword.as_str() {
@@ -516,6 +517,25 @@ impl<'a> Parser<'a> {
             participants,
             messages,
         }))
+    }
+
+    fn parse_xychart(&self) -> Result<DiagramAst, ParseError> {
+        let mut lines = self.input.lines().map(str::trim).filter(|line| !line.is_empty() && !line.starts_with("%%"));
+        let header = lines.next().unwrap_or_default();
+        if header != "xychart-beta" { return Err(ParseError::UnexpectedToken(format!("Unsupported XY chart declaration: {}", header))); }
+        let mut title = String::new(); let mut x_labels = None; let mut y_range = None; let mut series = Vec::new();
+        for statement in lines {
+            if let Some(value) = statement.strip_prefix("title ") { if !title.is_empty() { return Err(ParseError::UnexpectedToken("XY chart title may only be declared once.".to_string())); } title = parse_xy_quoted(value, "XY chart titles must be quoted")?; continue; }
+            if let Some(value) = statement.strip_prefix("x-axis ") { if x_labels.is_some() { return Err(ParseError::UnexpectedToken("XY chart x-axis may only be declared once.".to_string())); } x_labels = Some(parse_xy_labels(value)?); continue; }
+            if let Some(value) = statement.strip_prefix("y-axis ") { if y_range.is_some() { return Err(ParseError::UnexpectedToken("XY chart y-axis may only be declared once.".to_string())); } y_range = Some(parse_xy_range(value)?); continue; }
+            let (kind, values) = if let Some(value) = statement.strip_prefix("bar ") { (XySeriesKind::Bar, parse_xy_values(value)?) } else if let Some(value) = statement.strip_prefix("line ") { (XySeriesKind::Line, parse_xy_values(value)?) } else { return Err(ParseError::UnexpectedToken(format!("Unsupported XY chart statement: {}", statement))); };
+            series.push(XySeries { kind, values });
+        }
+        let x_labels = x_labels.ok_or_else(|| ParseError::UnexpectedToken("XY charts require a categorical x-axis.".to_string()))?;
+        let (y_min, y_max) = y_range.ok_or_else(|| ParseError::UnexpectedToken("XY charts require a numeric y-axis range.".to_string()))?;
+        if series.is_empty() { return Err(ParseError::EmptyInput); }
+        if series.iter().any(|item| item.values.len() != x_labels.len()) { return Err(ParseError::UnexpectedToken("Each XY chart series must contain one value per x-axis label.".to_string())); }
+        Ok(DiagramAst::XyChart(XyChartAst { title, x_labels, y_min, y_max, series }))
     }
 
     fn add_class_if_new(classes: &mut Vec<ClassDefinition>, id: &str) {
@@ -1068,6 +1088,12 @@ fn is_iso_date(value: &str) -> bool {
         && value.as_bytes()[7] == b'-'
         && value.chars().enumerate().all(|(index, character)| index == 4 || index == 7 || character.is_ascii_digit())
 }
+
+fn parse_xy_quoted(value: &str, message: &str) -> Result<String, ParseError> { value.trim().strip_prefix('"').and_then(|text| text.strip_suffix('"')).map(str::trim).filter(|text| !text.is_empty()).map(ToString::to_string).ok_or_else(|| ParseError::UnexpectedToken(message.to_string())) }
+fn parse_xy_labels(value: &str) -> Result<Vec<String>, ParseError> { let content = value.trim().strip_prefix('[').and_then(|text| text.strip_suffix(']')).ok_or_else(|| ParseError::UnexpectedToken("XY chart x-axis must use [label, ...] syntax.".to_string()))?; let labels = content.split(',').map(str::trim).map(|label| label.trim_matches('"').trim().to_string()).collect::<Vec<_>>(); if labels.is_empty() || labels.iter().any(|label| label.is_empty()) { return Err(ParseError::UnexpectedToken("XY chart x-axis labels cannot be empty.".to_string())); } Ok(labels) }
+fn parse_xy_range(value: &str) -> Result<(f64, f64), ParseError> { let value = value.trim(); let value = if value.starts_with('"') { let end = value[1..].find('"').ok_or_else(|| ParseError::UnexpectedToken("XY chart y-axis label must close its quote.".to_string()))? + 1; value[end + 1..].trim() } else { value }; let (minimum, maximum) = value.split_once("-->").ok_or_else(|| ParseError::UnexpectedToken("XY chart y-axis must use min --> max syntax.".to_string()))?; let minimum = parse_xy_number(minimum, "XY chart y-axis minimum must be finite.")?; let maximum = parse_xy_number(maximum, "XY chart y-axis maximum must be finite.")?; if minimum >= maximum { return Err(ParseError::UnexpectedToken("XY chart y-axis maximum must exceed its minimum.".to_string())); } Ok((minimum, maximum)) }
+fn parse_xy_values(value: &str) -> Result<Vec<f64>, ParseError> { let content = value.trim().strip_prefix('[').and_then(|text| text.strip_suffix(']')).ok_or_else(|| ParseError::UnexpectedToken("XY chart series must use [value, ...] syntax.".to_string()))?; let values = content.split(',').map(|value| parse_xy_number(value, "XY chart series values must be finite.")).collect::<Result<Vec<_>, _>>()?; if values.is_empty() { return Err(ParseError::UnexpectedToken("XY chart series cannot be empty.".to_string())); } Ok(values) }
+fn parse_xy_number(value: &str, message: &str) -> Result<f64, ParseError> { value.trim().parse::<f64>().ok().filter(|number| number.is_finite()).ok_or_else(|| ParseError::UnexpectedToken(message.to_string())) }
 
 pub fn parse_input(input: &str) -> Result<DiagramAst, ParseError> {
     let mut parser = Parser::new(input);

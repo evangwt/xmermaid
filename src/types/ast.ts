@@ -202,4 +202,20 @@ export interface ZenUmlMessage {
   kind: 'call' | 'return';
 }
 
-export type DiagramAst = FlowchartAst | SequenceAst | ClassAst | StateAst | ErAst | GanttAst | UserJourneyAst | TimelineAst | RequirementAst | GitGraphAst | C4Ast | ZenUmlAst;
+export type XySeriesKind = 'bar' | 'line';
+
+export interface XySeries {
+  kind: XySeriesKind;
+  values: number[];
+}
+
+export interface XyChartAst {
+  type: 'xychart';
+  title: string;
+  x_labels: string[];
+  y_min: number;
+  y_max: number;
+  series: XySeries[];
+}
+
+export type DiagramAst = FlowchartAst | SequenceAst | ClassAst | StateAst | ErAst | GanttAst | UserJourneyAst | TimelineAst | RequirementAst | GitGraphAst | C4Ast | ZenUmlAst | XyChartAst;

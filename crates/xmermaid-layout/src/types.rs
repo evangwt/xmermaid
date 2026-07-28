@@ -174,6 +174,13 @@ pub struct Dimensions {
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PieSlice { pub label: String, pub value: f64, pub start_angle: f64, pub end_angle: f64 }
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum XySeriesKind { Bar, Line }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct XyChartSeries { pub kind: XySeriesKind, #[serde(default, skip_serializing_if = "Vec::is_empty")] pub bars: Vec<Bounds>, #[serde(default, skip_serializing_if = "Vec::is_empty")] pub points: Vec<Point> }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct XyChartLayout { pub title: String, pub plot: Bounds, pub x_labels: Vec<String>, pub y_min: f64, pub y_max: f64, pub series: Vec<XyChartSeries> }
 
 /// Complete layout result
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -182,4 +189,5 @@ pub struct LayoutResult {
     pub edges: Vec<LayoutEdge>,
     pub dimensions: Dimensions,
     #[serde(default)] pub pie_slices: Vec<PieSlice>,
+    #[serde(default, skip_serializing_if = "Option::is_none")] pub xy_chart: Option<XyChartLayout>,
 }

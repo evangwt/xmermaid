@@ -40,7 +40,10 @@ export type UnsupportedFeatureId =
   | 'flowchart.linkStyle'
   | 'sequence.advanced'
   | 'class.advanced'
-  | 'zenuml.advanced';
+  | 'zenuml.advanced'
+  | 'xychart.numericXAxis'
+  | 'xychart.horizontal'
+  | 'xychart.advanced';
 
 export interface SupportSourceRange {
   startOffset: number;
@@ -155,6 +158,8 @@ const SUPPORT_MATRIX: SupportMatrix = {
                           ? partialC4()
                           : diagramType === 'zenuml'
                             ? partialZenUml()
+                            : diagramType === 'xychart'
+                              ? partialXyChart()
                             : planned(diagramType)),
   ],
 };
@@ -205,6 +210,9 @@ export function detectUnsupportedFeatures(source: string): UnsupportedFeature[] 
   }
   if (diagramType === 'zenuml') {
     return detectUnsupportedZenUmlFeatures(source);
+  }
+  if (diagramType === 'xychart') {
+    return detectUnsupportedXyChartFeatures(source);
   }
   if (diagramType === 'state') return [];
   if (diagramType === 'er') return [];
@@ -435,6 +443,36 @@ function detectUnsupportedZenUmlFeatures(source: string): UnsupportedFeature[] {
   return features;
 }
 
+function detectUnsupportedXyChartFeatures(source: string): UnsupportedFeature[] {
+  const features: UnsupportedFeature[] = [];
+  for (const line of linesWithRanges(source)) {
+    const trimmed = line.text.trim();
+    if (/^xychart-beta\s+horizontal\b/i.test(trimmed)) {
+      features.push(unsupportedSyntax(
+        'xychart.horizontal',
+        line,
+        'Horizontal XY charts are not supported yet.',
+        'error',
+      ));
+    } else if (/^x-axis\s+(?:"[^"]*"\s+)?[-+]?\d+(?:\.\d+)?\s*-->/i.test(trimmed)) {
+      features.push(unsupportedSyntax(
+        'xychart.numericXAxis',
+        line,
+        'XY charts currently require categorical x-axis labels in brackets.',
+        'error',
+      ));
+    } else if (/^(?:axis|theme|accTitle|accDescr)\b/i.test(trimmed)) {
+      features.push(unsupportedSyntax(
+        'xychart.advanced',
+        line,
+        'Advanced XY chart directives are not supported yet.',
+        'error',
+      ));
+    }
+  }
+  return features;
+}
+
 function collectSubgraphIds(lines: SourceLine[]): Set<string> {
   const ids = new Set<string>();
   for (const line of lines) {
@@ -546,6 +584,7 @@ function partialRequirement(): DiagramSupportEntry { return { diagramType: 'requ
 function partialGitGraph(): DiagramSupportEntry { return { diagramType: 'gitgraph', status: 'partial', supportedSyntax: [{ id: 'gitgraph.commit', label: 'commits with ids, tags, and types', status: 'supported' }, { id: 'gitgraph.branch-merge', label: 'branch, checkout, and merge history', status: 'supported' }], unsupportedSyntax: [{ id: 'gitgraph.advanced', label: 'cherry-pick, custom branch ordering, and advanced commit options', status: 'unsupported' }] }; }
 function partialC4(): DiagramSupportEntry { return { diagramType: 'c4', status: 'partial', supportedSyntax: [{ id: 'c4.element', label: 'people, systems, containers, components, and external elements', status: 'supported' }, { id: 'c4.relationship', label: 'labeled directional relationships', status: 'supported' }], unsupportedSyntax: [{ id: 'c4.advanced', label: 'boundaries, deployment nodes, styling, and advanced relationship macros', status: 'unsupported' }] }; }
 function partialZenUml(): DiagramSupportEntry { return { diagramType: 'zenuml', status: 'partial', supportedSyntax: [{ id: 'zenuml.call', label: 'labeled direct calls', status: 'supported' }, { id: 'zenuml.return', label: 'labeled returns', status: 'supported' }], unsupportedSyntax: [{ id: 'zenuml.advanced', label: 'blocks, declarations, async messages, and advanced control syntax', status: 'unsupported' }] }; }
+function partialXyChart(): DiagramSupportEntry { return { diagramType: 'xychart', status: 'partial', supportedSyntax: [{ id: 'xychart.categorical-axis', label: 'categorical x-axis labels and numeric y-axis ranges', status: 'supported' }, { id: 'xychart.bar-line-series', label: 'ordered bar and line series', status: 'supported' }], unsupportedSyntax: [{ id: 'xychart.numericXAxis', label: 'numeric x-axis ranges', status: 'unsupported' }, { id: 'xychart.horizontal', label: 'horizontal XY chart orientation', status: 'unsupported' }, { id: 'xychart.advanced', label: 'advanced directives and custom chart configuration', status: 'unsupported' }] }; }
 
 function cloneEntry(entry: DiagramSupportEntry): DiagramSupportEntry {
   return {

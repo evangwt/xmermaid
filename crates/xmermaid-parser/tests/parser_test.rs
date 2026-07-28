@@ -275,6 +275,13 @@ fn test_parse_zenuml_messages_and_return_values() {
 }
 
 #[test]
+fn test_parse_xychart_bar_and_line_series() {
+    let ast = parse("xychart-beta\n  title \"Quarterly revenue\"\n  x-axis [Q1, Q2]\n  y-axis \"Revenue\" 0 --> 100\n  bar [20, 40]\n  line [30, 50]").unwrap();
+    let json = serde_json::to_value(ast).unwrap();
+    assert_eq!(json["type"], "xychart"); assert_eq!(json["title"], "Quarterly revenue"); assert_eq!(json["x_labels"], serde_json::json!(["Q1", "Q2"])); assert_eq!(json["y_min"], 0.0); assert_eq!(json["y_max"], 100.0); assert_eq!(json["series"].as_array().map(Vec::len), Some(2)); assert_eq!(json["series"][0]["kind"], "bar"); assert_eq!(json["series"][1]["kind"], "line");
+}
+
+#[test]
 fn test_parse_indented_mindmap_hierarchy() {
     let ast = parse("mindmap\n  Root\n    Product\n      Editor\n    Renderer").unwrap();
     let json = serde_json::to_value(ast).unwrap();

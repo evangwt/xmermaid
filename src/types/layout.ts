@@ -66,9 +66,27 @@ export interface Dimensions {
 }
 export interface PieSlice { label: string; value: number; start_angle: number; end_angle: number; }
 
+export type XyChartSeriesKind = 'bar' | 'line';
+
+export interface XyChartSeries {
+  kind: XyChartSeriesKind;
+  bars: Bounds[];
+  points: Point[];
+}
+
+export interface XyChartLayout {
+  title: string;
+  plot: Bounds;
+  x_labels: string[];
+  y_min: number;
+  y_max: number;
+  series: XyChartSeries[];
+}
+
 export interface LayoutResult {
   nodes: LayoutNode[];
   edges: LayoutEdge[];
   dimensions: Dimensions;
   pie_slices?: PieSlice[];
+  xy_chart?: XyChartLayout;
 }
