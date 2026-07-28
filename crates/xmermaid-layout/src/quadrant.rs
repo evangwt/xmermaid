@@ -19,6 +19,7 @@ pub fn layout(chart: &QuadrantAst, config: &LayoutConfig) -> LayoutResult {
         nodes: vec![], edges: vec![],
         dimensions: Dimensions { width: CHART_SIZE + config.padding * 2.0, height: CHART_SIZE + config.padding * 2.0 },
         pie_slices: vec![], xy_chart: None, sankey: None,
+        block_diagram: None,
         quadrant_chart: Some(QuadrantChartLayout {
             title: chart.title.clone(), plot, x_axis: chart.x_axis.clone(), y_axis: chart.y_axis.clone(), quadrants: chart.quadrants.clone(), points,
         }),

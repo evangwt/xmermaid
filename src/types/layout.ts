@@ -118,6 +118,18 @@ export interface QuadrantChartLayout {
   points: QuadrantPointLayout[];
 }
 
+export interface BlockLayout {
+  id: string;
+  label: string;
+  span: number;
+  bounds: Bounds;
+}
+
+export interface BlockDiagramLayout {
+  columns: number;
+  blocks: BlockLayout[];
+}
+
 export interface LayoutResult {
   nodes: LayoutNode[];
   edges: LayoutEdge[];
@@ -126,4 +138,5 @@ export interface LayoutResult {
   xy_chart?: XyChartLayout;
   sankey?: SankeyLayout;
   quadrant_chart?: QuadrantChartLayout;
+  block_diagram?: BlockDiagramLayout;
 }

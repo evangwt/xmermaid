@@ -1,6 +1,31 @@
 use xmermaid_parser::{parse, DiagramAst, EdgeStyle, FlowDirection, NodeShape};
 
 #[test]
+fn parses_block_grid_spans_spaces_labels_and_relationships() {
+    let ast = parse("block-beta\n  columns 3\n  A[\"Alpha lane\"] space C\n  Wide:2 D\n  A --> D\n  C -- D").unwrap();
+
+    match ast {
+        DiagramAst::Block(diagram) => {
+            assert_eq!(diagram.columns, 3);
+            assert_eq!(diagram.blocks.len(), 4);
+            assert_eq!(diagram.blocks[0].label, "Alpha lane");
+            assert_eq!(diagram.blocks[1].id, "C");
+            assert_eq!(diagram.blocks[1].column, 2);
+            assert_eq!(diagram.blocks[2].span, 2);
+            assert!(diagram.relationships[0].arrow_at_target);
+            assert!(!diagram.relationships[1].arrow_at_target);
+        }
+        _ => panic!("expected block diagram"),
+    }
+}
+
+#[test]
+fn rejects_nested_or_overflowing_block_rows() {
+    assert!(parse("block-beta\n  columns 2\n  A B C").is_err());
+    assert!(parse("block-beta\n  columns 2\n  block:group").is_err());
+}
+
+#[test]
 fn parses_quadrant_chart_labels_and_normalized_points() {
     let ast = parse("quadrantChart\n title Reach and engagement\n x-axis Low --> High\n y-axis Low --> High\n quadrant-1 Expand\n quadrant-2 Promote\n Campaign A: [0.3, 0.6]").unwrap();
 

@@ -37,6 +37,10 @@ export class SVGRenderer {
       this.renderQuadrantChart(svg, layout);
       return svg;
     }
+    if (layout.block_diagram) {
+      this.renderBlockDiagram(svg, layout);
+      return svg;
+    }
 
     // Build node index for bounds lookup
     const nodeMap = new Map<string, LayoutNode>();
@@ -300,6 +304,35 @@ export class SVGRenderer {
     text.setAttribute('fill', fill); text.setAttribute('font-family', this.theme.fontFamily); text.setAttribute('font-size', String(size));
     text.textContent = value;
     group.appendChild(text);
+  }
+
+  private renderBlockDiagram(svg: SVGSVGElement, layout: LayoutResult): void {
+    const diagram = layout.block_diagram!;
+    const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    group.classList.add('block-diagram');
+    const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+    title.textContent = `Block diagram with ${diagram.columns} columns`;
+    group.appendChild(title);
+    const nodes = diagram.blocks.map<LayoutNode>(block => ({
+      id: block.id,
+      label: block.label,
+      label_lines: [block.label],
+      center: { x: block.bounds.x + block.bounds.width / 2, y: block.bounds.y + block.bounds.height / 2 },
+      bounds: block.bounds,
+      shape: 'RoundedRect',
+    }));
+    const nodeMap = new Map(nodes.map(node => [node.id, node]));
+    for (const edge of layout.edges) {
+      const rendered = this.renderEdge(edge, nodeMap);
+      rendered.classList.add('block-relationship');
+      group.appendChild(rendered);
+    }
+    for (const node of nodes) {
+      const rendered = this.renderNode(node);
+      rendered.classList.add('block-node');
+      group.appendChild(rendered);
+    }
+    svg.appendChild(group);
   }
 
   private renderNode(node: LayoutNode): SVGGElement {

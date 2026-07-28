@@ -191,6 +191,10 @@ pub struct SankeyLayout { pub nodes: Vec<SankeyNode>, pub links: Vec<SankeyLink>
 pub struct QuadrantPointLayout { pub label: String, pub center: Point }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QuadrantChartLayout { pub title: String, pub plot: Bounds, pub x_axis: Option<(String, String)>, pub y_axis: Option<(String, String)>, pub quadrants: [String; 4], pub points: Vec<QuadrantPointLayout> }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BlockLayout { pub id: String, pub label: String, pub span: usize, pub bounds: Bounds }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BlockDiagramLayout { pub columns: usize, pub blocks: Vec<BlockLayout> }
 
 /// Complete layout result
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -202,4 +206,5 @@ pub struct LayoutResult {
     #[serde(default, skip_serializing_if = "Option::is_none")] pub xy_chart: Option<XyChartLayout>,
     #[serde(default, skip_serializing_if = "Option::is_none")] pub sankey: Option<SankeyLayout>,
     #[serde(default, skip_serializing_if = "Option::is_none")] pub quadrant_chart: Option<QuadrantChartLayout>,
+    #[serde(default, skip_serializing_if = "Option::is_none")] pub block_diagram: Option<BlockDiagramLayout>,
 }

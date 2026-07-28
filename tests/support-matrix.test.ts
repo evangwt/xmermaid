@@ -31,7 +31,7 @@ describe('support matrix production contract', () => {
     ]));
     expect(matrix.entries).toHaveLength(30);
     expect(matrix.entries.find(item => item.diagramType === 'sequence')?.status).toBe('partial');
-    expect(matrix.entries.filter(item => !['flowchart', 'sequence', 'class', 'state', 'er', 'user-journey', 'gantt', 'pie', 'quadrant', 'mindmap', 'timeline', 'requirement', 'gitgraph', 'c4', 'zenuml', 'sankey', 'xychart', 'architecture'].includes(item.diagramType)).every(item => item.status === 'planned')).toBe(true);
+    expect(matrix.entries.filter(item => !['flowchart', 'sequence', 'class', 'state', 'er', 'user-journey', 'gantt', 'pie', 'quadrant', 'mindmap', 'timeline', 'requirement', 'gitgraph', 'c4', 'zenuml', 'sankey', 'xychart', 'architecture', 'block'].includes(item.diagramType)).every(item => item.status === 'planned')).toBe(true);
   });
 
   it('reports flowchart, sequence, Sankey, and Quadrant sources as partial while planned diagrams stay explicit', () => {
@@ -71,6 +71,11 @@ describe('support matrix production contract', () => {
 
     expect(analyzeSupport('architecture-beta\nservice db(database)[Database]\nservice api(server)[API]\ndb:R --> L:api')).toMatchObject({
       diagramType: 'architecture',
+      status: 'partial',
+      unsupportedFeatures: [],
+    });
+    expect(analyzeSupport('block-beta\n  columns 3\n  A B C\n  Wide:2 D\n  A --> B')).toMatchObject({
+      diagramType: 'block',
       status: 'partial',
       unsupportedFeatures: [],
     });
@@ -187,6 +192,16 @@ describe('support matrix production contract', () => {
       status: 'partial',
       unsupportedFeatures: expect.arrayContaining([
         expect.objectContaining({ id: 'architecture.advanced', severity: 'error' }),
+      ]),
+    });
+  });
+
+  it('keeps nested and styled block syntax outside the native grid subset', () => {
+    expect(analyzeSupport('block-beta\n  columns 2\n  A["One"] B\n  block:group\n  class A important')).toMatchObject({
+      diagramType: 'block',
+      status: 'partial',
+      unsupportedFeatures: expect.arrayContaining([
+        expect.objectContaining({ id: 'block.advanced', severity: 'error' }),
       ]),
     });
   });

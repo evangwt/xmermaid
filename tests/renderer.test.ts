@@ -145,6 +145,28 @@ describe('SVGRenderer', () => {
     expect(svg.querySelectorAll('.node')).toHaveLength(0);
   });
 
+  it('renders Block Diagram grid cells and direct relationships as native SVG', () => {
+    const layout = {
+      nodes: [],
+      edges: [{ from: 'A', to: 'B', waypoints: [{ x: 106, y: 76 }, { x: 258, y: 76 }], style: 'arrow' }],
+      dimensions: { width: 476, height: 224 },
+      block_diagram: {
+        columns: 3,
+        blocks: [
+          { id: 'A', label: 'A', span: 1, bounds: { x: 40, y: 40, width: 132, height: 72 } },
+          { id: 'B', label: 'B', span: 1, bounds: { x: 192, y: 40, width: 132, height: 72 } },
+          { id: 'Wide', label: 'Wide', span: 2, bounds: { x: 40, y: 132, width: 284, height: 72 } },
+        ],
+      },
+    } as LayoutResult;
+
+    const svg = new SVGRenderer(DARK_THEME).render(layout);
+
+    expect(svg.querySelectorAll('.block-node')).toHaveLength(3);
+    expect(svg.querySelector('.block-relationship path')).not.toBeNull();
+    expect(svg.querySelector('.block-node text')?.textContent).toBe('A');
+  });
+
   it('creates an SVG element with correct dimensions', () => {
     const renderer = new SVGRenderer();
     const layout = createTestLayout();

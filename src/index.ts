@@ -24,7 +24,7 @@ export { DIAGRAM_CATALOG, MERMAID_COMPATIBILITY_VERSION, detectDiagramType } fro
 export { getSupportMatrix, getDiagramSupport, analyzeSupport, detectUnsupportedFeatures } from './support';
 export { DEFAULT_SECURITY_POLICY } from './security';
 export type { RenderTheme, ThemeColors, ArrowStyle, CurveStyle } from './types/theme';
-export type { LayoutConfig, LayoutResult, LayoutNode, LayoutEdge, Bounds, Point, NodeShape, FlowDirection, Dimensions, QuadrantChartLayout, QuadrantPointLayout, SankeyLayout, SankeyLink, SankeyNode, XyChartLayout, XyChartSeries, XyChartSeriesKind } from './types/layout';
+export type { LayoutConfig, LayoutResult, LayoutNode, LayoutEdge, Bounds, Point, NodeShape, FlowDirection, Dimensions, BlockDiagramLayout, BlockLayout, QuadrantChartLayout, QuadrantPointLayout, SankeyLayout, SankeyLink, SankeyNode, XyChartLayout, XyChartSeries, XyChartSeriesKind } from './types/layout';
 export type { RenderOptions, RenderResult, WasmInitOptions, XMermaidOptions } from './types/options';
 export type { SourceRange, XMermaidDiagnostic, XMermaidDiagnosticCode } from './types/diagnostics';
 export type { SecurityLevel, SecurityPolicy } from './security';
@@ -67,4 +67,4 @@ export type {
   FlowchartDslParser,
   FlowchartDslRenderer,
 } from './editor';
-export type { DiagramAst, FlowchartAst, SequenceAst, SequenceMessage, ClassAst, ClassDefinition, ClassRelation, StateAst, StateTransition, ErAst, ErRelationship, GanttAst, GanttTask, RequirementAst, Requirement, RequirementRelationship, GitGraphAst, GitCommit, C4Ast, C4Element, C4Relationship, ZenUmlAst, ZenUmlMessage, SankeyAst, SankeyAstLink, QuadrantAst, QuadrantPoint, ArchitectureAst, ArchitectureService, ArchitectureRelationship, XyChartAst, XySeries, XySeriesKind, EdgeStyle, FlowchartNode, FlowchartEdge, Subgraph } from './types/ast';
+export type { DiagramAst, FlowchartAst, SequenceAst, SequenceMessage, ClassAst, ClassDefinition, ClassRelation, StateAst, StateTransition, ErAst, ErRelationship, GanttAst, GanttTask, RequirementAst, Requirement, RequirementRelationship, GitGraphAst, GitCommit, C4Ast, C4Element, C4Relationship, ZenUmlAst, ZenUmlMessage, SankeyAst, SankeyAstLink, QuadrantAst, QuadrantPoint, ArchitectureAst, ArchitectureService, ArchitectureRelationship, BlockAst, BlockAstBlock, BlockAstRelationship, XyChartAst, XySeries, XySeriesKind, EdgeStyle, FlowchartNode, FlowchartEdge, Subgraph } from './types/ast';
