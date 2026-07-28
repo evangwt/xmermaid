@@ -223,6 +223,29 @@ pub struct ArchitectureRelationship {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BlockAst {
+    pub columns: usize,
+    pub blocks: Vec<Block>,
+    pub relationships: Vec<BlockRelationship>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Block {
+    pub id: String,
+    pub label: String,
+    pub span: usize,
+    pub row: usize,
+    pub column: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BlockRelationship {
+    pub from: String,
+    pub to: String,
+    pub arrow_at_target: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum DiagramAst {
     Flowchart(FlowchartAst),
@@ -243,4 +266,5 @@ pub enum DiagramAst {
     Sankey(SankeyAst),
     Quadrant(QuadrantAst),
     Architecture(ArchitectureAst),
+    Block(BlockAst),
 }

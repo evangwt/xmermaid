@@ -76,5 +76,6 @@ pub fn layout(chart: &SankeyAst, config: &LayoutConfig) -> LayoutResult {
         pie_slices: vec![], xy_chart: None,
         sankey: Some(SankeyLayout { nodes, links }),
         quadrant_chart: None,
+        block_diagram: None,
     }
 }

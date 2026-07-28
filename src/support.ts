@@ -49,7 +49,8 @@ export type UnsupportedFeatureId =
   | 'sankey.cycle'
   | 'sankey.advanced'
   | 'quadrant.advanced'
-  | 'architecture.advanced';
+  | 'architecture.advanced'
+  | 'block.advanced';
 
 export interface SupportSourceRange {
   startOffset: number;
@@ -172,6 +173,8 @@ const SUPPORT_MATRIX: SupportMatrix = {
                               ? partialXyChart()
                               : diagramType === 'architecture'
                                 ? partialArchitecture()
+                              : diagramType === 'block'
+                                ? partialBlock()
                             : planned(diagramType)),
   ],
 };
@@ -234,6 +237,9 @@ export function detectUnsupportedFeatures(source: string): UnsupportedFeature[] 
   }
   if (diagramType === 'architecture') {
     return detectUnsupportedArchitectureFeatures(source);
+  }
+  if (diagramType === 'block') {
+    return detectUnsupportedBlockFeatures(source);
   }
   if (diagramType === 'state') return [];
   if (diagramType === 'er') return [];
@@ -553,6 +559,25 @@ function detectUnsupportedArchitectureFeatures(source: string): UnsupportedFeatu
   return features;
 }
 
+function detectUnsupportedBlockFeatures(source: string): UnsupportedFeature[] {
+  const features: UnsupportedFeature[] = [];
+  for (const line of linesWithRanges(source)) {
+    const trimmed = line.text.trim();
+    if (!trimmed || trimmed.startsWith('%%') || trimmed === 'block-beta' || /^columns\s+[1-9]\d*$/.test(trimmed)) continue;
+    const relationship = /^[A-Za-z_][A-Za-z0-9_]*\s*(?:--|-->)\s*[A-Za-z_][A-Za-z0-9_]*$/.test(trimmed);
+    const cell = /^(?:(?:space|[A-Za-z_][A-Za-z0-9_]*(?:\["[^"\r\n]+"\])?)(?::[1-9]\d*)?)(?:\s+(?:(?:space|[A-Za-z_][A-Za-z0-9_]*(?:\["[^"\r\n]+"\])?)(?::[1-9]\d*)?))*$/.test(trimmed);
+    if (!relationship && !cell) {
+      features.push(unsupportedSyntax(
+        'block.advanced',
+        line,
+        'Block nesting, block arrows, custom shapes, classes, styles, configuration, and edge labels are not supported yet.',
+        'error',
+      ));
+    }
+  }
+  return features;
+}
+
 function parseSankeyCsvRecord(line: string): string[] | null {
   const fields: string[] = [];
   let field = '';
@@ -707,6 +732,7 @@ function partialSankey(): DiagramSupportEntry { return { diagramType: 'sankey', 
 function partialQuadrant(): DiagramSupportEntry { return { diagramType: 'quadrant', status: 'partial', supportedSyntax: [{ id: 'quadrant.axes', label: 'title, axis labels, and quadrant captions', status: 'supported' }, { id: 'quadrant.points', label: 'normalized [0, 1] coordinate points', status: 'supported' }], unsupportedSyntax: [{ id: 'quadrant.advanced', label: 'configuration, classes, and direct point styling', status: 'unsupported' }] }; }
 function partialXyChart(): DiagramSupportEntry { return { diagramType: 'xychart', status: 'partial', supportedSyntax: [{ id: 'xychart.categorical-axis', label: 'categorical x-axis labels and numeric y-axis ranges', status: 'supported' }, { id: 'xychart.bar-line-series', label: 'ordered bar and line series', status: 'supported' }], unsupportedSyntax: [{ id: 'xychart.numericXAxis', label: 'numeric x-axis ranges', status: 'unsupported' }, { id: 'xychart.horizontal', label: 'horizontal XY chart orientation', status: 'unsupported' }, { id: 'xychart.advanced', label: 'advanced directives and custom chart configuration', status: 'unsupported' }] }; }
 function partialArchitecture(): DiagramSupportEntry { return { diagramType: 'architecture', status: 'partial', supportedSyntax: [{ id: 'architecture.service', label: 'top-level labeled services with validated icon identifiers', status: 'supported' }, { id: 'architecture.relationship', label: 'direct port-to-port lines and target arrows', status: 'supported' }], unsupportedSyntax: [{ id: 'architecture.advanced', label: 'groups, junctions, align directives, configuration, service membership, icon glyphs, and bidirectional arrows', status: 'unsupported' }] }; }
+function partialBlock(): DiagramSupportEntry { return { diagramType: 'block', status: 'partial', supportedSyntax: [{ id: 'block.grid', label: 'flat rows, columns, and span declarations', status: 'supported' }, { id: 'block.relationship', label: 'direct -- and --> relationships between declared blocks', status: 'supported' }], unsupportedSyntax: [{ id: 'block.advanced', label: 'nested blocks, block arrows, custom shapes, classes, styles, configuration, and edge labels', status: 'unsupported' }] }; }
 
 function cloneEntry(entry: DiagramSupportEntry): DiagramSupportEntry {
   return {
