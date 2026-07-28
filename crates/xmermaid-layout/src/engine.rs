@@ -72,5 +72,36 @@ pub fn compute_layout(ast: &DiagramAst, config: &LayoutConfig) -> LayoutResult {
             let mut state_config = config.clone(); state_config.direction = crate::types::FlowDirection::LR;
             flowchart::layout(&flowchart_ast, &state_config)
         }
+        DiagramAst::Er(er) => {
+            let flowchart_ast = xmermaid_parser::ast::FlowchartAst {
+                direction: xmermaid_parser::ast::FlowDirection::LR,
+                nodes: er
+                    .entities
+                    .iter()
+                    .map(|id| xmermaid_parser::ast::Node {
+                        id: id.clone(),
+                        label: Some(id.clone()),
+                        shape: xmermaid_parser::ast::NodeShape::Rect,
+                        classes: vec![],
+                        styles: vec![],
+                    })
+                    .collect(),
+                edges: er
+                    .relationships
+                    .iter()
+                    .map(|relationship| xmermaid_parser::ast::Edge {
+                        from: relationship.from.clone(),
+                        to: relationship.to.clone(),
+                        style: xmermaid_parser::ast::EdgeStyle::Arrow,
+                        label: (!relationship.label.is_empty()).then(|| relationship.label.clone()),
+                        min_length: 1,
+                    })
+                    .collect(),
+                subgraphs: vec![],
+            };
+            let mut er_config = config.clone();
+            er_config.direction = crate::types::FlowDirection::LR;
+            flowchart::layout(&flowchart_ast, &er_config)
+        }
     }
 }

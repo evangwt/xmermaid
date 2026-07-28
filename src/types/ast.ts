@@ -86,4 +86,16 @@ export interface StateTransition {
   label: string;
 }
 
-export type DiagramAst = FlowchartAst | SequenceAst | ClassAst | StateAst;
+export interface ErAst {
+  type: 'er';
+  entities: string[];
+  relationships: ErRelationship[];
+}
+
+export interface ErRelationship {
+  from: string;
+  to: string;
+  label: string;
+}
+
+export type DiagramAst = FlowchartAst | SequenceAst | ClassAst | StateAst | ErAst;

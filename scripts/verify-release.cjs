@@ -188,7 +188,7 @@ function checkDocs() {
       passed: /partial\s+mermaid\s+support/i.test(readme),
     },
     {
-      label: 'README lists unsupported diagram families',
+      label: 'README documents current diagram family boundaries',
       passed: [
         'sequenceDiagram',
         'classDiagram',

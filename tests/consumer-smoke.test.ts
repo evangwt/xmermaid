@@ -192,6 +192,8 @@ describe('consumer smoke helpers', () => {
       expect(page).toContain('sequenceSvgHasLabels');
       expect(page).toContain("classDiagram\\n  class Animal\\n  class Duck\\n  Animal <|-- Duck");
       expect(page).toContain('classSvgHasLabels');
+      expect(page).toContain("erDiagram\\n  CUSTOMER ||--o{ ORDER : places");
+      expect(page).toContain('erSvgHasLabels');
     } finally {
       rmSync(tempRoot, { recursive: true, force: true });
     }
