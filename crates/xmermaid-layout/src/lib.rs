@@ -3,6 +3,7 @@
 //! Computes positions for diagram elements.
 
 pub mod engine;
+pub mod block;
 pub mod error;
 pub mod flowchart;
 pub mod gantt;
@@ -16,5 +17,5 @@ pub use engine::compute_layout;
 pub use error::LayoutError;
 pub use types::{
     Bounds, Dimensions, FlowDirection, LayoutConfig, LayoutEdge, LayoutNode, LayoutResult,
-    NodeShape, Point, QuadrantChartLayout, QuadrantPointLayout, SankeyLayout, SankeyLink, SankeyNode, XyChartLayout, XyChartSeries, XySeriesKind,
+    BlockDiagramLayout, BlockLayout, NodeShape, Point, QuadrantChartLayout, QuadrantPointLayout, SankeyLayout, SankeyLink, SankeyNode, XyChartLayout, XyChartSeries, XySeriesKind,
 };

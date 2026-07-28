@@ -263,4 +263,25 @@ export interface ArchitectureAst {
   relationships: ArchitectureRelationship[];
 }
 
-export type DiagramAst = FlowchartAst | SequenceAst | ClassAst | StateAst | ErAst | GanttAst | UserJourneyAst | TimelineAst | RequirementAst | GitGraphAst | C4Ast | ZenUmlAst | SankeyAst | QuadrantAst | ArchitectureAst | XyChartAst;
+export interface BlockAstBlock {
+  id: string;
+  label: string;
+  span: number;
+  row: number;
+  column: number;
+}
+
+export interface BlockAstRelationship {
+  from: string;
+  to: string;
+  arrow_at_target: boolean;
+}
+
+export interface BlockAst {
+  type: 'block';
+  columns: number;
+  blocks: BlockAstBlock[];
+  relationships: BlockAstRelationship[];
+}
+
+export type DiagramAst = FlowchartAst | SequenceAst | ClassAst | StateAst | ErAst | GanttAst | UserJourneyAst | TimelineAst | RequirementAst | GitGraphAst | C4Ast | ZenUmlAst | SankeyAst | QuadrantAst | ArchitectureAst | BlockAst | XyChartAst;

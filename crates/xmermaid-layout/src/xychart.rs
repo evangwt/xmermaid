@@ -106,6 +106,7 @@ pub fn layout(chart: &XyChartAst, config: &LayoutConfig) -> LayoutResult {
         }),
         sankey: None,
         quadrant_chart: None,
+        block_diagram: None,
     }
 }
 

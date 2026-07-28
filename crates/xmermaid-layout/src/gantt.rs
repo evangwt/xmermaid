@@ -33,6 +33,7 @@ pub fn layout(gantt: &GanttAst, config: &LayoutConfig) -> LayoutResult {
         xy_chart: None,
         sankey: None,
         quadrant_chart: None,
+        block_diagram: None,
     }
 }
 

@@ -79,6 +79,7 @@ impl<'a> Parser<'a> {
         if self.input.trim_start().starts_with("sankey") { return self.parse_sankey(); }
         if self.input.trim_start().starts_with("quadrantChart") { return self.parse_quadrant(); }
         if self.input.trim_start().starts_with("architecture-beta") { return self.parse_architecture(); }
+        if self.input.trim_start().starts_with("block-beta") { return self.parse_block(); }
         let keyword = self.expect(TokenType::Keyword)?;
 
         match keyword.as_str() {
@@ -644,6 +645,61 @@ impl<'a> Parser<'a> {
         }
         if services.is_empty() { return Err(ParseError::EmptyInput); }
         Ok(DiagramAst::Architecture(ArchitectureAst { services, relationships }))
+    }
+
+    fn parse_block(&self) -> Result<DiagramAst, ParseError> {
+        let mut lines = self.input.lines().map(str::trim).filter(|line| !line.is_empty() && !line.starts_with("%%"));
+        if lines.next() != Some("block-beta") {
+            return Err(ParseError::UnexpectedToken("Block diagrams must start with block-beta.".to_string()));
+        }
+        let mut columns = 1_usize;
+        let mut columns_seen = false;
+        let mut blocks = Vec::new();
+        let mut relationships = Vec::new();
+        let mut row = 0_usize;
+        for statement in lines {
+            if let Some(value) = statement.strip_prefix("columns ") {
+                if columns_seen || !blocks.is_empty() || !relationships.is_empty() {
+                    return Err(ParseError::UnexpectedToken("Block diagrams allow one columns declaration before blocks.".to_string()));
+                }
+                columns = value.trim().parse::<usize>().ok().filter(|value| *value > 0)
+                    .ok_or_else(|| ParseError::UnexpectedToken(format!("Block columns must be a positive integer: {}", statement)))?;
+                columns_seen = true;
+                continue;
+            }
+            if statement.contains("-->") || statement.contains("--") {
+                relationships.push(parse_block_relationship(statement)?);
+                continue;
+            }
+            let mut column = 0_usize;
+            let cells = split_block_cells(statement)?;
+            if cells.is_empty() {
+                return Err(ParseError::UnexpectedToken("Block rows cannot be empty.".to_string()));
+            }
+            for cell in cells {
+                let (id, label, span, is_space) = parse_block_cell(&cell)?;
+                if column + span > columns {
+                    return Err(ParseError::UnexpectedToken(format!("Block row exceeds {} columns: {}", columns, statement)));
+                }
+                if !is_space {
+                    if blocks.iter().any(|known: &Block| known.id == id) {
+                        return Err(ParseError::UnexpectedToken(format!("Duplicate block id: {}", id)));
+                    }
+                    blocks.push(Block { id, label, span, row, column });
+                }
+                column += span;
+            }
+            row += 1;
+        }
+        if blocks.is_empty() { return Err(ParseError::EmptyInput); }
+        for relationship in &relationships {
+            if !blocks.iter().any(|block| block.id == relationship.from)
+                || !blocks.iter().any(|block| block.id == relationship.to)
+            {
+                return Err(ParseError::UnexpectedToken(format!("Block relationships require declared blocks: {} --> {}", relationship.from, relationship.to)));
+            }
+        }
+        Ok(DiagramAst::Block(BlockAst { columns, blocks, relationships }))
     }
 
     fn add_class_if_new(classes: &mut Vec<ClassDefinition>, id: &str) {
@@ -1316,6 +1372,90 @@ fn parse_architecture_target_endpoint(value: &str) -> Result<String, ParseError>
 
 fn architecture_identifier(value: &str) -> bool {
     !value.is_empty() && value.chars().all(|character| character.is_ascii_alphanumeric() || character == '_')
+}
+
+fn split_block_cells(statement: &str) -> Result<Vec<String>, ParseError> {
+    let mut cells = Vec::new();
+    let mut cell = String::new();
+    let mut bracket_depth = 0_usize;
+    let mut quoted = false;
+    for character in statement.chars() {
+        match character {
+            '"' if bracket_depth > 0 => {
+                quoted = !quoted;
+                cell.push(character);
+            }
+            '[' if !quoted => {
+                bracket_depth += 1;
+                cell.push(character);
+            }
+            ']' if !quoted => {
+                if bracket_depth == 0 {
+                    return Err(ParseError::UnexpectedToken(format!("Unexpected block label delimiter: {}", statement)));
+                }
+                bracket_depth -= 1;
+                cell.push(character);
+            }
+            character if character.is_whitespace() && bracket_depth == 0 && !quoted => {
+                if !cell.is_empty() {
+                    cells.push(std::mem::take(&mut cell));
+                }
+            }
+            _ => cell.push(character),
+        }
+    }
+    if bracket_depth != 0 || quoted {
+        return Err(ParseError::UnexpectedToken(format!("Unclosed block label: {}", statement)));
+    }
+    if !cell.is_empty() {
+        cells.push(cell);
+    }
+    Ok(cells)
+}
+
+fn parse_block_cell(value: &str) -> Result<(String, String, usize, bool), ParseError> {
+    let (token, span) = if let Some((token, span)) = value.rsplit_once(':') {
+        let span = span.parse::<usize>().ok().filter(|span| *span > 0)
+            .ok_or_else(|| ParseError::UnexpectedToken(format!("Block spans must be positive integers: {}", value)))?;
+        (token, span)
+    } else {
+        (value, 1)
+    };
+    if token == "space" {
+        return Ok((String::new(), String::new(), span, true));
+    }
+    let (id, label) = if let Some((id, label)) = token.split_once("[\"") {
+        let label = label.strip_suffix("\"]").ok_or_else(|| ParseError::UnexpectedToken(format!("Block labels require id[\"Label\"] syntax: {}", value)))?;
+        (id, label)
+    } else {
+        (token, token)
+    };
+    if !block_identifier(id) || label.is_empty() {
+        return Err(ParseError::UnexpectedToken(format!("Block ids must be identifiers and labels non-empty: {}", value)));
+    }
+    Ok((id.to_string(), label.to_string(), span, false))
+}
+
+fn parse_block_relationship(statement: &str) -> Result<BlockRelationship, ParseError> {
+    let (from, to, arrow_at_target) = if let Some((from, to)) = statement.split_once("-->") {
+        (from, to, true)
+    } else if let Some((from, to)) = statement.split_once("--") {
+        (from, to, false)
+    } else {
+        return Err(ParseError::UnexpectedToken(format!("Block relationships require -- or --> syntax: {}", statement)));
+    };
+    let from = from.trim();
+    let to = to.trim();
+    if !block_identifier(from) || !block_identifier(to) {
+        return Err(ParseError::UnexpectedToken(format!("Block relationships require declared block identifiers: {}", statement)));
+    }
+    Ok(BlockRelationship { from: from.to_string(), to: to.to_string(), arrow_at_target })
+}
+
+fn block_identifier(value: &str) -> bool {
+    let mut characters = value.chars();
+    matches!(characters.next(), Some(character) if character.is_ascii_alphabetic() || character == '_')
+        && characters.all(|character| character.is_ascii_alphanumeric() || character == '_')
 }
 
 pub fn parse_input(input: &str) -> Result<DiagramAst, ParseError> {
