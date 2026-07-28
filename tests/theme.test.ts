@@ -13,11 +13,11 @@ describe('DEFAULT_THEME', () => {
 });
 
 describe('DARK_THEME', () => {
-  it('uses the xmermaid dark palette and compact node clearance', () => {
+  it('uses the purple-blue diagram palette and compact node clearance', () => {
     expect(DARK_THEME.name).toBe('xmermaid-dark');
-    expect(DARK_THEME.colors.background).toBe('#0b1117');
-    expect(DARK_THEME.colors.nodeFill).toBe('#15212b');
-    expect(DARK_THEME.colors.arrowFill).toBe('#2dd4bf');
+    expect(DARK_THEME.colors.background).toBe('#0D0B1A');
+    expect(DARK_THEME.colors.nodeFill).toBe('#15112A');
+    expect(DARK_THEME.colors.arrowFill).toBe('#A78BFA');
     expect(DARK_THEME.edgeGap).toBe(2);
   });
 });
@@ -25,9 +25,9 @@ describe('DARK_THEME', () => {
 describe('LIGHT_THEME', () => {
   it('pairs with the dark theme without changing the compatibility default', () => {
     expect(LIGHT_THEME.name).toBe('xmermaid-light');
-    expect(LIGHT_THEME.colors.background).toBe('#f7f9fb');
-    expect(LIGHT_THEME.colors.nodeFill).toBe('#ffffff');
-    expect(LIGHT_THEME.colors.arrowFill).toBe('#0f9f8f');
+    expect(LIGHT_THEME.colors.background).toBe('#F8F7FF');
+    expect(LIGHT_THEME.colors.nodeFill).toBe('#FFFFFF');
+    expect(LIGHT_THEME.colors.arrowFill).toBe('#6D28D9');
     expect(LIGHT_THEME.edgeGap).toBe(2);
     expect(DEFAULT_THEME.name).toBe('default');
     expect(createTheme()).toEqual(DEFAULT_THEME);
