@@ -132,6 +132,8 @@ const SUPPORT_MATRIX: SupportMatrix = {
         ? partialSequence()
         : diagramType === 'class'
           ? partialClass()
+          : diagramType === 'state'
+            ? partialState()
           : planned(diagramType)),
   ],
 };
@@ -180,6 +182,7 @@ export function detectUnsupportedFeatures(source: string): UnsupportedFeature[] 
   if (diagramType === 'class') {
     return detectUnsupportedClassFeatures(source);
   }
+  if (diagramType === 'state') return [];
   if (diagramType !== 'flowchart') {
     return [unsupportedDiagramFeature(source, diagramType)];
   }
@@ -447,6 +450,14 @@ function partialClass(): DiagramSupportEntry {
       { id: 'class.advanced', label: 'members, namespaces, and advanced relation styles', status: 'unsupported' },
     ],
   };
+}
+
+function partialState(): DiagramSupportEntry {
+  return { diagramType: 'state', status: 'partial', supportedSyntax: [
+    { id: 'state.transition', label: 'named states and directed transitions', status: 'supported' },
+  ], unsupportedSyntax: [
+    { id: 'state.advanced', label: 'start/end pseudostates, composites, and notes', status: 'unsupported' },
+  ] };
 }
 
 function cloneEntry(entry: DiagramSupportEntry): DiagramSupportEntry {

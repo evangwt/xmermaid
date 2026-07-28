@@ -6,6 +6,8 @@ export type {
   ClassAst,
   ClassDefinition,
   ClassRelation,
+  StateAst,
+  StateTransition,
   EdgeStyle,
   FlowchartNode,
   FlowchartEdge,
