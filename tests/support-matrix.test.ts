@@ -31,7 +31,7 @@ describe('support matrix production contract', () => {
     ]));
     expect(matrix.entries).toHaveLength(30);
     expect(matrix.entries.find(item => item.diagramType === 'sequence')?.status).toBe('partial');
-    expect(matrix.entries.filter(item => item.diagramType !== 'flowchart' && item.diagramType !== 'sequence').every(item => item.status === 'planned')).toBe(true);
+    expect(matrix.entries.filter(item => !['flowchart', 'sequence', 'class'].includes(item.diagramType)).every(item => item.status === 'planned')).toBe(true);
   });
 
   it('reports flowchart and sequence sources as partial while planned diagrams stay explicit', () => {
@@ -65,6 +65,14 @@ describe('support matrix production contract', () => {
           range: expect.objectContaining({ startLine: 2, startColumn: 3 }),
         }),
       ],
+    });
+  });
+
+  it('reports the initial class subset as partial instead of planned', () => {
+    expect(analyzeSupport('classDiagram\n  class Animal\n  class Duck\n  Animal <|-- Duck')).toMatchObject({
+      diagramType: 'class',
+      status: 'partial',
+      unsupportedFeatures: [],
     });
   });
 

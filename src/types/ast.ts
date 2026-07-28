@@ -58,4 +58,20 @@ export interface SequenceMessage {
   label: string;
 }
 
-export type DiagramAst = FlowchartAst | SequenceAst;
+export interface ClassAst {
+  type: 'class';
+  classes: ClassDefinition[];
+  relations: ClassRelation[];
+}
+
+export interface ClassDefinition {
+  id: string;
+  label: string;
+}
+
+export interface ClassRelation {
+  from: string;
+  to: string;
+}
+
+export type DiagramAst = FlowchartAst | SequenceAst | ClassAst;

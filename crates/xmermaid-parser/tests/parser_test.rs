@@ -92,6 +92,17 @@ fn test_parse_sequence_dashed_message_without_mutating_sender() {
 }
 
 #[test]
+fn test_parse_class_definitions_and_inheritance_relation() {
+    let ast = parse("classDiagram\n  class Animal\n  class Duck\n  Animal <|-- Duck").unwrap();
+    let json = serde_json::to_value(ast).unwrap();
+
+    assert_eq!(json["type"], "class");
+    assert_eq!(json["classes"].as_array().map(Vec::len), Some(2));
+    assert_eq!(json["relations"][0]["from"], "Duck");
+    assert_eq!(json["relations"][0]["to"], "Animal");
+}
+
+#[test]
 fn test_parse_flowchart_multiple_edges() {
     let input = "graph TD\n  A-->B\n  B-->C";
     let result = parse(input);

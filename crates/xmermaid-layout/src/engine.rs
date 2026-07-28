@@ -45,5 +45,22 @@ pub fn compute_layout(ast: &DiagramAst, config: &LayoutConfig) -> LayoutResult {
             sequence_config.direction = crate::types::FlowDirection::LR;
             flowchart::layout(&flowchart_ast, &sequence_config)
         }
+        DiagramAst::Class(class) => {
+            let flowchart_ast = xmermaid_parser::ast::FlowchartAst {
+                direction: xmermaid_parser::ast::FlowDirection::LR,
+                nodes: class.classes.iter().map(|class| xmermaid_parser::ast::Node {
+                    id: class.id.clone(), label: Some(class.label.clone()), shape: xmermaid_parser::ast::NodeShape::Rect,
+                    classes: vec![], styles: vec![],
+                }).collect(),
+                edges: class.relations.iter().map(|relation| xmermaid_parser::ast::Edge {
+                    from: relation.from.clone(), to: relation.to.clone(), style: xmermaid_parser::ast::EdgeStyle::Arrow,
+                    label: None, min_length: 1,
+                }).collect(),
+                subgraphs: vec![],
+            };
+            let mut class_config = config.clone();
+            class_config.direction = crate::types::FlowDirection::LR;
+            flowchart::layout(&flowchart_ast, &class_config)
+        }
     }
 }
