@@ -31,7 +31,7 @@ describe('support matrix production contract', () => {
     ]));
     expect(matrix.entries).toHaveLength(30);
     expect(matrix.entries.find(item => item.diagramType === 'sequence')?.status).toBe('partial');
-    expect(matrix.entries.filter(item => !['flowchart', 'sequence', 'class', 'state', 'er', 'gantt'].includes(item.diagramType)).every(item => item.status === 'planned')).toBe(true);
+    expect(matrix.entries.filter(item => !['flowchart', 'sequence', 'class', 'state', 'er', 'gantt', 'pie'].includes(item.diagramType)).every(item => item.status === 'planned')).toBe(true);
   });
 
   it('reports flowchart and sequence sources as partial while planned diagrams stay explicit', () => {
@@ -93,6 +93,12 @@ describe('support matrix production contract', () => {
   it('reports dated Gantt tasks as partial instead of planned', () => {
     expect(analyzeSupport('gantt\n  section Build\n  Compile : 2026-07-28, 2d')).toMatchObject({
       diagramType: 'gantt', status: 'partial', unsupportedFeatures: [],
+    });
+  });
+
+  it('reports numeric Pie slices as partial instead of planned', () => {
+    expect(analyzeSupport('pie title Deployment\n  "Passed" : 80\n  "Failed" : 20')).toMatchObject({
+      diagramType: 'pie', status: 'partial', unsupportedFeatures: [],
     });
   });
 

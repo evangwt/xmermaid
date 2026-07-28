@@ -21,6 +21,10 @@ export class SVGRenderer {
     svg.setAttribute('viewBox', `0 0 ${layout.dimensions.width} ${layout.dimensions.height}`);
     svg.classList.add('xmermaid-diagram');
     svg.style.backgroundColor = this.theme.colors.background;
+    if (layout.pie_slices?.length) {
+      this.renderPie(svg, layout);
+      return svg;
+    }
 
     // Build node index for bounds lookup
     const nodeMap = new Map<string, LayoutNode>();
@@ -41,6 +45,22 @@ export class SVGRenderer {
     }
 
     return svg;
+  }
+
+  private renderPie(svg: SVGSVGElement, layout: LayoutResult): void {
+    const cx = layout.dimensions.width / 2;
+    const cy = layout.dimensions.height / 2;
+    const radius = Math.min(layout.dimensions.width, layout.dimensions.height) * .34;
+    const palette = ['#8b5cf6', '#38bdf8', '#f472b6', '#fbbf24', '#34d399', '#fb7185'];
+    layout.pie_slices?.forEach((slice, index) => {
+      const start = { x: cx + radius * Math.cos(slice.start_angle), y: cy + radius * Math.sin(slice.start_angle) };
+      const end = { x: cx + radius * Math.cos(slice.end_angle), y: cy + radius * Math.sin(slice.end_angle) };
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', `M ${cx} ${cy} L ${start.x} ${start.y} A ${radius} ${radius} 0 ${slice.end_angle - slice.start_angle > Math.PI ? 1 : 0} 1 ${end.x} ${end.y} Z`);
+      path.setAttribute('fill', palette[index % palette.length]); path.setAttribute('stroke', this.theme.colors.background); path.setAttribute('stroke-width', '2'); svg.appendChild(path);
+      const mid = (slice.start_angle + slice.end_angle) / 2; const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      text.textContent = `${slice.label} ${slice.value}`; text.setAttribute('x', String(cx + (radius + 28) * Math.cos(mid))); text.setAttribute('y', String(cy + (radius + 28) * Math.sin(mid))); text.setAttribute('fill', this.theme.colors.nodeText); text.setAttribute('font-size', String(this.theme.fontSize)); text.setAttribute('text-anchor', Math.cos(mid) > .2 ? 'start' : Math.cos(mid) < -.2 ? 'end' : 'middle'); svg.appendChild(text);
+    });
   }
 
   private renderNode(node: LayoutNode): SVGGElement {

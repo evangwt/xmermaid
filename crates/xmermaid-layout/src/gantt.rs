@@ -29,6 +29,7 @@ pub fn layout(gantt: &GanttAst, config: &LayoutConfig) -> LayoutResult {
         nodes,
         edges: vec![],
         dimensions: Dimensions { width, height: config.padding * 2.0 + gantt.tasks.len() as f64 * ROW_HEIGHT },
+        pie_slices: vec![],
     }
 }
 

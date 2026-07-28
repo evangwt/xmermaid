@@ -172,6 +172,8 @@ pub struct Dimensions {
     pub width: f64,
     pub height: f64,
 }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PieSlice { pub label: String, pub value: f64, pub start_angle: f64, pub end_angle: f64 }
 
 /// Complete layout result
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -179,4 +181,5 @@ pub struct LayoutResult {
     pub nodes: Vec<LayoutNode>,
     pub edges: Vec<LayoutEdge>,
     pub dimensions: Dimensions,
+    #[serde(default)] pub pie_slices: Vec<PieSlice>,
 }
