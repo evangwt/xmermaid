@@ -108,6 +108,25 @@ pub fn compute_layout(ast: &DiagramAst, config: &LayoutConfig) -> LayoutResult {
         DiagramAst::XyChart(chart) => crate::xychart::layout(chart, config),
         DiagramAst::Sankey(chart) => crate::sankey::layout(chart, config),
         DiagramAst::Quadrant(chart) => crate::quadrant::layout(chart, config),
+        DiagramAst::Architecture(architecture) => {
+            let ast = xmermaid_parser::ast::FlowchartAst {
+                direction: xmermaid_parser::ast::FlowDirection::LR,
+                nodes: architecture.services.iter().map(|service| xmermaid_parser::ast::Node {
+                    id: service.id.clone(), label: Some(service.label.clone()),
+                    shape: if matches!(service.icon.as_str(), "database" | "disk") { xmermaid_parser::ast::NodeShape::Cylinder } else { xmermaid_parser::ast::NodeShape::Rounded },
+                    classes: vec![], styles: vec![],
+                }).collect(),
+                edges: architecture.relationships.iter().map(|relationship| xmermaid_parser::ast::Edge {
+                    from: relationship.from.clone(), to: relationship.to.clone(),
+                    style: if relationship.arrow_at_target { xmermaid_parser::ast::EdgeStyle::Arrow } else { xmermaid_parser::ast::EdgeStyle::Line },
+                    label: None, min_length: 1,
+                }).collect(),
+                subgraphs: vec![],
+            };
+            let mut cfg = config.clone();
+            cfg.direction = crate::types::FlowDirection::LR;
+            flowchart::layout(&ast, &cfg)
+        }
         DiagramAst::UserJourney(journey) => {
             let ast = xmermaid_parser::ast::FlowchartAst { direction: xmermaid_parser::ast::FlowDirection::LR, nodes: journey.tasks.iter().enumerate().map(|(index, task)| xmermaid_parser::ast::Node { id: format!("journey-{}", index), label: Some(format!("{} · {}\\n{}/5", task.section, task.label, task.score)), shape: xmermaid_parser::ast::NodeShape::Rounded, classes: vec![], styles: vec![] }).collect(), edges: (1..journey.tasks.len()).map(|index| xmermaid_parser::ast::Edge { from: format!("journey-{}", index - 1), to: format!("journey-{}", index), style: xmermaid_parser::ast::EdgeStyle::Arrow, label: None, min_length: 1 }).collect(), subgraphs: vec![] }; let mut cfg = config.clone(); cfg.direction = crate::types::FlowDirection::LR; flowchart::layout(&ast, &cfg)
         }

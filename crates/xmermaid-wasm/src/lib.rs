@@ -54,6 +54,7 @@ pub fn get_diagram_type(ast_json: &str) -> Result<String, JsValue> {
         DiagramAst::XyChart(_) => "xychart",
         DiagramAst::Sankey(_) => "sankey",
         DiagramAst::Quadrant(_) => "quadrant",
+        DiagramAst::Architecture(_) => "architecture",
     };
 
     Ok(type_str.to_string())

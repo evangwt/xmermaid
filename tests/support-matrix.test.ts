@@ -31,7 +31,7 @@ describe('support matrix production contract', () => {
     ]));
     expect(matrix.entries).toHaveLength(30);
     expect(matrix.entries.find(item => item.diagramType === 'sequence')?.status).toBe('partial');
-    expect(matrix.entries.filter(item => !['flowchart', 'sequence', 'class', 'state', 'er', 'user-journey', 'gantt', 'pie', 'quadrant', 'mindmap', 'timeline', 'requirement', 'gitgraph', 'c4', 'zenuml', 'sankey', 'xychart'].includes(item.diagramType)).every(item => item.status === 'planned')).toBe(true);
+    expect(matrix.entries.filter(item => !['flowchart', 'sequence', 'class', 'state', 'er', 'user-journey', 'gantt', 'pie', 'quadrant', 'mindmap', 'timeline', 'requirement', 'gitgraph', 'c4', 'zenuml', 'sankey', 'xychart', 'architecture'].includes(item.diagramType)).every(item => item.status === 'planned')).toBe(true);
   });
 
   it('reports flowchart, sequence, Sankey, and Quadrant sources as partial while planned diagrams stay explicit', () => {
@@ -69,9 +69,10 @@ describe('support matrix production contract', () => {
       diagramType: 'quadrant', status: 'partial', unsupportedFeatures: [],
     });
 
-    expect(analyzeSupport('architecture-beta\nservice api(server)')).toMatchObject({
+    expect(analyzeSupport('architecture-beta\nservice db(database)[Database]\nservice api(server)[API]\ndb:R --> L:api')).toMatchObject({
       diagramType: 'architecture',
-      status: 'planned',
+      status: 'partial',
+      unsupportedFeatures: [],
     });
   });
 
@@ -177,6 +178,16 @@ describe('support matrix production contract', () => {
   it('reports basic C4 elements and relationships as partial instead of planned', () => {
     expect(analyzeSupport('C4Context\n  Person(customer, "Customer")\n  System(banking, "Internet Banking")\n  Rel(customer, banking, "Uses")')).toMatchObject({
       diagramType: 'c4', status: 'partial', unsupportedFeatures: [],
+    });
+  });
+
+  it('keeps groups and alignment directives outside the Architecture subset', () => {
+    expect(analyzeSupport('architecture-beta\n  group api(cloud)[API]\n  service db(database)[Database] in api\n  service server(server)[Server] in api\n  db:R --> L:server\n  align row db server')).toMatchObject({
+      diagramType: 'architecture',
+      status: 'partial',
+      unsupportedFeatures: expect.arrayContaining([
+        expect.objectContaining({ id: 'architecture.advanced', severity: 'error' }),
+      ]),
     });
   });
 

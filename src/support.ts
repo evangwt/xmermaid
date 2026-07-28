@@ -48,7 +48,8 @@ export type UnsupportedFeatureId =
   | 'sankey.invalidValue'
   | 'sankey.cycle'
   | 'sankey.advanced'
-  | 'quadrant.advanced';
+  | 'quadrant.advanced'
+  | 'architecture.advanced';
 
 export interface SupportSourceRange {
   startOffset: number;
@@ -169,6 +170,8 @@ const SUPPORT_MATRIX: SupportMatrix = {
                               ? partialQuadrant()
                             : diagramType === 'xychart'
                               ? partialXyChart()
+                              : diagramType === 'architecture'
+                                ? partialArchitecture()
                             : planned(diagramType)),
   ],
 };
@@ -228,6 +231,9 @@ export function detectUnsupportedFeatures(source: string): UnsupportedFeature[] 
   }
   if (diagramType === 'quadrant') {
     return detectUnsupportedQuadrantFeatures(source);
+  }
+  if (diagramType === 'architecture') {
+    return detectUnsupportedArchitectureFeatures(source);
   }
   if (diagramType === 'state') return [];
   if (diagramType === 'er') return [];
@@ -528,6 +534,25 @@ function detectUnsupportedQuadrantFeatures(source: string): UnsupportedFeature[]
   return features;
 }
 
+function detectUnsupportedArchitectureFeatures(source: string): UnsupportedFeature[] {
+  const features: UnsupportedFeature[] = [];
+  for (const line of linesWithRanges(source)) {
+    const trimmed = line.text.trim();
+    if (!trimmed || trimmed.startsWith('%%') || trimmed === 'architecture-beta') continue;
+    const service = /^service\s+[A-Za-z0-9_]+\([A-Za-z0-9_]+\)\[[^\]\r\n]+\]$/.test(trimmed);
+    const relationship = /^[A-Za-z0-9_]+:[TBLR]\s*(?:--|-->)\s*[TBLR]:[A-Za-z0-9_]+$/.test(trimmed);
+    if (!service && !relationship) {
+      features.push(unsupportedSyntax(
+        'architecture.advanced',
+        line,
+        'Architecture groups, junctions, alignment, configuration, service membership, and bidirectional arrows are not supported yet.',
+        'error',
+      ));
+    }
+  }
+  return features;
+}
+
 function parseSankeyCsvRecord(line: string): string[] | null {
   const fields: string[] = [];
   let field = '';
@@ -681,6 +706,7 @@ function partialZenUml(): DiagramSupportEntry { return { diagramType: 'zenuml', 
 function partialSankey(): DiagramSupportEntry { return { diagramType: 'sankey', status: 'partial', supportedSyntax: [{ id: 'sankey.csv', label: 'three-column weighted CSV records', status: 'supported' }, { id: 'sankey.dag', label: 'acyclic weighted flows', status: 'supported' }], unsupportedSyntax: [{ id: 'sankey.invalidCsv', label: 'malformed CSV and non-three-column records', status: 'unsupported' }, { id: 'sankey.invalidValue', label: 'zero, negative, and non-finite weights', status: 'unsupported' }, { id: 'sankey.cycle', label: 'cyclic flow graphs', status: 'unsupported' }, { id: 'sankey.advanced', label: 'diagram configuration and custom node styling', status: 'unsupported' }] }; }
 function partialQuadrant(): DiagramSupportEntry { return { diagramType: 'quadrant', status: 'partial', supportedSyntax: [{ id: 'quadrant.axes', label: 'title, axis labels, and quadrant captions', status: 'supported' }, { id: 'quadrant.points', label: 'normalized [0, 1] coordinate points', status: 'supported' }], unsupportedSyntax: [{ id: 'quadrant.advanced', label: 'configuration, classes, and direct point styling', status: 'unsupported' }] }; }
 function partialXyChart(): DiagramSupportEntry { return { diagramType: 'xychart', status: 'partial', supportedSyntax: [{ id: 'xychart.categorical-axis', label: 'categorical x-axis labels and numeric y-axis ranges', status: 'supported' }, { id: 'xychart.bar-line-series', label: 'ordered bar and line series', status: 'supported' }], unsupportedSyntax: [{ id: 'xychart.numericXAxis', label: 'numeric x-axis ranges', status: 'unsupported' }, { id: 'xychart.horizontal', label: 'horizontal XY chart orientation', status: 'unsupported' }, { id: 'xychart.advanced', label: 'advanced directives and custom chart configuration', status: 'unsupported' }] }; }
+function partialArchitecture(): DiagramSupportEntry { return { diagramType: 'architecture', status: 'partial', supportedSyntax: [{ id: 'architecture.service', label: 'top-level labeled services with validated icon identifiers', status: 'supported' }, { id: 'architecture.relationship', label: 'direct port-to-port lines and target arrows', status: 'supported' }], unsupportedSyntax: [{ id: 'architecture.advanced', label: 'groups, junctions, align directives, configuration, service membership, icon glyphs, and bidirectional arrows', status: 'unsupported' }] }; }
 
 function cloneEntry(entry: DiagramSupportEntry): DiagramSupportEntry {
   return {

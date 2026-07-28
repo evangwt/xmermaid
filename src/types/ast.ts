@@ -245,4 +245,22 @@ export interface QuadrantAst {
   points: QuadrantPoint[];
 }
 
-export type DiagramAst = FlowchartAst | SequenceAst | ClassAst | StateAst | ErAst | GanttAst | UserJourneyAst | TimelineAst | RequirementAst | GitGraphAst | C4Ast | ZenUmlAst | SankeyAst | QuadrantAst | XyChartAst;
+export interface ArchitectureService {
+  id: string;
+  icon: string;
+  label: string;
+}
+
+export interface ArchitectureRelationship {
+  from: string;
+  to: string;
+  arrow_at_target: boolean;
+}
+
+export interface ArchitectureAst {
+  type: 'architecture';
+  services: ArchitectureService[];
+  relationships: ArchitectureRelationship[];
+}
+
+export type DiagramAst = FlowchartAst | SequenceAst | ClassAst | StateAst | ErAst | GanttAst | UserJourneyAst | TimelineAst | RequirementAst | GitGraphAst | C4Ast | ZenUmlAst | SankeyAst | QuadrantAst | ArchitectureAst | XyChartAst;

@@ -78,6 +78,7 @@ impl<'a> Parser<'a> {
         if self.input.trim_start().starts_with("xychart-beta") { return self.parse_xychart(); }
         if self.input.trim_start().starts_with("sankey") { return self.parse_sankey(); }
         if self.input.trim_start().starts_with("quadrantChart") { return self.parse_quadrant(); }
+        if self.input.trim_start().starts_with("architecture-beta") { return self.parse_architecture(); }
         let keyword = self.expect(TokenType::Keyword)?;
 
         match keyword.as_str() {
@@ -615,6 +616,34 @@ impl<'a> Parser<'a> {
             }
         }
         Ok(DiagramAst::Quadrant(QuadrantAst { title, x_axis, y_axis, quadrants, points }))
+    }
+
+    fn parse_architecture(&self) -> Result<DiagramAst, ParseError> {
+        let mut lines = self.input.lines().map(str::trim).filter(|line| !line.is_empty() && !line.starts_with("%%"));
+        if lines.next() != Some("architecture-beta") {
+            return Err(ParseError::UnexpectedToken("Architecture diagrams must start with architecture-beta.".to_string()));
+        }
+        let mut services = Vec::new();
+        let mut relationships = Vec::new();
+        for statement in lines {
+            if let Some(value) = statement.strip_prefix("service ") {
+                let service = parse_architecture_service(value)?;
+                if services.iter().any(|known: &ArchitectureService| known.id == service.id) {
+                    return Err(ParseError::UnexpectedToken(format!("Duplicate architecture service id: {}", service.id)));
+                }
+                services.push(service);
+                continue;
+            }
+            let relationship = parse_architecture_relationship(statement)?;
+            if !services.iter().any(|service: &ArchitectureService| service.id == relationship.from)
+                || !services.iter().any(|service: &ArchitectureService| service.id == relationship.to)
+            {
+                return Err(ParseError::UnexpectedToken(format!("Architecture relationships require previously declared services: {}", statement)));
+            }
+            relationships.push(relationship);
+        }
+        if services.is_empty() { return Err(ParseError::EmptyInput); }
+        Ok(DiagramAst::Architecture(ArchitectureAst { services, relationships }))
     }
 
     fn add_class_if_new(classes: &mut Vec<ClassDefinition>, id: &str) {
@@ -1240,6 +1269,53 @@ fn parse_quadrant_point(statement: &str) -> Result<QuadrantPoint, ParseError> {
     let x = coordinates[0].parse::<f64>().ok().filter(|value| value.is_finite() && (0.0..=1.0).contains(value)).ok_or_else(|| ParseError::UnexpectedToken(format!("Quadrant point x must be between 0 and 1: {}", statement)))?;
     let y = coordinates[1].parse::<f64>().ok().filter(|value| value.is_finite() && (0.0..=1.0).contains(value)).ok_or_else(|| ParseError::UnexpectedToken(format!("Quadrant point y must be between 0 and 1: {}", statement)))?;
     Ok(QuadrantPoint { label: label.to_string(), x, y })
+}
+
+fn parse_architecture_service(value: &str) -> Result<ArchitectureService, ParseError> {
+    let (id, rest) = value.split_once('(').ok_or_else(|| ParseError::UnexpectedToken(format!("Architecture services require id(icon)[label] syntax: {}", value)))?;
+    let (icon, label) = rest.split_once(')').ok_or_else(|| ParseError::UnexpectedToken(format!("Architecture services require a closing icon delimiter: {}", value)))?;
+    let id = id.trim();
+    let icon = icon.trim();
+    let label = label.trim().strip_prefix('[').and_then(|item| item.strip_suffix(']')).map(str::trim).unwrap_or("");
+    if !architecture_identifier(id) || !architecture_identifier(icon) || label.is_empty() {
+        return Err(ParseError::UnexpectedToken(format!("Architecture services require id(icon)[label] syntax: {}", value)));
+    }
+    Ok(ArchitectureService { id: id.to_string(), icon: icon.to_string(), label: label.to_string() })
+}
+
+fn parse_architecture_relationship(statement: &str) -> Result<ArchitectureRelationship, ParseError> {
+    let (from, to, arrow_at_target) = if let Some((from, to)) = statement.split_once("-->") {
+        (from, to, true)
+    } else if let Some((from, to)) = statement.split_once("--") {
+        (from, to, false)
+    } else {
+        return Err(ParseError::UnexpectedToken(format!("Architecture relationships require -- or --> syntax: {}", statement)));
+    };
+    let from = parse_architecture_source_endpoint(from)?;
+    let to = parse_architecture_target_endpoint(to)?;
+    Ok(ArchitectureRelationship { from, to, arrow_at_target })
+}
+
+fn parse_architecture_source_endpoint(value: &str) -> Result<String, ParseError> {
+    let (id, side) = value.trim().split_once(':').ok_or_else(|| ParseError::UnexpectedToken(format!("Architecture relationship endpoints require id:T|B|L|R syntax: {}", value)))?;
+    let id = id.trim();
+    if !architecture_identifier(id) || !matches!(side.trim(), "T" | "B" | "L" | "R") {
+        return Err(ParseError::UnexpectedToken(format!("Architecture relationship endpoints require id:T|B|L|R syntax: {}", value)));
+    }
+    Ok(id.to_string())
+}
+
+fn parse_architecture_target_endpoint(value: &str) -> Result<String, ParseError> {
+    let (side, id) = value.trim().split_once(':').ok_or_else(|| ParseError::UnexpectedToken(format!("Architecture relationship targets require T|B|L|R:id syntax: {}", value)))?;
+    let id = id.trim();
+    if !matches!(side.trim(), "T" | "B" | "L" | "R") || !architecture_identifier(id) {
+        return Err(ParseError::UnexpectedToken(format!("Architecture relationship targets require T|B|L|R:id syntax: {}", value)));
+    }
+    Ok(id.to_string())
+}
+
+fn architecture_identifier(value: &str) -> bool {
+    !value.is_empty() && value.chars().all(|character| character.is_ascii_alphanumeric() || character == '_')
 }
 
 pub fn parse_input(input: &str) -> Result<DiagramAst, ParseError> {
