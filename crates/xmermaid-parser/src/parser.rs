@@ -77,6 +77,7 @@ impl<'a> Parser<'a> {
         if self.input.trim_start().starts_with("zenuml") { return self.parse_zenuml(); }
         if self.input.trim_start().starts_with("xychart-beta") { return self.parse_xychart(); }
         if self.input.trim_start().starts_with("sankey") { return self.parse_sankey(); }
+        if self.input.trim_start().starts_with("quadrantChart") { return self.parse_quadrant(); }
         let keyword = self.expect(TokenType::Keyword)?;
 
         match keyword.as_str() {
@@ -582,6 +583,38 @@ impl<'a> Parser<'a> {
             return Err(ParseError::UnexpectedToken("Sankey diagrams cannot contain a cycle.".to_string()));
         }
         Ok(DiagramAst::Sankey(SankeyAst { nodes, links }))
+    }
+
+    fn parse_quadrant(&self) -> Result<DiagramAst, ParseError> {
+        let mut lines = self.input.lines().map(str::trim).filter(|line| !line.is_empty() && !line.starts_with("%%"));
+        if lines.next() != Some("quadrantChart") {
+            return Err(ParseError::UnexpectedToken("Quadrant charts must start with quadrantChart.".to_string()));
+        }
+        let mut title = String::new();
+        let mut x_axis = None;
+        let mut y_axis = None;
+        let mut quadrants: [String; 4] = std::array::from_fn(|_| String::new());
+        let mut points = Vec::new();
+        for statement in lines {
+            if let Some(value) = statement.strip_prefix("title ") {
+                if !title.is_empty() || value.trim().is_empty() { return Err(ParseError::UnexpectedToken("Quadrant charts allow one non-empty title.".to_string())); }
+                title = value.trim().to_string();
+            } else if let Some(value) = statement.strip_prefix("x-axis ") {
+                if x_axis.is_some() { return Err(ParseError::UnexpectedToken("Quadrant charts allow one x-axis declaration.".to_string())); }
+                x_axis = Some(parse_quadrant_axis(value, "x-axis")?);
+            } else if let Some(value) = statement.strip_prefix("y-axis ") {
+                if y_axis.is_some() { return Err(ParseError::UnexpectedToken("Quadrant charts allow one y-axis declaration.".to_string())); }
+                y_axis = Some(parse_quadrant_axis(value, "y-axis")?);
+            } else if let Some(value) = statement.strip_prefix("quadrant-") {
+                let (number, label) = value.split_once(char::is_whitespace).ok_or_else(|| ParseError::UnexpectedToken(format!("Quadrant labels require text: {}", statement)))?;
+                let index = number.parse::<usize>().ok().filter(|number| (1..=4).contains(number)).ok_or_else(|| ParseError::UnexpectedToken(format!("Invalid quadrant label: {}", statement)))? - 1;
+                if !quadrants[index].is_empty() || label.trim().is_empty() { return Err(ParseError::UnexpectedToken(format!("Duplicate or empty quadrant label: {}", statement))); }
+                quadrants[index] = label.trim().to_string();
+            } else {
+                points.push(parse_quadrant_point(statement)?);
+            }
+        }
+        Ok(DiagramAst::Quadrant(QuadrantAst { title, x_axis, y_axis, quadrants, points }))
     }
 
     fn add_class_if_new(classes: &mut Vec<ClassDefinition>, id: &str) {
@@ -1188,6 +1221,25 @@ fn sankey_contains_cycle(nodes: &[String], links: &[SankeyLink]) -> bool {
         false
     }
     nodes.iter().any(|node| visit(node, &neighbors, &mut state))
+}
+
+fn parse_quadrant_axis(value: &str, axis: &str) -> Result<(String, String), ParseError> {
+    let (first, second) = value.split_once("-->").unwrap_or((value, ""));
+    let first = first.trim();
+    let second = second.trim();
+    if first.is_empty() { return Err(ParseError::UnexpectedToken(format!("Quadrant {} labels cannot be empty.", axis))); }
+    Ok((first.to_string(), second.to_string()))
+}
+
+fn parse_quadrant_point(statement: &str) -> Result<QuadrantPoint, ParseError> {
+    let (label, value) = statement.split_once(':').ok_or_else(|| ParseError::UnexpectedToken(format!("Invalid quadrant point: {}", statement)))?;
+    let label = label.trim();
+    let values = value.trim().strip_prefix('[').and_then(|value| value.strip_suffix(']')).ok_or_else(|| ParseError::UnexpectedToken(format!("Quadrant points require [x, y] coordinates: {}", statement)))?;
+    let coordinates = values.split(',').map(str::trim).collect::<Vec<_>>();
+    if label.is_empty() || coordinates.len() != 2 { return Err(ParseError::UnexpectedToken(format!("Invalid quadrant point: {}", statement))); }
+    let x = coordinates[0].parse::<f64>().ok().filter(|value| value.is_finite() && (0.0..=1.0).contains(value)).ok_or_else(|| ParseError::UnexpectedToken(format!("Quadrant point x must be between 0 and 1: {}", statement)))?;
+    let y = coordinates[1].parse::<f64>().ok().filter(|value| value.is_finite() && (0.0..=1.0).contains(value)).ok_or_else(|| ParseError::UnexpectedToken(format!("Quadrant point y must be between 0 and 1: {}", statement)))?;
+    Ok(QuadrantPoint { label: label.to_string(), x, y })
 }
 
 pub fn parse_input(input: &str) -> Result<DiagramAst, ParseError> {

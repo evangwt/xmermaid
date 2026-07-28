@@ -1,6 +1,27 @@
 use xmermaid_parser::{parse, DiagramAst, EdgeStyle, FlowDirection, NodeShape};
 
 #[test]
+fn parses_quadrant_chart_labels_and_normalized_points() {
+    let ast = parse("quadrantChart\n title Reach and engagement\n x-axis Low --> High\n y-axis Low --> High\n quadrant-1 Expand\n quadrant-2 Promote\n Campaign A: [0.3, 0.6]").unwrap();
+
+    match ast {
+        DiagramAst::Quadrant(chart) => {
+            assert_eq!(chart.title, "Reach and engagement");
+            assert_eq!(chart.x_axis, Some(("Low".into(), "High".into())));
+            assert_eq!(chart.quadrants[0], "Expand");
+            assert_eq!(chart.points[0].label, "Campaign A");
+            assert_eq!((chart.points[0].x, chart.points[0].y), (0.3, 0.6));
+        }
+        _ => panic!("expected quadrant chart"),
+    }
+}
+
+#[test]
+fn rejects_quadrant_points_outside_the_normalized_range() {
+    assert!(parse("quadrantChart\n Point: [1.1, 0.5]").is_err());
+}
+
+#[test]
 fn parses_sankey_csv_with_quoted_labels_and_blank_rows() {
     let ast = parse("sankey\n\nSource,\"Target, with comma\",12.5\nSource,Other,3\n").unwrap();
 
