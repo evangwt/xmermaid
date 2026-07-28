@@ -39,6 +39,7 @@ pub fn get_diagram_type(ast_json: &str) -> Result<String, JsValue> {
     let type_str = match ast {
         DiagramAst::Flowchart(_) => "flowchart",
         DiagramAst::Sequence(_) => "sequence",
+        DiagramAst::Class(_) => "class",
     };
 
     Ok(type_str.to_string())

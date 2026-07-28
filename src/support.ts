@@ -38,7 +38,8 @@ export type UnsupportedFeatureId =
   | 'flowchart.hyphenatedNodeId'
   | 'flowchart.inlineClass'
   | 'flowchart.linkStyle'
-  | 'sequence.advanced';
+  | 'sequence.advanced'
+  | 'class.advanced';
 
 export interface SupportSourceRange {
   startOffset: number;
@@ -127,7 +128,11 @@ const SUPPORT_MATRIX: SupportMatrix = {
     },
     ...DIAGRAM_CATALOG
       .filter(([diagramType]) => diagramType !== 'flowchart')
-      .map(([diagramType]) => diagramType === 'sequence' ? partialSequence() : planned(diagramType)),
+      .map(([diagramType]) => diagramType === 'sequence'
+        ? partialSequence()
+        : diagramType === 'class'
+          ? partialClass()
+          : planned(diagramType)),
   ],
 };
 
@@ -171,6 +176,9 @@ export function detectUnsupportedFeatures(source: string): UnsupportedFeature[] 
   const diagramType = detectDiagramType(source);
   if (diagramType === 'sequence') {
     return detectUnsupportedSequenceFeatures(source);
+  }
+  if (diagramType === 'class') {
+    return detectUnsupportedClassFeatures(source);
   }
   if (diagramType !== 'flowchart') {
     return [unsupportedDiagramFeature(source, diagramType)];
@@ -360,6 +368,21 @@ function detectUnsupportedSequenceFeatures(source: string): UnsupportedFeature[]
   return features;
 }
 
+function detectUnsupportedClassFeatures(source: string): UnsupportedFeature[] {
+  const features: UnsupportedFeature[] = [];
+  for (const line of linesWithRanges(source)) {
+    if (/^\s*(?:class|namespace)\s+[^\r\n]*\{|^\s*[+\-#~]/.test(line.text) || /(?:\*--|o--|<\.\.|\.\.>)/.test(line.text)) {
+      features.push(unsupportedSyntax(
+        'class.advanced',
+        line,
+        'Class members, namespaces, composition, aggregation, and dependency relations are not supported yet.',
+        'error',
+      ));
+    }
+  }
+  return features;
+}
+
 function collectSubgraphIds(lines: SourceLine[]): Set<string> {
   const ids = new Set<string>();
   for (const line of lines) {
@@ -408,6 +431,20 @@ function partialSequence(): DiagramSupportEntry {
     ],
     unsupportedSyntax: [
       { id: 'sequence.advanced', label: 'activation, notes, loops, and alternate branches', status: 'unsupported' },
+    ],
+  };
+}
+
+function partialClass(): DiagramSupportEntry {
+  return {
+    diagramType: 'class',
+    status: 'partial',
+    supportedSyntax: [
+      { id: 'class.definition', label: 'named class declarations', status: 'supported' },
+      { id: 'class.inheritance', label: 'inheritance and directed relations', status: 'supported' },
+    ],
+    unsupportedSyntax: [
+      { id: 'class.advanced', label: 'members, namespaces, and advanced relation styles', status: 'unsupported' },
     ],
   };
 }

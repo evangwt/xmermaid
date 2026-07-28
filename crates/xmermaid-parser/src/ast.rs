@@ -82,8 +82,27 @@ pub struct SequenceMessage {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClassAst {
+    pub classes: Vec<ClassDefinition>,
+    pub relations: Vec<ClassRelation>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClassDefinition {
+    pub id: String,
+    pub label: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClassRelation {
+    pub from: String,
+    pub to: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum DiagramAst {
     Flowchart(FlowchartAst),
     Sequence(SequenceAst),
+    Class(ClassAst),
 }

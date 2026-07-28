@@ -22,6 +22,7 @@ fn test_get_diagram_type_flowchart() {
     let type_str = match &ast {
         DiagramAst::Flowchart(_) => "flowchart",
         DiagramAst::Sequence(_) => "sequence",
+        DiagramAst::Class(_) => "class",
     };
     assert_eq!(type_str, "flowchart");
 }
