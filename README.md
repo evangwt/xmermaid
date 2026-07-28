@@ -123,6 +123,8 @@ All remaining Mermaid catalog families are explicitly marked `planned` in `getSu
 
 `packet` is partial: optional titles, ordered absolute `start-end: "Label"` fields, and sequential `+width: "Label"` fields render as a native 32-bit SVG grid. Overlapping/out-of-order fields, YAML configuration, classes, styles, and accessibility directives remain unsupported.
 
+`venn-beta` is partial: named `set` declarations, optional display labels, labeled unions of declared sets, and titles render as native overlapping SVG circles. Set/union sizes, text annotations, YAML configuration, classes, styles, and accessibility directives remain unsupported.
+
 `kanban` is partial: ordered bare or bracket-labeled columns with space-indented bare or bracket-labeled tasks render as a native board. Task metadata, ticket configuration, YAML, styles, and advanced syntax remain unsupported.
 
 `zenuml` is partial: labeled `->` calls and `-->` returns render as distinct solid and dashed arrows; blocks, declarations, async messages, and advanced control syntax remain unsupported.

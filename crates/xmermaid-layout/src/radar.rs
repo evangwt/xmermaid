@@ -27,7 +27,7 @@ pub fn layout(chart: &RadarAst, config: &LayoutConfig) -> LayoutResult {
         pie_slices: vec![], xy_chart: None, sankey: None, quadrant_chart: None,
         block_diagram: None, kanban_board: None, treemap: None,
         radar: Some(RadarLayout { title: chart.title.clone(), center, radius: CHART_RADIUS, axes, curves, min: chart.min, max: chart.max }),
-        packet: None,
+        packet: None, venn: None,
     }
 }
 
