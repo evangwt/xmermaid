@@ -73,6 +73,7 @@ impl<'a> Parser<'a> {
         if self.input.trim_start().starts_with("mindmap") { return self.parse_mindmap(); }
         if self.input.trim_start().starts_with("requirementDiagram") { return self.parse_requirement(); }
         if self.input.trim_start().starts_with("gitGraph") { return self.parse_gitgraph(); }
+        if self.input.trim_start().starts_with("C4") { return self.parse_c4(); }
         let keyword = self.expect(TokenType::Keyword)?;
 
         match keyword.as_str() {
@@ -434,6 +435,34 @@ impl<'a> Parser<'a> {
 
         if commits.is_empty() { return Err(ParseError::EmptyInput); }
         Ok(DiagramAst::GitGraph(GitGraphAst { commits }))
+    }
+
+    fn parse_c4(&self) -> Result<DiagramAst, ParseError> {
+        let mut header = self.input.lines();
+        let first_line = header.next().unwrap_or_default().trim();
+        let diagram_kind = first_line.strip_prefix("C4").filter(|kind| matches!(*kind, "Context" | "Container" | "Component" | "Dynamic" | "Deployment")).ok_or_else(|| ParseError::UnexpectedToken(format!("Unsupported C4 diagram declaration: {}", first_line)))?;
+        let mut title = String::new();
+        let mut elements = Vec::new();
+        let mut relationships = Vec::new();
+        for line in header {
+            let statement = line.trim();
+            if statement.is_empty() || statement.starts_with("%%") { continue; }
+            if let Some(value) = statement.strip_prefix("title ") { title = value.trim().to_string(); continue; }
+            let (kind, arguments) = split_c4_call(statement)?;
+            let values = parse_c4_arguments(arguments)?;
+            if kind == "Rel" {
+                if values.len() != 3 || values.iter().any(|value| value.is_empty()) { return Err(ParseError::UnexpectedToken(format!("C4 Rel requires from, to, and label: {}", statement))); }
+                relationships.push(C4Relationship { from: values[0].clone(), to: values[1].clone(), label: values[2].clone() });
+                continue;
+            }
+            if !matches!(kind, "Person" | "Person_Ext" | "System" | "System_Ext" | "Container" | "Container_Ext" | "SystemDb" | "SystemDb_Ext" | "ContainerDb" | "ContainerDb_Ext" | "Component" | "Component_Ext" | "ComponentDb" | "ComponentDb_Ext") || !(2..=3).contains(&values.len()) || values[0].is_empty() || values[1].is_empty() {
+                return Err(ParseError::UnexpectedToken(format!("Unsupported C4 element: {}", statement)));
+            }
+            if elements.iter().any(|element: &C4Element| element.id == values[0]) { return Err(ParseError::UnexpectedToken(format!("Duplicate C4 element id: {}", values[0]))); }
+            elements.push(C4Element { kind: kind.to_string(), id: values[0].clone(), label: values[1].clone(), description: values.get(2).cloned() });
+        }
+        if elements.is_empty() { return Err(ParseError::EmptyInput); }
+        Ok(DiagramAst::C4(C4Ast { diagram_kind: diagram_kind.to_string(), title, elements, relationships }))
     }
 
     fn add_class_if_new(classes: &mut Vec<ClassDefinition>, id: &str) {
@@ -956,6 +985,28 @@ fn parse_gitgraph_attributes(input: &str) -> Result<std::collections::HashMap<St
         rest = next.trim_start();
     }
     Ok(attributes)
+}
+
+fn split_c4_call(statement: &str) -> Result<(&str, &str), ParseError> {
+    let open = statement.find('(').ok_or_else(|| ParseError::UnexpectedToken(format!("Invalid C4 statement: {}", statement)))?;
+    if !statement.ends_with(')') { return Err(ParseError::UnexpectedToken(format!("C4 statements must close their argument list: {}", statement))); }
+    Ok((statement[..open].trim(), &statement[open + 1..statement.len() - 1]))
+}
+
+fn parse_c4_arguments(input: &str) -> Result<Vec<String>, ParseError> {
+    let mut values = Vec::new();
+    let mut current = String::new();
+    let mut quoted = false;
+    for character in input.chars() {
+        match character {
+            '"' => quoted = !quoted,
+            ',' if !quoted => { values.push(current.trim().trim_matches('"').to_string()); current.clear(); }
+            _ => current.push(character),
+        }
+    }
+    if quoted { return Err(ParseError::UnexpectedToken(format!("Unterminated C4 quoted value: {}", input))); }
+    values.push(current.trim().trim_matches('"').to_string());
+    Ok(values)
 }
 
 fn is_iso_date(value: &str) -> bool {

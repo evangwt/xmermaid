@@ -234,6 +234,30 @@ fn test_parse_gitgraph_branches_commits_and_merges() {
 }
 
 #[test]
+fn test_parse_c4_context_elements_and_relationships() {
+    let ast = parse(
+        "C4Context\n\
+  title Internet Banking\n\
+  Person(customer, \"Personal Banking Customer\", \"A customer of the bank\")\n\
+  System(banking, \"Internet Banking System\", \"Allows customers to view accounts\")\n\
+  System_Ext(email, \"E-mail system\", \"Sends e-mail\")\n\
+  Rel(customer, banking, \"Uses\")\n\
+  Rel(banking, email, \"Sends e-mail using\")",
+    )
+    .unwrap();
+    let json = serde_json::to_value(ast).unwrap();
+
+    assert_eq!(json["type"], "c4");
+    assert_eq!(json["diagram_kind"], "Context");
+    assert_eq!(json["title"], "Internet Banking");
+    assert_eq!(json["elements"].as_array().map(Vec::len), Some(3));
+    assert_eq!(json["elements"][0]["kind"], "Person");
+    assert_eq!(json["elements"][2]["kind"], "System_Ext");
+    assert_eq!(json["relationships"][0]["from"], "customer");
+    assert_eq!(json["relationships"][1]["label"], "Sends e-mail using");
+}
+
+#[test]
 fn test_parse_indented_mindmap_hierarchy() {
     let ast = parse("mindmap\n  Root\n    Product\n      Editor\n    Renderer").unwrap();
     let json = serde_json::to_value(ast).unwrap();

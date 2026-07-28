@@ -168,4 +168,25 @@ export interface GitCommit {
   parents: string[];
 }
 
-export type DiagramAst = FlowchartAst | SequenceAst | ClassAst | StateAst | ErAst | GanttAst | UserJourneyAst | TimelineAst | RequirementAst | GitGraphAst;
+export interface C4Ast {
+  type: 'c4';
+  diagram_kind: string;
+  title: string;
+  elements: C4Element[];
+  relationships: C4Relationship[];
+}
+
+export interface C4Element {
+  kind: string;
+  id: string;
+  label: string;
+  description: string | null;
+}
+
+export interface C4Relationship {
+  from: string;
+  to: string;
+  label: string;
+}
+
+export type DiagramAst = FlowchartAst | SequenceAst | ClassAst | StateAst | ErAst | GanttAst | UserJourneyAst | TimelineAst | RequirementAst | GitGraphAst | C4Ast;

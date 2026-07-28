@@ -150,6 +150,8 @@ const SUPPORT_MATRIX: SupportMatrix = {
                       ? partialRequirement()
                       : diagramType === 'gitgraph'
                         ? partialGitGraph()
+                        : diagramType === 'c4'
+                          ? partialC4()
           : planned(diagramType)),
   ],
 };
@@ -207,6 +209,7 @@ export function detectUnsupportedFeatures(source: string): UnsupportedFeature[] 
   if (diagramType === 'mindmap') return [];
   if (diagramType === 'requirement') return [];
   if (diagramType === 'gitgraph') return [];
+  if (diagramType === 'c4') return [];
   if (diagramType !== 'flowchart') {
     return [unsupportedDiagramFeature(source, diagramType)];
   }
@@ -519,6 +522,7 @@ function partialPie(): DiagramSupportEntry { return { diagramType: 'pie', status
 function partialMindmap(): DiagramSupportEntry { return { diagramType: 'mindmap', status: 'partial', supportedSyntax: [{ id: 'mindmap.indent', label: 'space-indented hierarchy', status: 'supported' }], unsupportedSyntax: [{ id: 'mindmap.advanced', label: 'markdown, icons, and custom shapes', status: 'unsupported' }] }; }
 function partialRequirement(): DiagramSupportEntry { return { diagramType: 'requirement', status: 'partial', supportedSyntax: [{ id: 'requirement.block', label: 'typed requirement blocks with id, text, risk, and verification method', status: 'supported' }, { id: 'requirement.relationship', label: 'labeled semantic relationships', status: 'supported' }], unsupportedSyntax: [{ id: 'requirement.advanced', label: 'custom requirement styling and advanced relation syntax', status: 'unsupported' }] }; }
 function partialGitGraph(): DiagramSupportEntry { return { diagramType: 'gitgraph', status: 'partial', supportedSyntax: [{ id: 'gitgraph.commit', label: 'commits with ids, tags, and types', status: 'supported' }, { id: 'gitgraph.branch-merge', label: 'branch, checkout, and merge history', status: 'supported' }], unsupportedSyntax: [{ id: 'gitgraph.advanced', label: 'cherry-pick, custom branch ordering, and advanced commit options', status: 'unsupported' }] }; }
+function partialC4(): DiagramSupportEntry { return { diagramType: 'c4', status: 'partial', supportedSyntax: [{ id: 'c4.element', label: 'people, systems, containers, components, and external elements', status: 'supported' }, { id: 'c4.relationship', label: 'labeled directional relationships', status: 'supported' }], unsupportedSyntax: [{ id: 'c4.advanced', label: 'boundaries, deployment nodes, styling, and advanced relationship macros', status: 'unsupported' }] }; }
 
 function cloneEntry(entry: DiagramSupportEntry): DiagramSupportEntry {
   return {
