@@ -29,6 +29,7 @@ pub fn layout(chart: &TreemapAst, config: &LayoutConfig) -> LayoutResult {
         block_diagram: None,
         kanban_board: None,
         treemap: Some(TreemapLayout { nodes: result }),
+        radar: None,
     }
 }
 

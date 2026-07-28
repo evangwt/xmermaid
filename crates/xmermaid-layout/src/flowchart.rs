@@ -396,7 +396,7 @@ pub fn layout(fc: &FlowchartAst, config: &LayoutConfig) -> LayoutResult {
             sankey: None,
             quadrant_chart: None,
             block_diagram: None,
-            kanban_board: None, treemap: None,
+            kanban_board: None, treemap: None, radar: None,
             dimensions: Dimensions {
                 width: padding * 2.0,
                 height: padding * 2.0,
@@ -989,7 +989,7 @@ pub fn layout(fc: &FlowchartAst, config: &LayoutConfig) -> LayoutResult {
         sankey: None,
         quadrant_chart: None,
         block_diagram: None,
-        kanban_board: None, treemap: None,
+        kanban_board: None, treemap: None, radar: None,
         dimensions: Dimensions {
             width: final_width,
             height: final_height,

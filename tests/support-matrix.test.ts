@@ -31,7 +31,7 @@ describe('support matrix production contract', () => {
     ]));
     expect(matrix.entries).toHaveLength(30);
     expect(matrix.entries.find(item => item.diagramType === 'sequence')?.status).toBe('partial');
-    expect(matrix.entries.filter(item => !['flowchart', 'sequence', 'class', 'state', 'er', 'user-journey', 'gantt', 'pie', 'quadrant', 'mindmap', 'timeline', 'requirement', 'gitgraph', 'c4', 'zenuml', 'sankey', 'xychart', 'architecture', 'block', 'kanban', 'treemap'].includes(item.diagramType)).every(item => item.status === 'planned')).toBe(true);
+    expect(matrix.entries.filter(item => !['flowchart', 'sequence', 'class', 'state', 'er', 'user-journey', 'gantt', 'pie', 'quadrant', 'mindmap', 'timeline', 'requirement', 'gitgraph', 'c4', 'zenuml', 'sankey', 'xychart', 'architecture', 'block', 'kanban', 'treemap', 'radar'].includes(item.diagramType)).every(item => item.status === 'planned')).toBe(true);
   });
 
   it('reports flowchart, sequence, Sankey, and Quadrant sources as partial while planned diagrams stay explicit', () => {
@@ -87,6 +87,11 @@ describe('support matrix production contract', () => {
 
     expect(analyzeSupport('treemap-beta\n"Category A"\n    "Item A1": 10\n    "Item A2": 20')).toMatchObject({
       diagramType: 'treemap',
+      status: 'partial',
+      unsupportedFeatures: [],
+    });
+    expect(analyzeSupport('radar-beta\n  axis food["Food Quality"], service["Service"], price["Price"]\n  curve a["Restaurant A"]{4, 3, 2}\n  min 0\n  max 5')).toMatchObject({
+      diagramType: 'radar',
       status: 'partial',
       unsupportedFeatures: [],
     });
@@ -235,6 +240,17 @@ describe('support matrix production contract', () => {
         expect.objectContaining({ id: 'treemap.advanced', severity: 'error', range: expect.objectContaining({ startLine: 2 }) }),
         expect.objectContaining({ id: 'treemap.advanced', severity: 'error', range: expect.objectContaining({ startLine: 5 }) }),
         expect.objectContaining({ id: 'treemap.advanced', severity: 'error', range: expect.objectContaining({ startLine: 7 }) }),
+      ]),
+    });
+  });
+
+  it('blocks Radar graticules and configuration outside the native curve subset', () => {
+    expect(analyzeSupport('radar-beta\n  axis A, B, C\n  curve c{1, 2, 3}\n  graticule polygon\n---\nconfig:\n  radar:\n    curveTension: 0.1')).toMatchObject({
+      diagramType: 'radar',
+      status: 'partial',
+      unsupportedFeatures: expect.arrayContaining([
+        expect.objectContaining({ id: 'radar.advanced', severity: 'error', range: expect.objectContaining({ startLine: 4 }) }),
+        expect.objectContaining({ id: 'radar.advanced', severity: 'error', range: expect.objectContaining({ startLine: 5 }) }),
       ]),
     });
   });
