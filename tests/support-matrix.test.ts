@@ -31,10 +31,10 @@ describe('support matrix production contract', () => {
     ]));
     expect(matrix.entries).toHaveLength(30);
     expect(matrix.entries.find(item => item.diagramType === 'sequence')?.status).toBe('partial');
-    expect(matrix.entries.filter(item => !['flowchart', 'sequence', 'class', 'state', 'er', 'user-journey', 'gantt', 'pie', 'mindmap', 'timeline', 'requirement', 'gitgraph', 'c4', 'zenuml', 'sankey', 'xychart'].includes(item.diagramType)).every(item => item.status === 'planned')).toBe(true);
+    expect(matrix.entries.filter(item => !['flowchart', 'sequence', 'class', 'state', 'er', 'user-journey', 'gantt', 'pie', 'quadrant', 'mindmap', 'timeline', 'requirement', 'gitgraph', 'c4', 'zenuml', 'sankey', 'xychart'].includes(item.diagramType)).every(item => item.status === 'planned')).toBe(true);
   });
 
-  it('reports flowchart, sequence, and Sankey sources as partial while planned diagrams stay explicit', () => {
+  it('reports flowchart, sequence, Sankey, and Quadrant sources as partial while planned diagrams stay explicit', () => {
     expect(getSupportMatrix().mermaidVersion).toBe('11.16.0');
     expect(analyzeSupport('graph TD\n  A-->B')).toMatchObject({
       diagramType: 'flowchart',
@@ -64,6 +64,9 @@ describe('support matrix production contract', () => {
       diagramType: 'sankey',
       status: 'partial',
       unsupportedFeatures: [],
+    });
+    expect(analyzeSupport('quadrantChart\n  Campaign A: [0.25, 0.75]')).toMatchObject({
+      diagramType: 'quadrant', status: 'partial', unsupportedFeatures: [],
     });
 
     expect(analyzeSupport('architecture-beta\nservice api(server)')).toMatchObject({
