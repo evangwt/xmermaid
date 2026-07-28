@@ -95,7 +95,6 @@ This is partial Mermaid support, not full Mermaid compatibility.
 
 Diagram families that are not rendered currently include:
 
-- `gantt`
 - `pie`
 - `mindmap`
 
@@ -106,6 +105,8 @@ Diagram families that are not rendered currently include:
 `stateDiagram` is partial: named states and directed transitions with optional labels render as a relationship layout; start/end pseudostates and composite states remain unsupported.
 
 `erDiagram` is partial: labeled `||--o{` crow’s-foot relationships render as a relationship layout; entity attribute blocks and extended cardinalities remain unsupported.
+
+`gantt` is partial: sectioned tasks with ISO start dates and `Nd` durations render as a timeline; task states, dependencies, milestones, and custom date formats remain unsupported.
 
 Unsupported or partial flowchart syntax includes invalid `graph` / `flowchart` directions, `class`, `classDef`, `style`, `click`, `linkStyle`, HTML labels, Markdown labels, quoted labels, entity-code labels, FontAwesome icon labels, expanded/stadium/cylinder shape syntax, thick/extended edge forms, bidirectional/circle/cross edge endings, inline edge labels, edge IDs, edges to subgraph ids, hyphenated node ids, and inline class assignments. Use `getSupportMatrix()` or `analyzeSupport(source)` to inspect the current production support contract from code.
 

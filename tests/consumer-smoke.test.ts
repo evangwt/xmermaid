@@ -194,6 +194,8 @@ describe('consumer smoke helpers', () => {
       expect(page).toContain('classSvgHasLabels');
       expect(page).toContain("erDiagram\\n  CUSTOMER ||--o{ ORDER : places");
       expect(page).toContain('erSvgHasLabels');
+      expect(page).toContain("gantt\\n  section Build\\n  Compile : 2026-07-28, 2d");
+      expect(page).toContain('ganttSvgHasLabels');
     } finally {
       rmSync(tempRoot, { recursive: true, force: true });
     }
