@@ -104,5 +104,6 @@ pub fn compute_layout(ast: &DiagramAst, config: &LayoutConfig) -> LayoutResult {
             flowchart::layout(&flowchart_ast, &er_config)
         }
         DiagramAst::Gantt(gantt_ast) => gantt::layout(gantt_ast, config),
+        DiagramAst::Pie(pie_ast) => crate::pie::layout(pie_ast, config),
     }
 }

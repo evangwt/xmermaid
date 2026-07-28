@@ -64,9 +64,11 @@ export interface Dimensions {
   width: number;
   height: number;
 }
+export interface PieSlice { label: string; value: number; start_angle: number; end_angle: number; }
 
 export interface LayoutResult {
   nodes: LayoutNode[];
   edges: LayoutEdge[];
   dimensions: Dimensions;
+  pie_slices?: PieSlice[];
 }

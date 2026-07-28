@@ -140,6 +140,18 @@ fn test_parse_gantt_tasks_with_sections_and_durations() {
 }
 
 #[test]
+fn test_parse_pie_values_with_title() {
+    let ast = parse("pie title Deployment\n  \"Passed\" : 80\n  \"Failed\" : 20").unwrap();
+    let json = serde_json::to_value(ast).unwrap();
+
+    assert_eq!(json["type"], "pie");
+    assert_eq!(json["title"], "Deployment");
+    assert_eq!(json["slices"].as_array().map(Vec::len), Some(2));
+    assert_eq!(json["slices"][0]["label"], "Passed");
+    assert_eq!(json["slices"][0]["value"], 80.0);
+}
+
+#[test]
 fn test_parse_flowchart_multiple_edges() {
     let input = "graph TD\n  A-->B\n  B-->C";
     let result = parse(input);

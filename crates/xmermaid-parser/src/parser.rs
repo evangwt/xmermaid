@@ -67,6 +67,7 @@ impl<'a> Parser<'a> {
         if self.input.trim_start().starts_with("stateDiagram") { return self.parse_state(); }
         if self.input.trim_start().starts_with("erDiagram") { return self.parse_er(); }
         if self.input.trim_start().starts_with("gantt") { return self.parse_gantt(); }
+        if self.input.trim_start().starts_with("pie") { return self.parse_pie(); }
         let keyword = self.expect(TokenType::Keyword)?;
 
         match keyword.as_str() {
@@ -265,6 +266,24 @@ impl<'a> Parser<'a> {
 
         if tasks.is_empty() { return Err(ParseError::EmptyInput); }
         Ok(DiagramAst::Gantt(GanttAst { tasks }))
+    }
+
+    fn parse_pie(&self) -> Result<DiagramAst, ParseError> {
+        let mut title = String::new();
+        let mut slices = Vec::new();
+        for line in self.input.lines() {
+            let statement = line.trim();
+            if statement.is_empty() || statement.starts_with("%%") { continue; }
+            if let Some(value) = statement.strip_prefix("pie title ") { title = value.trim().to_string(); continue; }
+            if statement == "pie" { continue; }
+            let (label, value) = statement.split_once(':').ok_or_else(|| ParseError::UnexpectedToken(format!("Invalid Pie slice: {}", statement)))?;
+            let label = label.trim().trim_matches('"');
+            let value = value.trim().parse::<f64>().map_err(|_| ParseError::UnexpectedToken(format!("Pie values must be numeric: {}", statement)))?;
+            if label.is_empty() || value <= 0.0 { return Err(ParseError::UnexpectedToken(format!("Invalid Pie slice: {}", statement))); }
+            slices.push(PieSlice { label: label.to_string(), value });
+        }
+        if slices.is_empty() { return Err(ParseError::EmptyInput); }
+        Ok(DiagramAst::Pie(PieAst { title, slices }))
     }
 
     fn add_class_if_new(classes: &mut Vec<ClassDefinition>, id: &str) {

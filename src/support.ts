@@ -138,6 +138,8 @@ const SUPPORT_MATRIX: SupportMatrix = {
               ? partialEr()
               : diagramType === 'gantt'
                 ? partialGantt()
+                : diagramType === 'pie'
+                  ? partialPie()
           : planned(diagramType)),
   ],
 };
@@ -189,6 +191,7 @@ export function detectUnsupportedFeatures(source: string): UnsupportedFeature[] 
   if (diagramType === 'state') return [];
   if (diagramType === 'er') return [];
   if (diagramType === 'gantt') return [];
+  if (diagramType === 'pie') return [];
   if (diagramType !== 'flowchart') {
     return [unsupportedDiagramFeature(source, diagramType)];
   }
@@ -481,6 +484,7 @@ function partialGantt(): DiagramSupportEntry {
     { id: 'gantt.advanced', label: 'task states, dependencies, milestones, and custom date formats', status: 'unsupported' },
   ] };
 }
+function partialPie(): DiagramSupportEntry { return { diagramType: 'pie', status: 'partial', supportedSyntax: [{ id: 'pie.value', label: 'numeric labeled slices', status: 'supported' }], unsupportedSyntax: [{ id: 'pie.advanced', label: 'showData, custom theme, and advanced formatting', status: 'unsupported' }] }; }
 
 function cloneEntry(entry: DiagramSupportEntry): DiagramSupportEntry {
   return {
