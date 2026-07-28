@@ -27,7 +27,7 @@ export async function initWasm(options: WasmInitOptions = {}): Promise<void> {
   if (wasmModule) return;
   const loadedModule = await loadWasmModule();
   if (loadedModule.default) {
-    await loadedModule.default(resolveWasmInitInput(options));
+    await loadedModule.default({ module_or_path: resolveWasmInitInput(options) });
   }
   wasmModule = loadedModule;
 }

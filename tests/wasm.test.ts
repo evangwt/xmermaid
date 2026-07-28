@@ -32,8 +32,10 @@ describe('WASM loader', () => {
 
     expect(isWasmReady()).toBe(true);
     expect(getWasm()).toBe(module);
-    expect(defaultInit).toHaveBeenNthCalledWith(1, new URL('https://cdn.example.com/missing.wasm'));
-    expect(defaultInit).toHaveBeenNthCalledWith(2, goodUrl);
+    expect(defaultInit).toHaveBeenNthCalledWith(1, {
+      module_or_path: new URL('https://cdn.example.com/missing.wasm'),
+    });
+    expect(defaultInit).toHaveBeenNthCalledWith(2, { module_or_path: goodUrl });
   });
 
   it('uses a custom fetch implementation when a WASM URL is provided', async () => {
@@ -56,7 +58,7 @@ describe('WASM loader', () => {
     await initWasm({ wasmUrl, fetch });
 
     expect(fetch).toHaveBeenCalledWith(wasmUrl);
-    const initInput = defaultInit.mock.calls[0]?.[0];
+    const initInput = defaultInit.mock.calls[0]?.[0]?.module_or_path;
     await expect(initInput).resolves.toBe(response);
     expect(isWasmReady()).toBe(true);
   });
