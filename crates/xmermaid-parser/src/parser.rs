@@ -578,6 +578,9 @@ impl<'a> Parser<'a> {
         if links.is_empty() {
             return Err(ParseError::EmptyInput);
         }
+        if sankey_contains_cycle(&nodes, &links) {
+            return Err(ParseError::UnexpectedToken("Sankey diagrams cannot contain a cycle.".to_string()));
+        }
         Ok(DiagramAst::Sankey(SankeyAst { nodes, links }))
     }
 
@@ -1163,6 +1166,28 @@ fn parse_sankey_csv_record(line: &str) -> Result<Vec<String>, ParseError> {
     }
     fields.push(field.trim().to_string());
     Ok(fields)
+}
+
+fn sankey_contains_cycle(nodes: &[String], links: &[SankeyLink]) -> bool {
+    let mut neighbors = std::collections::HashMap::<&str, Vec<&str>>::new();
+    for link in links {
+        neighbors.entry(link.source.as_str()).or_default().push(link.target.as_str());
+    }
+    let mut state = std::collections::HashMap::<&str, u8>::new();
+    fn visit<'a>(node: &'a str, neighbors: &std::collections::HashMap<&'a str, Vec<&'a str>>, state: &mut std::collections::HashMap<&'a str, u8>) -> bool {
+        match state.get(node).copied().unwrap_or_default() {
+            1 => return true,
+            2 => return false,
+            _ => {}
+        }
+        state.insert(node, 1);
+        if neighbors.get(node).into_iter().flatten().any(|target| visit(target, neighbors, state)) {
+            return true;
+        }
+        state.insert(node, 2);
+        false
+    }
+    nodes.iter().any(|node| visit(node, &neighbors, &mut state))
 }
 
 pub fn parse_input(input: &str) -> Result<DiagramAst, ParseError> {

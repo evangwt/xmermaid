@@ -218,4 +218,16 @@ export interface XyChartAst {
   series: XySeries[];
 }
 
-export type DiagramAst = FlowchartAst | SequenceAst | ClassAst | StateAst | ErAst | GanttAst | UserJourneyAst | TimelineAst | RequirementAst | GitGraphAst | C4Ast | ZenUmlAst | XyChartAst;
+export interface SankeyAstLink {
+  source: string;
+  target: string;
+  value: number;
+}
+
+export interface SankeyAst {
+  type: 'sankey';
+  nodes: string[];
+  links: SankeyAstLink[];
+}
+
+export type DiagramAst = FlowchartAst | SequenceAst | ClassAst | StateAst | ErAst | GanttAst | UserJourneyAst | TimelineAst | RequirementAst | GitGraphAst | C4Ast | ZenUmlAst | SankeyAst | XyChartAst;

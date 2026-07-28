@@ -43,7 +43,11 @@ export type UnsupportedFeatureId =
   | 'zenuml.advanced'
   | 'xychart.numericXAxis'
   | 'xychart.horizontal'
-  | 'xychart.advanced';
+  | 'xychart.advanced'
+  | 'sankey.invalidCsv'
+  | 'sankey.invalidValue'
+  | 'sankey.cycle'
+  | 'sankey.advanced';
 
 export interface SupportSourceRange {
   startOffset: number;
@@ -158,6 +162,8 @@ const SUPPORT_MATRIX: SupportMatrix = {
                           ? partialC4()
                           : diagramType === 'zenuml'
                             ? partialZenUml()
+                            : diagramType === 'sankey'
+                              ? partialSankey()
                             : diagramType === 'xychart'
                               ? partialXyChart()
                             : planned(diagramType)),
@@ -213,6 +219,9 @@ export function detectUnsupportedFeatures(source: string): UnsupportedFeature[] 
   }
   if (diagramType === 'xychart') {
     return detectUnsupportedXyChartFeatures(source);
+  }
+  if (diagramType === 'sankey') {
+    return detectUnsupportedSankeyFeatures(source);
   }
   if (diagramType === 'state') return [];
   if (diagramType === 'er') return [];
@@ -473,6 +482,73 @@ function detectUnsupportedXyChartFeatures(source: string): UnsupportedFeature[] 
   return features;
 }
 
+function detectUnsupportedSankeyFeatures(source: string): UnsupportedFeature[] {
+  const features: UnsupportedFeature[] = [];
+  const records: { source: string; target: string; line: SourceLine }[] = [];
+  for (const line of linesWithRanges(source)) {
+    const trimmed = line.text.trim();
+    if (!trimmed || trimmed.startsWith('%%') || /^sankey(?:-beta)?\b/i.test(trimmed)) continue;
+    if (/^(?:---|config:|sankey:|accTitle:|accDescr:)/i.test(trimmed)) {
+      features.push(unsupportedSyntax('sankey.advanced', line, 'Sankey configuration directives are not supported yet.', 'error'));
+      continue;
+    }
+    const fields = parseSankeyCsvRecord(line.text);
+    if (!fields || fields.length !== 3 || !fields[0] || !fields[1]) {
+      features.push(unsupportedSyntax('sankey.invalidCsv', line, 'Sankey rows must be valid three-column source,target,value CSV records.', 'error'));
+      continue;
+    }
+    const value = Number(fields[2]);
+    if (!Number.isFinite(value) || value <= 0) {
+      features.push(unsupportedSyntax('sankey.invalidValue', line, 'Sankey values must be finite positive numbers.', 'error'));
+      continue;
+    }
+    records.push({ source: fields[0], target: fields[1], line });
+  }
+  if (!features.some(feature => feature.id === 'sankey.invalidCsv') && sankeyHasCycle(records)) {
+    features.push(unsupportedSyntax('sankey.cycle', records[0]?.line ?? linesWithRanges(source)[0], 'Sankey diagrams cannot contain cycles.', 'error'));
+  }
+  return features;
+}
+
+function parseSankeyCsvRecord(line: string): string[] | null {
+  const fields: string[] = [];
+  let field = '';
+  let quoted = false;
+  for (let index = 0; index < line.trim().length; index += 1) {
+    const character = line.trim()[index];
+    if (character === '"' && quoted && line.trim()[index + 1] === '"') {
+      field += '"';
+      index += 1;
+    } else if (character === '"') {
+      quoted = !quoted;
+    } else if (character === ',' && !quoted) {
+      fields.push(field.trim());
+      field = '';
+    } else {
+      field += character;
+    }
+  }
+  if (quoted) return null;
+  fields.push(field.trim());
+  return fields;
+}
+
+function sankeyHasCycle(records: { source: string; target: string }[]): boolean {
+  const graph = new Map<string, string[]>();
+  for (const record of records) graph.set(record.source, [...(graph.get(record.source) ?? []), record.target]);
+  const states = new Map<string, 0 | 1 | 2>();
+  const visit = (node: string): boolean => {
+    const state = states.get(node) ?? 0;
+    if (state === 1) return true;
+    if (state === 2) return false;
+    states.set(node, 1);
+    if ((graph.get(node) ?? []).some(visit)) return true;
+    states.set(node, 2);
+    return false;
+  };
+  return [...graph.keys()].some(visit);
+}
+
 function collectSubgraphIds(lines: SourceLine[]): Set<string> {
   const ids = new Set<string>();
   for (const line of lines) {
@@ -584,6 +660,7 @@ function partialRequirement(): DiagramSupportEntry { return { diagramType: 'requ
 function partialGitGraph(): DiagramSupportEntry { return { diagramType: 'gitgraph', status: 'partial', supportedSyntax: [{ id: 'gitgraph.commit', label: 'commits with ids, tags, and types', status: 'supported' }, { id: 'gitgraph.branch-merge', label: 'branch, checkout, and merge history', status: 'supported' }], unsupportedSyntax: [{ id: 'gitgraph.advanced', label: 'cherry-pick, custom branch ordering, and advanced commit options', status: 'unsupported' }] }; }
 function partialC4(): DiagramSupportEntry { return { diagramType: 'c4', status: 'partial', supportedSyntax: [{ id: 'c4.element', label: 'people, systems, containers, components, and external elements', status: 'supported' }, { id: 'c4.relationship', label: 'labeled directional relationships', status: 'supported' }], unsupportedSyntax: [{ id: 'c4.advanced', label: 'boundaries, deployment nodes, styling, and advanced relationship macros', status: 'unsupported' }] }; }
 function partialZenUml(): DiagramSupportEntry { return { diagramType: 'zenuml', status: 'partial', supportedSyntax: [{ id: 'zenuml.call', label: 'labeled direct calls', status: 'supported' }, { id: 'zenuml.return', label: 'labeled returns', status: 'supported' }], unsupportedSyntax: [{ id: 'zenuml.advanced', label: 'blocks, declarations, async messages, and advanced control syntax', status: 'unsupported' }] }; }
+function partialSankey(): DiagramSupportEntry { return { diagramType: 'sankey', status: 'partial', supportedSyntax: [{ id: 'sankey.csv', label: 'three-column weighted CSV records', status: 'supported' }, { id: 'sankey.dag', label: 'acyclic weighted flows', status: 'supported' }], unsupportedSyntax: [{ id: 'sankey.invalidCsv', label: 'malformed CSV and non-three-column records', status: 'unsupported' }, { id: 'sankey.invalidValue', label: 'zero, negative, and non-finite weights', status: 'unsupported' }, { id: 'sankey.cycle', label: 'cyclic flow graphs', status: 'unsupported' }, { id: 'sankey.advanced', label: 'diagram configuration and custom node styling', status: 'unsupported' }] }; }
 function partialXyChart(): DiagramSupportEntry { return { diagramType: 'xychart', status: 'partial', supportedSyntax: [{ id: 'xychart.categorical-axis', label: 'categorical x-axis labels and numeric y-axis ranges', status: 'supported' }, { id: 'xychart.bar-line-series', label: 'ordered bar and line series', status: 'supported' }], unsupportedSyntax: [{ id: 'xychart.numericXAxis', label: 'numeric x-axis ranges', status: 'unsupported' }, { id: 'xychart.horizontal', label: 'horizontal XY chart orientation', status: 'unsupported' }, { id: 'xychart.advanced', label: 'advanced directives and custom chart configuration', status: 'unsupported' }] }; }
 
 function cloneEntry(entry: DiagramSupportEntry): DiagramSupportEntry {
