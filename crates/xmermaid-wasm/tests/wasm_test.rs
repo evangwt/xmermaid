@@ -40,6 +40,7 @@ fn test_get_diagram_type_flowchart() {
         DiagramAst::Architecture(_) => "architecture",
         DiagramAst::Block(_) => "block",
         DiagramAst::Kanban(_) => "kanban",
+        DiagramAst::Treemap(_) => "treemap",
     };
     assert_eq!(type_str, "flowchart");
 }
@@ -68,6 +69,12 @@ fn test_parse_dsl_sankey() {
 fn test_parse_dsl_quadrant() {
     let ast = xmermaid_parser::parse("quadrantChart\n  A: [0.25, 0.75]").unwrap();
     assert!(matches!(ast, DiagramAst::Quadrant(_)));
+}
+
+#[test]
+fn test_parse_dsl_treemap() {
+    let ast = xmermaid_parser::parse("treemap-beta\n\"Category A\"\n    \"Item A1\": 10\n    \"Item A2\": 20").unwrap();
+    assert!(matches!(ast, DiagramAst::Treemap(_)));
 }
 
 #[test]
