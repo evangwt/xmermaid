@@ -47,6 +47,20 @@ fn sankey_layout_stacks_weighted_bands_between_columns() {
 }
 
 #[test]
+fn quadrant_layout_maps_unit_points_into_the_correct_plot_quadrants() {
+    let ast = parse("quadrantChart\n A: [0.25, 0.75]\n B: [0.75, 0.25]").unwrap();
+    let layout = compute_layout(&ast, &LayoutConfig::default());
+    let chart = layout.quadrant_chart.expect("quadrant chart layout");
+    let center_x = chart.plot.x + chart.plot.width / 2.0;
+    let center_y = chart.plot.y + chart.plot.height / 2.0;
+
+    assert!(chart.points[0].center.x < center_x && chart.points[0].center.y < center_y);
+    assert!(chart.points[1].center.x > center_x && chart.points[1].center.y > center_y);
+    assert!(layout.nodes.is_empty());
+    assert!(layout.edges.is_empty());
+}
+
+#[test]
 fn test_layout_chain_three_nodes() {
     let ast = parse("graph TD\n  A-->B\n  B-->C").unwrap();
     let config = config_for_ast(&ast);

@@ -75,5 +75,6 @@ pub fn layout(chart: &SankeyAst, config: &LayoutConfig) -> LayoutResult {
         dimensions: Dimensions { width: CHART_WIDTH + config.padding * 2.0, height: CHART_HEIGHT + config.padding * 2.0 },
         pie_slices: vec![], xy_chart: None,
         sankey: Some(SankeyLayout { nodes, links }),
+        quadrant_chart: None,
     }
 }
