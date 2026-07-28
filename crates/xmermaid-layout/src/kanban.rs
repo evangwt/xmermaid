@@ -22,6 +22,6 @@ pub fn layout(board: &KanbanAst, config: &LayoutConfig) -> LayoutResult {
         nodes: vec![], edges: vec![],
         dimensions: Dimensions { width: board.columns.len() as f64 * COLUMN_WIDTH + board.columns.len().saturating_sub(1) as f64 * GAP + config.padding * 2.0, height: content_height + config.padding * 2.0 },
         pie_slices: vec![], xy_chart: None, sankey: None, quadrant_chart: None, block_diagram: None,
-        kanban_board: Some(KanbanBoardLayout { columns }), treemap: None, radar: None,
+        kanban_board: Some(KanbanBoardLayout { columns }), treemap: None, radar: None, packet: None,
     }
 }

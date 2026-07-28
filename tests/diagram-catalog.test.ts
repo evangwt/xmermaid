@@ -23,6 +23,7 @@ describe('Mermaid 11.16.0 diagram catalog', () => {
     ['stateDiagram-v2\n[*] --> Ready', 'state'],
     ['erDiagram\nUSER ||--o{ ORDER : places', 'er'],
     ['architecture-beta\nservice api(server)', 'architecture'],
+    ['packet\n+16: "Source Port"', 'packet'],
     ['treemap-beta\nroot', 'treemap'],
   ])('detects %s as %s', (source, type) => {
     expect(detectDiagramType(source)).toBe(type);

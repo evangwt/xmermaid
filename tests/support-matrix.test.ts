@@ -31,7 +31,7 @@ describe('support matrix production contract', () => {
     ]));
     expect(matrix.entries).toHaveLength(30);
     expect(matrix.entries.find(item => item.diagramType === 'sequence')?.status).toBe('partial');
-    expect(matrix.entries.filter(item => !['flowchart', 'sequence', 'class', 'state', 'er', 'user-journey', 'gantt', 'pie', 'quadrant', 'mindmap', 'timeline', 'requirement', 'gitgraph', 'c4', 'zenuml', 'sankey', 'xychart', 'architecture', 'block', 'kanban', 'treemap', 'radar'].includes(item.diagramType)).every(item => item.status === 'planned')).toBe(true);
+    expect(matrix.entries.filter(item => !['flowchart', 'sequence', 'class', 'state', 'er', 'user-journey', 'gantt', 'pie', 'quadrant', 'mindmap', 'timeline', 'requirement', 'gitgraph', 'c4', 'zenuml', 'sankey', 'xychart', 'architecture', 'block', 'packet', 'kanban', 'treemap', 'radar'].includes(item.diagramType)).every(item => item.status === 'planned')).toBe(true);
   });
 
   it('reports flowchart, sequence, Sankey, and Quadrant sources as partial while planned diagrams stay explicit', () => {
@@ -92,6 +92,11 @@ describe('support matrix production contract', () => {
     });
     expect(analyzeSupport('radar-beta\n  axis food["Food Quality"], service["Service"], price["Price"]\n  curve a["Restaurant A"]{4, 3, 2}\n  min 0\n  max 5')).toMatchObject({
       diagramType: 'radar',
+      status: 'partial',
+      unsupportedFeatures: [],
+    });
+    expect(analyzeSupport('packet\n  +16: "Source Port"\n  16-31: "Destination Port"')).toMatchObject({
+      diagramType: 'packet',
       status: 'partial',
       unsupportedFeatures: [],
     });
@@ -251,6 +256,17 @@ describe('support matrix production contract', () => {
       unsupportedFeatures: expect.arrayContaining([
         expect.objectContaining({ id: 'radar.advanced', severity: 'error', range: expect.objectContaining({ startLine: 4 }) }),
         expect.objectContaining({ id: 'radar.advanced', severity: 'error', range: expect.objectContaining({ startLine: 5 }) }),
+      ]),
+    });
+  });
+
+  it('blocks Packet styling and configuration outside the native bit-field subset', () => {
+    expect(analyzeSupport('packet\n---\nconfig:\n  bitsPerRow: 16\n+16: "Source Port":::accent\nclassDef accent fill:#7c3aed')).toMatchObject({
+      diagramType: 'packet',
+      status: 'partial',
+      unsupportedFeatures: expect.arrayContaining([
+        expect.objectContaining({ id: 'packet.advanced', severity: 'error', range: expect.objectContaining({ startLine: 2 }) }),
+        expect.objectContaining({ id: 'packet.advanced', severity: 'error', range: expect.objectContaining({ startLine: 5 }) }),
       ]),
     });
   });
