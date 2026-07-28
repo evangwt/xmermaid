@@ -25,6 +25,7 @@ fn test_get_diagram_type_flowchart() {
         DiagramAst::Class(_) => "class",
         DiagramAst::State(_) => "state",
         DiagramAst::Er(_) => "er",
+        DiagramAst::Gantt(_) => "gantt",
     };
     assert_eq!(type_str, "flowchart");
 }

@@ -5,6 +5,7 @@
 pub mod engine;
 pub mod error;
 pub mod flowchart;
+pub mod gantt;
 pub mod types;
 
 pub use engine::compute_layout;

@@ -127,6 +127,19 @@ fn test_parse_er_relationship_with_cardinality_and_label() {
 }
 
 #[test]
+fn test_parse_gantt_tasks_with_sections_and_durations() {
+    let ast = parse("gantt\n  title Release\n  section Build\n  Compile : 2026-07-28, 2d\n  Test : 2026-07-30, 1d").unwrap();
+    let json = serde_json::to_value(ast).unwrap();
+
+    assert_eq!(json["type"], "gantt");
+    assert_eq!(json["tasks"].as_array().map(Vec::len), Some(2));
+    assert_eq!(json["tasks"][0]["section"], "Build");
+    assert_eq!(json["tasks"][0]["label"], "Compile");
+    assert_eq!(json["tasks"][0]["start"], "2026-07-28");
+    assert_eq!(json["tasks"][0]["duration_days"], 2);
+}
+
+#[test]
 fn test_parse_flowchart_multiple_edges() {
     let input = "graph TD\n  A-->B\n  B-->C";
     let result = parse(input);

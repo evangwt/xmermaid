@@ -117,6 +117,19 @@ pub struct ErRelationship {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GanttAst {
+    pub tasks: Vec<GanttTask>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GanttTask {
+    pub section: String,
+    pub label: String,
+    pub start: String,
+    pub duration_days: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum DiagramAst {
     Flowchart(FlowchartAst),
@@ -124,4 +137,5 @@ pub enum DiagramAst {
     Class(ClassAst),
     State(StateAst),
     Er(ErAst),
+    Gantt(GanttAst),
 }

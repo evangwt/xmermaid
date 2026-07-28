@@ -98,4 +98,16 @@ export interface ErRelationship {
   label: string;
 }
 
-export type DiagramAst = FlowchartAst | SequenceAst | ClassAst | StateAst | ErAst;
+export interface GanttAst {
+  type: 'gantt';
+  tasks: GanttTask[];
+}
+
+export interface GanttTask {
+  section: string;
+  label: string;
+  start: string;
+  duration_days: number;
+}
+
+export type DiagramAst = FlowchartAst | SequenceAst | ClassAst | StateAst | ErAst | GanttAst;
