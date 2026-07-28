@@ -90,3 +90,21 @@ fn test_layout_gitgraph_commits_in_history_order() {
     assert_eq!(result.edges.len(), 3);
     assert!(zero.center.x < release.center.x);
 }
+
+#[test]
+fn test_layout_c4_context_relationships_from_left_to_right() {
+    let ast = parse(
+        "C4Context\n\
+  Person(customer, \"Customer\")\n\
+  System(banking, \"Internet Banking\")\n\
+  Rel(customer, banking, \"Uses\")",
+    )
+    .unwrap();
+    let result = compute_layout(&ast, &config_for_ast(&ast));
+    let customer = result.nodes.iter().find(|node| node.id == "customer").unwrap();
+    let banking = result.nodes.iter().find(|node| node.id == "banking").unwrap();
+
+    assert_eq!(result.nodes.len(), 2);
+    assert_eq!(result.edges[0].label.as_deref(), Some("Uses"));
+    assert!(customer.center.x < banking.center.x);
+}

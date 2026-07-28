@@ -31,7 +31,7 @@ describe('support matrix production contract', () => {
     ]));
     expect(matrix.entries).toHaveLength(30);
     expect(matrix.entries.find(item => item.diagramType === 'sequence')?.status).toBe('partial');
-    expect(matrix.entries.filter(item => !['flowchart', 'sequence', 'class', 'state', 'er', 'user-journey', 'gantt', 'pie', 'mindmap', 'timeline', 'requirement', 'gitgraph'].includes(item.diagramType)).every(item => item.status === 'planned')).toBe(true);
+    expect(matrix.entries.filter(item => !['flowchart', 'sequence', 'class', 'state', 'er', 'user-journey', 'gantt', 'pie', 'mindmap', 'timeline', 'requirement', 'gitgraph', 'c4'].includes(item.diagramType)).every(item => item.status === 'planned')).toBe(true);
   });
 
   it('reports flowchart and sequence sources as partial while planned diagrams stay explicit', () => {
@@ -124,6 +124,12 @@ describe('support matrix production contract', () => {
   it('reports GitGraph commits, branches, and merges as partial instead of planned', () => {
     expect(analyzeSupport('gitGraph\n  commit id: "ZERO"\n  branch develop\n  checkout develop\n  commit id: "FEATURE"\n  checkout main\n  merge develop id: "RELEASE"')).toMatchObject({
       diagramType: 'gitgraph', status: 'partial', unsupportedFeatures: [],
+    });
+  });
+
+  it('reports basic C4 elements and relationships as partial instead of planned', () => {
+    expect(analyzeSupport('C4Context\n  Person(customer, "Customer")\n  System(banking, "Internet Banking")\n  Rel(customer, banking, "Uses")')).toMatchObject({
+      diagramType: 'c4', status: 'partial', unsupportedFeatures: [],
     });
   });
 

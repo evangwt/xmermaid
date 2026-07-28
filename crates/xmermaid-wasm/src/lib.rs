@@ -49,6 +49,7 @@ pub fn get_diagram_type(ast_json: &str) -> Result<String, JsValue> {
         DiagramAst::Mindmap(_) => "mindmap",
         DiagramAst::Requirement(_) => "requirement",
         DiagramAst::GitGraph(_) => "gitgraph",
+        DiagramAst::C4(_) => "c4",
     };
 
     Ok(type_str.to_string())
@@ -200,5 +201,13 @@ mod tests {
         let ast_json = serde_json::to_string(&ast).unwrap();
 
         assert_eq!(get_diagram_type(&ast_json).unwrap(), "gitgraph");
+    }
+
+    #[test]
+    fn c4_diagrams_report_their_own_wasm_type() {
+        let ast = xmermaid_parser::parse("C4Context\n  Person(customer, \"Customer\")").unwrap();
+        let ast_json = serde_json::to_string(&ast).unwrap();
+
+        assert_eq!(get_diagram_type(&ast_json).unwrap(), "c4");
     }
 }

@@ -156,5 +156,23 @@ pub fn compute_layout(ast: &DiagramAst, config: &LayoutConfig) -> LayoutResult {
             cfg.direction = crate::types::FlowDirection::LR;
             flowchart::layout(&ast, &cfg)
         }
+        DiagramAst::C4(c4) => {
+            let ast = xmermaid_parser::ast::FlowchartAst {
+                direction: xmermaid_parser::ast::FlowDirection::LR,
+                nodes: c4.elements.iter().map(|element| {
+                    let label = element.description.as_ref().map(|description| format!("{}\n{}", element.label, description)).unwrap_or_else(|| element.label.clone());
+                    let shape = if element.kind.starts_with("Person") { xmermaid_parser::ast::NodeShape::Rounded } else if element.kind.ends_with("_Ext") { xmermaid_parser::ast::NodeShape::Hexagon } else { xmermaid_parser::ast::NodeShape::Rect };
+                    xmermaid_parser::ast::Node { id: element.id.clone(), label: Some(label), shape, classes: vec![], styles: vec![] }
+                }).collect(),
+                edges: c4.relationships.iter().map(|relationship| xmermaid_parser::ast::Edge {
+                    from: relationship.from.clone(), to: relationship.to.clone(), style: xmermaid_parser::ast::EdgeStyle::Arrow,
+                    label: Some(relationship.label.clone()), min_length: 1,
+                }).collect(),
+                subgraphs: vec![],
+            };
+            let mut cfg = config.clone();
+            cfg.direction = crate::types::FlowDirection::LR;
+            flowchart::layout(&ast, &cfg)
+        }
     }
 }

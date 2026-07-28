@@ -148,6 +148,9 @@ pub struct TimelineEntry { pub period: String, pub events: Vec<String> }
 #[derive(Debug, Clone, Serialize, Deserialize)] pub struct RequirementRelationship { pub from: String, pub to: String, pub label: String }
 #[derive(Debug, Clone, Serialize, Deserialize)] pub struct GitGraphAst { pub commits: Vec<GitCommit> }
 #[derive(Debug, Clone, Serialize, Deserialize)] pub struct GitCommit { pub id: String, pub branch: String, pub tag: Option<String>, pub commit_type: Option<String>, pub parents: Vec<String> }
+#[derive(Debug, Clone, Serialize, Deserialize)] pub struct C4Ast { pub diagram_kind: String, pub title: String, pub elements: Vec<C4Element>, pub relationships: Vec<C4Relationship> }
+#[derive(Debug, Clone, Serialize, Deserialize)] pub struct C4Element { pub kind: String, pub id: String, pub label: String, pub description: Option<String> }
+#[derive(Debug, Clone, Serialize, Deserialize)] pub struct C4Relationship { pub from: String, pub to: String, pub label: String }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
@@ -164,4 +167,5 @@ pub enum DiagramAst {
     Mindmap(MindmapAst),
     Requirement(RequirementAst),
     GitGraph(GitGraphAst),
+    C4(C4Ast),
 }
