@@ -1,7 +1,7 @@
 import type { LayoutConfig } from './layout';
 import type { Dimensions } from './layout';
 import type { RenderTheme } from './theme';
-import type { DiagramType } from '../support';
+import type { DetectedDiagramType } from '../support';
 import type { SecurityLevel, SecurityPolicy } from '../security';
 import type { XMermaidDiagnostic } from './diagnostics';
 
@@ -25,7 +25,7 @@ export interface RenderOptions {
 }
 
 export interface RenderResult {
-  diagramType: DiagramType;
+  diagramType: DetectedDiagramType;
   diagnostics: XMermaidDiagnostic[];
   dimensions: Dimensions;
   svg: SVGSVGElement;
