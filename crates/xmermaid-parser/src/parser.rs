@@ -291,6 +291,7 @@ impl<'a> Parser<'a> {
         for line in self.input.lines().skip(1) { let raw = line.trim_end(); if raw.trim().is_empty() { continue; }
             let depth = raw.len() - raw.trim_start().len(); let base = *base_indent.get_or_insert(depth); let level = (depth.saturating_sub(base)) / 2; let label = raw.trim();
             if level > parents.len() || label.is_empty() { return Err(ParseError::UnexpectedToken(format!("Invalid Mindmap indentation: {}", raw))); }
+            if label.contains(['(', ')', '[', ']', '{', '}']) { return Err(ParseError::UnexpectedToken(format!("Mindmap node shapes are not supported: {}", label))); }
             let id = format!("mindmap-{}", nodes.len()); let parent = if level == 0 { None } else { Some(parents[level - 1].clone()) };
             parents.truncate(level); parents.push(id.clone()); nodes.push(MindmapNode { id, label: label.to_string(), parent }); }
         if nodes.is_empty() { return Err(ParseError::EmptyInput); } Ok(DiagramAst::Mindmap(MindmapAst { nodes }))

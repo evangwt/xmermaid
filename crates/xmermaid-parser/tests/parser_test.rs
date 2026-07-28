@@ -161,6 +161,13 @@ fn test_parse_indented_mindmap_hierarchy() {
 }
 
 #[test]
+fn test_rejects_mindmap_shape_syntax_until_shapes_are_supported() {
+    let error = parse("mindmap\n  root(A)").unwrap_err();
+
+    assert!(format!("{error:?}").contains("Mindmap node shapes are not supported"));
+}
+
+#[test]
 fn test_parse_flowchart_multiple_edges() {
     let input = "graph TD\n  A-->B\n  B-->C";
     let result = parse(input);

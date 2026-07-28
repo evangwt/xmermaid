@@ -1051,13 +1051,19 @@ fn test_falsify_gantt_diagram() {
 }
 
 #[test]
-fn test_falsify_pie_diagram() {
-    assert!(parse("pie title A\n  \"B\": 1").is_err());
+fn test_pie_diagram_basic_subset() {
+    assert!(matches!(
+        parse("pie title A\n  \"B\": 1"),
+        Ok(DiagramAst::Pie(_))
+    ));
 }
 
 #[test]
-fn test_falsify_mindmap() {
-    assert!(parse("mindmap\n  root(A)").is_err());
+fn test_mindmap_diagram_basic_subset() {
+    assert!(matches!(
+        parse("mindmap\n  Root\n    Child"),
+        Ok(DiagramAst::Mindmap(_))
+    ));
 }
 
 // ============================================================
