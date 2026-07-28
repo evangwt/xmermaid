@@ -30,10 +30,11 @@ describe('support matrix production contract', () => {
       'flowchart.hyphenatedNodeId',
     ]));
     expect(matrix.entries).toHaveLength(30);
-    expect(matrix.entries.filter(item => item.diagramType !== 'flowchart').every(item => item.status === 'planned')).toBe(true);
+    expect(matrix.entries.find(item => item.diagramType === 'sequence')?.status).toBe('partial');
+    expect(matrix.entries.filter(item => item.diagramType !== 'flowchart' && item.diagramType !== 'sequence').every(item => item.status === 'planned')).toBe(true);
   });
 
-  it('reports flowchart sources as partial and planned diagrams explicitly', () => {
+  it('reports flowchart and sequence sources as partial while planned diagrams stay explicit', () => {
     expect(getSupportMatrix().mermaidVersion).toBe('11.16.0');
     expect(analyzeSupport('graph TD\n  A-->B')).toMatchObject({
       diagramType: 'flowchart',
@@ -43,24 +44,27 @@ describe('support matrix production contract', () => {
 
     expect(analyzeSupport('sequenceDiagram\n  A->>B: Hi')).toMatchObject({
       diagramType: 'sequence',
-      status: 'planned',
-      unsupportedFeatures: [
-        expect.objectContaining({
-          id: 'diagram.sequence',
-          severity: 'error',
-          range: expect.objectContaining({
-            startLine: 1,
-            startColumn: 1,
-            endLine: 1,
-            endColumn: 16,
-          }),
-        }),
-      ],
+      status: 'partial',
+      unsupportedFeatures: [],
     });
 
     expect(analyzeSupport('architecture-beta\nservice api(server)')).toMatchObject({
       diagramType: 'architecture',
       status: 'planned',
+    });
+  });
+
+  it('surfaces unsupported sequence control syntax before the WASM render path', () => {
+    expect(analyzeSupport('sequenceDiagram\n  activate Alice\n  Alice->>Bob: Hi')).toMatchObject({
+      diagramType: 'sequence',
+      status: 'partial',
+      unsupportedFeatures: [
+        expect.objectContaining({
+          id: 'sequence.advanced',
+          severity: 'error',
+          range: expect.objectContaining({ startLine: 2, startColumn: 3 }),
+        }),
+      ],
     });
   });
 

@@ -143,10 +143,19 @@ fn test_layout_preserves_edge_styles() {
 
     use xmermaid_layout::types::EdgeStyle;
     let styles: Vec<_> = layout.edges.iter().map(|e| e.style).collect();
-    assert!(styles.contains(&EdgeStyle::Arrow), "Should have Arrow style");
+    assert!(
+        styles.contains(&EdgeStyle::Arrow),
+        "Should have Arrow style"
+    );
     assert!(styles.contains(&EdgeStyle::Line), "Should have Line style");
-    assert!(styles.contains(&EdgeStyle::Dotted), "Should have Dotted style");
-    assert!(styles.contains(&EdgeStyle::Thick), "Should have Thick style");
+    assert!(
+        styles.contains(&EdgeStyle::Dotted),
+        "Should have Dotted style"
+    );
+    assert!(
+        styles.contains(&EdgeStyle::Thick),
+        "Should have Thick style"
+    );
 }
 
 // ─── Layout JSON serialization round-trips ───────────────────────
@@ -178,11 +187,23 @@ fn test_layout_edge_geometry_contract_roundtrip() {
     let edge = layout.edges.first().expect("expected one edge");
 
     assert_eq!(edge.geometry_version, 2);
-    assert!(edge.source_boundary.is_some(), "source boundary should be explicit");
-    assert!(edge.target_boundary.is_some(), "target boundary should be explicit");
+    assert!(
+        edge.source_boundary.is_some(),
+        "source boundary should be explicit"
+    );
+    assert!(
+        edge.target_boundary.is_some(),
+        "target boundary should be explicit"
+    );
     assert!(edge.path_end.is_some(), "path end should be explicit");
-    assert!(edge.final_tangent_angle.is_some(), "final tangent angle should be explicit");
-    assert_eq!(edge.path_end, edge.target_boundary, "geometry v2 must not bake marker size into layout");
+    assert!(
+        edge.final_tangent_angle.is_some(),
+        "final tangent angle should be explicit"
+    );
+    assert_eq!(
+        edge.path_end, edge.target_boundary,
+        "geometry v2 must not bake marker size into layout"
+    );
     assert_eq!(edge.label_anchor, edge.label_position);
 
     let json = serde_json::to_value(&layout).unwrap();
@@ -274,13 +295,13 @@ fn test_error_propagation_invalid_dsl() {
 }
 
 #[test]
-fn test_non_flowchart_returns_empty() {
+fn test_sequence_without_messages_positions_participants() {
     let ast = DiagramAst::Sequence(xmermaid_parser::ast::SequenceAst {
         participants: vec!["A".to_string()],
+        messages: vec![],
     });
     let config = config_for_ast(&ast);
     let result = compute_layout(&ast, &config);
-    // Unsupported types return empty LayoutResult
-    assert_eq!(result.nodes.len(), 0);
+    assert_eq!(result.nodes.len(), 1);
     assert_eq!(result.edges.len(), 0);
 }

@@ -4,6 +4,7 @@ use crate::lexer::Lexer;
 use crate::token::{Token, TokenType};
 
 pub struct Parser<'a> {
+    input: &'a str,
     tokens: Vec<Token>,
     pos: usize,
     _input: std::marker::PhantomData<&'a str>,
@@ -13,7 +14,12 @@ impl<'a> Parser<'a> {
     pub fn new(input: &'a str) -> Self {
         let lexer = Lexer::new(input);
         let mut tokens: Vec<Token> = lexer.collect();
-        if tokens.is_empty() || tokens.last().map(|t| t.ty != TokenType::Eof).unwrap_or(true) {
+        if tokens.is_empty()
+            || tokens
+                .last()
+                .map(|t| t.ty != TokenType::Eof)
+                .unwrap_or(true)
+        {
             tokens.push(Token {
                 ty: TokenType::Eof,
                 value: String::new(),
@@ -21,6 +27,7 @@ impl<'a> Parser<'a> {
             });
         }
         Self {
+            input,
             tokens,
             pos: 0,
             _input: std::marker::PhantomData,
@@ -51,12 +58,67 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse(&mut self) -> Result<DiagramAst, ParseError> {
+        if self.input.trim_start().starts_with("sequenceDiagram") {
+            return self.parse_sequence();
+        }
         let keyword = self.expect(TokenType::Keyword)?;
 
         match keyword.as_str() {
             "graph" | "flowchart" => self.parse_flowchart(),
             _ => Err(ParseError::UnsupportedDiagramType(keyword)),
         }
+    }
+
+    fn parse_sequence(&self) -> Result<DiagramAst, ParseError> {
+        let mut participants = Vec::new();
+        let mut messages = Vec::new();
+        for line in self.input.lines().skip(1) {
+            let statement = line.trim();
+            if statement.is_empty() || statement.starts_with("%%") {
+                continue;
+            }
+            let (from, rest) = statement
+                .split_once("-->>")
+                .or_else(|| statement.split_once("->>"))
+                .or_else(|| statement.split_once("-->"))
+                .ok_or_else(|| {
+                    ParseError::UnexpectedToken(format!(
+                        "Invalid sequence statement: {}",
+                        statement
+                    ))
+                })?;
+            let (to, label) = rest.split_once(':').ok_or_else(|| {
+                ParseError::UnexpectedToken(format!(
+                    "Sequence messages require a label: {}",
+                    statement
+                ))
+            })?;
+            let (from, to, label) = (from.trim(), to.trim(), label.trim());
+            if from.is_empty() || to.is_empty() || label.is_empty() {
+                return Err(ParseError::UnexpectedToken(format!(
+                    "Invalid sequence statement: {}",
+                    statement
+                )));
+            }
+            if !participants.iter().any(|participant| participant == from) {
+                participants.push(from.to_string());
+            }
+            if !participants.iter().any(|participant| participant == to) {
+                participants.push(to.to_string());
+            }
+            messages.push(SequenceMessage {
+                from: from.to_string(),
+                to: to.to_string(),
+                label: label.to_string(),
+            });
+        }
+        if participants.is_empty() {
+            return Err(ParseError::EmptyInput);
+        }
+        Ok(DiagramAst::Sequence(SequenceAst {
+            participants,
+            messages,
+        }))
     }
 
     fn parse_flowchart(&mut self) -> Result<DiagramAst, ParseError> {
@@ -84,7 +146,8 @@ impl<'a> Parser<'a> {
                 TokenType::Keyword => {
                     match self.current().value.as_str() {
                         "subgraph" => {
-                            let sg = self.parse_subgraph(&mut nodes, &mut edges, &mut seen_nodes)?;
+                            let sg =
+                                self.parse_subgraph(&mut nodes, &mut edges, &mut seen_nodes)?;
                             subgraphs.push(sg);
                         }
                         "classDef" | "class" | "style" | "click" => {
@@ -157,7 +220,11 @@ impl<'a> Parser<'a> {
                     self.advance();
                 }
                 // If bracketed label exists, use it as title; otherwise use id
-                if label.is_empty() { id } else { label }
+                if label.is_empty() {
+                    id
+                } else {
+                    label
+                }
             } else {
                 id
             }
@@ -266,7 +333,7 @@ impl<'a> Parser<'a> {
         // Asymmetric shape: >text] — in Mermaid, > opens and ] closes
         if self.current().ty == TokenType::AngleClose {
             self.advance(); // consume >
-            // Read label content until ]
+                            // Read label content until ]
             let label = if self.current().ty == TokenType::Label {
                 let v = self.current().value.clone();
                 self.advance();
@@ -283,9 +350,9 @@ impl<'a> Parser<'a> {
         // Parallelogram: [/text/]
         if self.current().ty == TokenType::BracketOpen {
             self.advance(); // consume [
-            // The lexer enters InLabel(']') after [, so the next token is either
-            // a Label (content inside brackets) or BracketClose (empty brackets).
-            // We inspect the label content for [/.../], [\...\], [[...]] patterns.
+                            // The lexer enters InLabel(']') after [, so the next token is either
+                            // a Label (content inside brackets) or BracketClose (empty brackets).
+                            // We inspect the label content for [/.../], [\...\], [[...]] patterns.
             if self.current().ty == TokenType::Label {
                 let label_val = self.current().value.clone();
                 // Check for parallelogram: label starts with /
@@ -294,14 +361,18 @@ impl<'a> Parser<'a> {
                     let inner_label = label_val[1..].trim().to_string();
                     // Check for trailing /
                     let inner_label = if inner_label.ends_with('/') {
-                        inner_label[..inner_label.len()-1].trim().to_string()
+                        inner_label[..inner_label.len() - 1].trim().to_string()
                     } else {
                         inner_label
                     };
                     if self.current().ty == TokenType::BracketClose {
                         self.advance();
                     }
-                    let label = if inner_label.is_empty() { None } else { Some(inner_label) };
+                    let label = if inner_label.is_empty() {
+                        None
+                    } else {
+                        Some(inner_label)
+                    };
                     return (NodeShape::Parallelogram, label);
                 }
                 // Check for trapezoid: label starts with \
@@ -310,14 +381,18 @@ impl<'a> Parser<'a> {
                     let inner_label = label_val[1..].trim().to_string();
                     // Check for trailing \
                     let inner_label = if inner_label.ends_with('\\') {
-                        inner_label[..inner_label.len()-1].trim().to_string()
+                        inner_label[..inner_label.len() - 1].trim().to_string()
                     } else {
                         inner_label
                     };
                     if self.current().ty == TokenType::BracketClose {
                         self.advance();
                     }
-                    let label = if inner_label.is_empty() { None } else { Some(inner_label) };
+                    let label = if inner_label.is_empty() {
+                        None
+                    } else {
+                        Some(inner_label)
+                    };
                     return (NodeShape::Trapezoid, label);
                 }
                 // Check for subroutine: label starts with [
@@ -332,12 +407,20 @@ impl<'a> Parser<'a> {
                     if self.current().ty == TokenType::BracketClose {
                         self.advance(); // second ]
                     }
-                    let label = if inner_label.is_empty() { None } else { Some(inner_label) };
+                    let label = if inner_label.is_empty() {
+                        None
+                    } else {
+                        Some(inner_label)
+                    };
                     return (NodeShape::Subroutine, label);
                 }
                 // Regular rect: [text]
                 self.advance(); // consume the Label token
-                let label = if label_val.is_empty() { None } else { Some(label_val) };
+                let label = if label_val.is_empty() {
+                    None
+                } else {
+                    Some(label_val)
+                };
                 if self.current().ty == TokenType::BracketClose {
                     self.advance();
                 }
@@ -363,7 +446,11 @@ impl<'a> Parser<'a> {
                 // Count leading ( chars in label value
                 paren_depth = v.chars().take_while(|c| *c == '(').count();
                 let trimmed = v[paren_depth..].trim().to_string();
-                if trimmed.is_empty() { None } else { Some(trimmed) }
+                if trimmed.is_empty() {
+                    None
+                } else {
+                    Some(trimmed)
+                }
             } else {
                 None
             };
@@ -393,7 +480,11 @@ impl<'a> Parser<'a> {
                 self.advance();
                 brace_depth = v.chars().take_while(|c| *c == '{').count();
                 let trimmed = v[brace_depth..].trim().to_string();
-                if trimmed.is_empty() { None } else { Some(trimmed) }
+                if trimmed.is_empty() {
+                    None
+                } else {
+                    Some(trimmed)
+                }
             } else {
                 None
             };
@@ -488,7 +579,13 @@ impl<'a> Parser<'a> {
             let target_id = self.expect(TokenType::NodeId)?;
             let (target_shape, target_label) = self.parse_node_shape_and_label();
 
-            Self::add_node_if_new(nodes, seen_nodes, target_id.clone(), target_label, target_shape);
+            Self::add_node_if_new(
+                nodes,
+                seen_nodes,
+                target_id.clone(),
+                target_label,
+                target_shape,
+            );
 
             edges.push(Edge {
                 from: current_id,
@@ -523,8 +620,8 @@ pub fn parse_input(input: &str) -> Result<DiagramAst, ParseError> {
 
 #[cfg(test)]
 mod tests {
-    use crate::parse;
     use super::*;
+    use crate::parse;
 
     #[test]
     fn test_parse_simple_flowchart() {

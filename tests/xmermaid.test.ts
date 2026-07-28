@@ -141,26 +141,12 @@ describe('XMermaid', () => {
       });
   });
 
-  it('rejects unsupported diagrams before WASM render with structured diagnostics', async () => {
+  it('renders the partial sequence subset through the WASM pipeline', async () => {
     const container = document.createElement('div');
     const xm = new XMermaid({ container });
 
     await expect(xm.renderToSVGElement('sequenceDiagram\n  A->>B: Hi'))
-      .rejects.toMatchObject<XMermaidError>({
-        code: 'UNSUPPORTED_DIAGRAM',
-        diagnostics: [
-          expect.objectContaining({
-            code: 'unsupported_diagram_type',
-            severity: 'error',
-            featureId: 'diagram.sequence',
-            range: expect.objectContaining({
-              startLine: 1,
-              startColumn: 1,
-              endLine: 1,
-            }),
-          }),
-        ],
-      });
+      .resolves.toMatchObject({ diagramType: 'sequence', diagnostics: [] });
   });
 
   it('rejects unknown diagram sources before WASM render with structured diagnostics', async () => {
@@ -463,7 +449,7 @@ describe('XMermaid', () => {
     }
   });
 
-  it('exposes structured diagnostics on DOM scan render failures', async () => {
+  it('renders partial sequence diagrams during DOM scans', async () => {
     document.body.innerHTML = '<div class="mermaid">sequenceDiagram\n  A->>B: Hi</div>';
     const container = document.createElement('div');
 
@@ -471,16 +457,8 @@ describe('XMermaid', () => {
       await XMermaid.run({ container });
 
       const element = document.querySelector<HTMLElement>('.mermaid')!;
-      const diagnostics = JSON.parse(element.dataset.xmermaidDiagnostics ?? '[]');
-      expect(element.dataset.xmermaidErrorCode).toBe('UNSUPPORTED_DIAGRAM');
-      expect(diagnostics).toEqual([
-        expect.objectContaining({
-          code: 'unsupported_diagram_type',
-          severity: 'error',
-          featureId: 'diagram.sequence',
-        }),
-      ]);
-      expect(element.textContent).toContain('sequence diagrams are not supported yet.');
+      expect(element.dataset.xmermaidErrorCode).toBeUndefined();
+      expect(element.querySelector('svg')).not.toBeNull();
     } finally {
       document.body.innerHTML = '';
     }

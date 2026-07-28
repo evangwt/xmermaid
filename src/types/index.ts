@@ -2,6 +2,7 @@ export type {
   DiagramAst,
   FlowchartAst,
   SequenceAst,
+  SequenceMessage,
   EdgeStyle,
   FlowchartNode,
   FlowchartEdge,
