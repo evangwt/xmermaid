@@ -140,6 +140,8 @@ const SUPPORT_MATRIX: SupportMatrix = {
                 ? partialGantt()
                 : diagramType === 'pie'
                   ? partialPie()
+                  : diagramType === 'mindmap'
+                    ? partialMindmap()
           : planned(diagramType)),
   ],
 };
@@ -192,6 +194,7 @@ export function detectUnsupportedFeatures(source: string): UnsupportedFeature[] 
   if (diagramType === 'er') return [];
   if (diagramType === 'gantt') return [];
   if (diagramType === 'pie') return [];
+  if (diagramType === 'mindmap') return [];
   if (diagramType !== 'flowchart') {
     return [unsupportedDiagramFeature(source, diagramType)];
   }
@@ -485,6 +488,7 @@ function partialGantt(): DiagramSupportEntry {
   ] };
 }
 function partialPie(): DiagramSupportEntry { return { diagramType: 'pie', status: 'partial', supportedSyntax: [{ id: 'pie.value', label: 'numeric labeled slices', status: 'supported' }], unsupportedSyntax: [{ id: 'pie.advanced', label: 'showData, custom theme, and advanced formatting', status: 'unsupported' }] }; }
+function partialMindmap(): DiagramSupportEntry { return { diagramType: 'mindmap', status: 'partial', supportedSyntax: [{ id: 'mindmap.indent', label: 'space-indented hierarchy', status: 'supported' }], unsupportedSyntax: [{ id: 'mindmap.advanced', label: 'markdown, icons, and custom shapes', status: 'unsupported' }] }; }
 
 function cloneEntry(entry: DiagramSupportEntry): DiagramSupportEntry {
   return {

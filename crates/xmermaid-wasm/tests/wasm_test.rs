@@ -27,6 +27,7 @@ fn test_get_diagram_type_flowchart() {
         DiagramAst::Er(_) => "er",
         DiagramAst::Gantt(_) => "gantt",
         DiagramAst::Pie(_) => "pie",
+        DiagramAst::Mindmap(_) => "mindmap",
     };
     assert_eq!(type_str, "flowchart");
 }

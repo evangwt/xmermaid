@@ -105,5 +105,8 @@ pub fn compute_layout(ast: &DiagramAst, config: &LayoutConfig) -> LayoutResult {
         }
         DiagramAst::Gantt(gantt_ast) => gantt::layout(gantt_ast, config),
         DiagramAst::Pie(pie_ast) => crate::pie::layout(pie_ast, config),
+        DiagramAst::Mindmap(mindmap) => {
+            let ast = xmermaid_parser::ast::FlowchartAst { direction: xmermaid_parser::ast::FlowDirection::LR, nodes: mindmap.nodes.iter().map(|node| xmermaid_parser::ast::Node { id: node.id.clone(), label: Some(node.label.clone()), shape: xmermaid_parser::ast::NodeShape::Rounded, classes: vec![], styles: vec![] }).collect(), edges: mindmap.nodes.iter().filter_map(|node| node.parent.as_ref().map(|parent| xmermaid_parser::ast::Edge { from: parent.clone(), to: node.id.clone(), style: xmermaid_parser::ast::EdgeStyle::Arrow, label: None, min_length: 1 })).collect(), subgraphs: vec![] }; let mut cfg = config.clone(); cfg.direction = crate::types::FlowDirection::LR; flowchart::layout(&ast, &cfg)
+        }
     }
 }

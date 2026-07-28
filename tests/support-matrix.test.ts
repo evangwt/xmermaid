@@ -31,7 +31,7 @@ describe('support matrix production contract', () => {
     ]));
     expect(matrix.entries).toHaveLength(30);
     expect(matrix.entries.find(item => item.diagramType === 'sequence')?.status).toBe('partial');
-    expect(matrix.entries.filter(item => !['flowchart', 'sequence', 'class', 'state', 'er', 'gantt', 'pie'].includes(item.diagramType)).every(item => item.status === 'planned')).toBe(true);
+    expect(matrix.entries.filter(item => !['flowchart', 'sequence', 'class', 'state', 'er', 'gantt', 'pie', 'mindmap'].includes(item.diagramType)).every(item => item.status === 'planned')).toBe(true);
   });
 
   it('reports flowchart and sequence sources as partial while planned diagrams stay explicit', () => {
@@ -100,6 +100,9 @@ describe('support matrix production contract', () => {
     expect(analyzeSupport('pie title Deployment\n  "Passed" : 80\n  "Failed" : 20')).toMatchObject({
       diagramType: 'pie', status: 'partial', unsupportedFeatures: [],
     });
+  });
+  it('reports indented Mindmap nodes as partial instead of planned', () => {
+    expect(analyzeSupport('mindmap\n  Root\n    Child')).toMatchObject({ diagramType: 'mindmap', status: 'partial', unsupportedFeatures: [] });
   });
 
   it('reports unknown sources as unsupported with a structured diagram feature', () => {
