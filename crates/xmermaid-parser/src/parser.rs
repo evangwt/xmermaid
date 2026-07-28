@@ -85,6 +85,7 @@ impl<'a> Parser<'a> {
         if self.input.trim_start().starts_with("radar-beta") { return self.parse_radar(); }
         if self.input.trim_start().starts_with("packet") { return self.parse_packet(); }
         if self.input.trim_start().starts_with("venn-beta") { return self.parse_venn(); }
+        if self.input.trim_start().starts_with("swimlane-beta") { return self.parse_swimlanes(); }
         let keyword = self.expect(TokenType::Keyword)?;
 
         match keyword.as_str() {
@@ -896,6 +897,40 @@ impl<'a> Parser<'a> {
         Ok(DiagramAst::Venn(VennAst { title, sets, unions }))
     }
 
+    fn parse_swimlanes(&self) -> Result<DiagramAst, ParseError> {
+        let mut lines = self.input.lines().filter(|line| !line.trim().is_empty() && !line.trim_start().starts_with("%%"));
+        let header = lines.next().map(str::trim).ok_or(ParseError::EmptyInput)?;
+        let direction = match header.strip_prefix("swimlane-beta").map(str::trim) {
+            Some("") | Some("TD") | Some("TB") => FlowDirection::TD,
+            Some("BT") => FlowDirection::BT,
+            Some("LR") => FlowDirection::LR,
+            Some("RL") => FlowDirection::RL,
+            _ => return Err(ParseError::UnexpectedToken("Swimlane diagrams must start with swimlane-beta followed by an optional direction.".to_string())),
+        };
+        let (mut lanes, mut nodes, mut edges) = (Vec::new(), Vec::new(), Vec::new());
+        let mut active_lane = None;
+        for line in lines {
+            let statement = line.trim();
+            if let Some(value) = statement.strip_prefix("subgraph ") {
+                if active_lane.is_some() { return Err(ParseError::UnexpectedToken("Swimlane lanes cannot be nested.".to_string())); }
+                let (id, label) = parse_swimlane_lane(value)?;
+                if lanes.iter().any(|lane: &Swimlane| lane.id == id) { return Err(ParseError::UnexpectedToken(format!("Duplicate swimlane: {}", id))); }
+                lanes.push(Swimlane { id, label, nodes: vec![] }); active_lane = Some(lanes.len() - 1); continue;
+            }
+            if statement == "end" { if active_lane.take().is_none() { return Err(ParseError::UnexpectedToken("Swimlane end must close an open lane.".to_string())); } continue; }
+            if let Some(index) = active_lane {
+                let (id, label) = parse_swimlane_node(statement)?;
+                if nodes.iter().any(|node: &Node| node.id == id) { return Err(ParseError::UnexpectedToken(format!("Duplicate swimlane node: {}", id))); }
+                lanes[index].nodes.push(id.clone()); nodes.push(Node { id, label: Some(label), shape: NodeShape::Rounded, classes: vec![], styles: vec![] }); continue;
+            }
+            edges.push(parse_swimlane_edge(statement)?);
+        }
+        if active_lane.is_some() { return Err(ParseError::UnexpectedToken("Swimlane lanes must end with end.".to_string())); }
+        if lanes.is_empty() || nodes.is_empty() { return Err(ParseError::EmptyInput); }
+        if edges.iter().any(|edge: &Edge| !nodes.iter().any(|node: &Node| node.id == edge.from) || !nodes.iter().any(|node: &Node| node.id == edge.to)) { return Err(ParseError::UnexpectedToken("Swimlane edges must reference declared lane nodes.".to_string())); }
+        Ok(DiagramAst::Swimlanes(SwimlaneAst { direction, lanes, nodes, edges }))
+    }
+
     fn parse_kanban(&self) -> Result<DiagramAst, ParseError> {
         let mut lines = self.input.lines().filter(|line| !line.trim().is_empty() && !line.trim_start().starts_with("%%"));
         if lines.next().map(str::trim) != Some("kanban") {
@@ -1702,6 +1737,25 @@ fn parse_venn_named(value: &str, kind: &str) -> Result<(String, String), ParseEr
     };
     if id.is_empty() || label.trim().is_empty() { return Err(ParseError::UnexpectedToken(format!("Venn {} values cannot be empty: {}", kind, value))); }
     Ok((id.to_string(), label.to_string()))
+}
+
+fn parse_swimlane_lane(value: &str) -> Result<(String, String), ParseError> {
+    let value = value.trim();
+    let (id, label) = match value.split_once('[') { Some((id, label)) => (id.trim(), label.strip_suffix(']').map(str::trim).filter(|label| !label.is_empty()).ok_or_else(|| ParseError::UnexpectedToken(format!("Swimlane labels require id[Label] syntax: {}", value)))?), None => (value, value) };
+    if !block_identifier(id) { return Err(ParseError::UnexpectedToken(format!("Swimlane identifiers must be valid: {}", value))); }
+    Ok((id.to_string(), label.trim_matches('"').to_string()))
+}
+fn parse_swimlane_node(value: &str) -> Result<(String, String), ParseError> {
+    let (id, label) = value.split_once('[').ok_or_else(|| ParseError::UnexpectedToken(format!("Swimlane nodes require id[Label] syntax: {}", value)))?;
+    let label = label.strip_suffix(']').map(str::trim).filter(|label| !label.is_empty()).ok_or_else(|| ParseError::UnexpectedToken(format!("Swimlane nodes require a non-empty label: {}", value)))?;
+    if !block_identifier(id.trim()) { return Err(ParseError::UnexpectedToken(format!("Swimlane node identifiers must be valid: {}", value))); }
+    Ok((id.trim().to_string(), label.trim_matches('"').to_string()))
+}
+fn parse_swimlane_edge(value: &str) -> Result<Edge, ParseError> {
+    let (from, rest) = value.split_once("-->").ok_or_else(|| ParseError::UnexpectedToken(format!("Swimlane edges require -->: {}", value)))?;
+    let (label, to) = match rest.trim().strip_prefix('|') { Some(rest) => { let (label, to) = rest.split_once('|').ok_or_else(|| ParseError::UnexpectedToken(format!("Swimlane edge labels require |label| syntax: {}", value)))?; (Some(label.trim().to_string()).filter(|label| !label.is_empty()), to.trim()) }, None => (None, rest.trim()) };
+    if !block_identifier(from.trim()) || !block_identifier(to) { return Err(ParseError::UnexpectedToken(format!("Swimlane edge nodes must be identifiers: {}", value))); }
+    Ok(Edge { from: from.trim().to_string(), to: to.to_string(), style: EdgeStyle::Arrow, label, min_length: 1 })
 }
 
 fn parse_block_cell(value: &str) -> Result<(String, String, usize, bool), ParseError> {

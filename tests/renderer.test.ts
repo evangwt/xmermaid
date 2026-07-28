@@ -72,6 +72,29 @@ function renderedArrowTip(svg: SVGSVGElement): string {
 }
 
 describe('SVGRenderer', () => {
+  it('renders swimlane backgrounds beneath their native nodes and edges', () => {
+    const layout = {
+      nodes: [
+        { id: 'request', center: { x: 120, y: 92 }, bounds: { x: 60, y: 72, width: 120, height: 40 }, shape: 'RoundedRect', label: 'Request' },
+        { id: 'triage', center: { x: 120, y: 256 }, bounds: { x: 60, y: 236, width: 120, height: 40 }, shape: 'RoundedRect', label: 'Triage' },
+      ],
+      edges: [{ from: 'request', to: 'triage', waypoints: [{ x: 120, y: 92 }, { x: 120, y: 256 }], style: 'arrow' }],
+      dimensions: { width: 520, height: 340 },
+      swimlanes: { direction: 'LR', lanes: [
+        { id: 'Customer', label: 'Customer', bounds: { x: 40, y: 40, width: 440, height: 120 } },
+        { id: 'Support', label: 'Support', bounds: { x: 40, y: 204, width: 440, height: 120 } },
+      ] },
+    } as LayoutResult;
+
+    const svg = new SVGRenderer(DARK_THEME).render(layout);
+
+    expect(svg.querySelectorAll('.swimlane')).toHaveLength(2);
+    expect(svg.querySelectorAll('.swimlane-header')).toHaveLength(2);
+    expect(svg.querySelector('.swimlane-header')?.textContent).toBe('Customer');
+    expect(svg.querySelectorAll('.node')).toHaveLength(2);
+    expect(svg.querySelectorAll('.edge')).toHaveLength(1);
+  });
+
   it('renders native xychart axes, bars, and a line without flowchart nodes', () => {
     const layout = {
       nodes: [],

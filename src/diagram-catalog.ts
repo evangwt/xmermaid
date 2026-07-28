@@ -2,7 +2,7 @@ export const MERMAID_COMPATIBILITY_VERSION = '11.16.0' as const;
 
 export const DIAGRAM_CATALOG = [
   ['flowchart', /^(?:graph|flowchart)\b/i],
-  ['swimlanes', /^swimlanes\b/i],
+  ['swimlanes', /^swimlane-beta\b/i],
   ['sequence', /^sequenceDiagram\b/i],
   ['class', /^classDiagram\b/i],
   ['state', /^stateDiagram(?:-v2)?\b/i],

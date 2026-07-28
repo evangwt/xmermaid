@@ -16,5 +16,5 @@ pub fn layout(venn: &VennAst, config: &LayoutConfig) -> LayoutResult {
         let position = Point { x: members.iter().map(|set| set.center.x).sum::<f64>() / members.len() as f64, y: members.iter().map(|set| set.center.y).sum::<f64>() / members.len() as f64 };
         VennUnionLayout { label: union.label.clone(), position }
     }).collect();
-    LayoutResult { nodes: vec![], edges: vec![], dimensions: Dimensions { width: SIZE + config.padding * 2.0, height: SIZE + config.padding * 2.0 }, pie_slices: vec![], xy_chart: None, sankey: None, quadrant_chart: None, block_diagram: None, kanban_board: None, treemap: None, radar: None, packet: None, venn: Some(VennLayout { title: venn.title.clone(), sets, unions }) }
+    LayoutResult { nodes: vec![], edges: vec![], dimensions: Dimensions { width: SIZE + config.padding * 2.0, height: SIZE + config.padding * 2.0 }, pie_slices: vec![], xy_chart: None, sankey: None, quadrant_chart: None, block_diagram: None, kanban_board: None, treemap: None, radar: None, packet: None, venn: Some(VennLayout { title: venn.title.clone(), sets, unions }), swimlanes: None }
 }
