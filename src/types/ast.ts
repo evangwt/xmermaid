@@ -300,4 +300,16 @@ export interface KanbanAst {
   columns: KanbanColumn[];
 }
 
-export type DiagramAst = FlowchartAst | SequenceAst | ClassAst | StateAst | ErAst | GanttAst | UserJourneyAst | TimelineAst | RequirementAst | GitGraphAst | C4Ast | ZenUmlAst | SankeyAst | QuadrantAst | ArchitectureAst | BlockAst | KanbanAst | XyChartAst;
+export interface PacketField {
+  start: number;
+  end: number;
+  label: string;
+}
+
+export interface PacketAst {
+  type: 'packet';
+  title: string;
+  fields: PacketField[];
+}
+
+export type DiagramAst = FlowchartAst | SequenceAst | ClassAst | StateAst | ErAst | GanttAst | UserJourneyAst | TimelineAst | RequirementAst | GitGraphAst | C4Ast | ZenUmlAst | SankeyAst | QuadrantAst | ArchitectureAst | BlockAst | KanbanAst | PacketAst | XyChartAst;

@@ -83,6 +83,7 @@ impl<'a> Parser<'a> {
         if self.input.trim_start().starts_with("kanban") { return self.parse_kanban(); }
         if self.input.trim_start().starts_with("treemap-beta") { return self.parse_treemap(); }
         if self.input.trim_start().starts_with("radar-beta") { return self.parse_radar(); }
+        if self.input.trim_start().starts_with("packet") { return self.parse_packet(); }
         let keyword = self.expect(TokenType::Keyword)?;
 
         match keyword.as_str() {
@@ -815,6 +816,59 @@ impl<'a> Parser<'a> {
             return Err(ParseError::UnexpectedToken("Radar max must be greater than min.".to_string()));
         }
         Ok(DiagramAst::Radar(RadarAst { title, axes, curves, min, max }))
+    }
+
+    fn parse_packet(&self) -> Result<DiagramAst, ParseError> {
+        let mut lines = self.input.lines().filter(|line| !line.trim().is_empty() && !line.trim_start().starts_with("%%"));
+        if lines.next().map(str::trim) != Some("packet") {
+            return Err(ParseError::UnexpectedToken("Packet diagrams must start with packet.".to_string()));
+        }
+
+        let mut title = String::new();
+        let mut fields = Vec::new();
+        let mut next_bit: u32 = 0;
+        for line in lines {
+            let statement = line.trim();
+            if let Some(value) = statement.strip_prefix("title ") {
+                if value.trim().is_empty() || !title.is_empty() {
+                    return Err(ParseError::UnexpectedToken(format!("Packet titles must be non-empty and declared once: {}", statement)));
+                }
+                title = value.trim().trim_matches('"').to_string();
+                continue;
+            }
+
+            let (range, label) = statement.split_once(':')
+                .ok_or_else(|| ParseError::UnexpectedToken(format!("Packet fields require a bit range and quoted label: {}", statement)))?;
+            let label = parse_packet_label(label.trim(), statement)?;
+            let (start, end) = if let Some(width) = range.trim().strip_prefix('+') {
+                let width = width.parse::<u32>().ok().filter(|value| *value > 0)
+                    .ok_or_else(|| ParseError::UnexpectedToken(format!("Packet sequential field widths must be positive integers: {}", statement)))?;
+                let end = next_bit.checked_add(width - 1)
+                    .ok_or_else(|| ParseError::UnexpectedToken(format!("Packet field range exceeds supported bit positions: {}", statement)))?;
+                (next_bit, end)
+            } else {
+                let (start, end) = range.trim().split_once('-')
+                    .ok_or_else(|| ParseError::UnexpectedToken(format!("Packet ranges must use start-end or +width syntax: {}", statement)))?;
+                let start = start.trim().parse::<u32>().map_err(|_| ParseError::UnexpectedToken(format!("Packet range starts must be non-negative integers: {}", statement)))?;
+                let end = end.trim().parse::<u32>().map_err(|_| ParseError::UnexpectedToken(format!("Packet range ends must be non-negative integers: {}", statement)))?;
+                if end < start {
+                    return Err(ParseError::UnexpectedToken(format!("Packet range end must not precede its start: {}", statement)));
+                }
+                (start, end)
+            };
+
+            if start < next_bit {
+                return Err(ParseError::UnexpectedToken(format!("Packet fields must be ordered and non-overlapping: {}", statement)));
+            }
+            next_bit = end.checked_add(1)
+                .ok_or_else(|| ParseError::UnexpectedToken(format!("Packet field range exceeds supported bit positions: {}", statement)))?;
+            fields.push(PacketField { start, end, label });
+        }
+
+        if fields.is_empty() {
+            return Err(ParseError::EmptyInput);
+        }
+        Ok(DiagramAst::Packet(PacketAst { title, fields }))
     }
 
     fn parse_kanban(&self) -> Result<DiagramAst, ParseError> {
@@ -1607,6 +1661,13 @@ fn parse_radar_named_item(statement: &str, kind: &str) -> Result<(String, String
 fn parse_radar_bound(value: &str, name: &str) -> Result<f64, ParseError> {
     value.trim().parse::<f64>().ok().filter(|value| value.is_finite())
         .ok_or_else(|| ParseError::UnexpectedToken(format!("Radar {} must be a finite number: {}", name, value)))
+}
+
+fn parse_packet_label(label: &str, statement: &str) -> Result<String, ParseError> {
+    label.strip_prefix('"').and_then(|value| value.strip_suffix('"'))
+        .filter(|value| !value.trim().is_empty())
+        .map(ToString::to_string)
+        .ok_or_else(|| ParseError::UnexpectedToken(format!("Packet labels must use non-empty double quotes: {}", statement)))
 }
 
 fn parse_block_cell(value: &str) -> Result<(String, String, usize, bool), ParseError> {

@@ -20,7 +20,7 @@ export const DIAGRAM_CATALOG = [
   ['sankey', /^sankey(?:-beta)?\b/i],
   ['xychart', /^xychart(?:-beta)?\b/i],
   ['block', /^block-beta\b/i],
-  ['packet', /^packet-beta\b/i],
+  ['packet', /^packet\b/i],
   ['kanban', /^kanban\b/i],
   ['architecture', /^architecture-beta\b/i],
   ['radar', /^radar-beta\b/i],

@@ -42,6 +42,7 @@ fn test_get_diagram_type_flowchart() {
         DiagramAst::Kanban(_) => "kanban",
         DiagramAst::Treemap(_) => "treemap",
         DiagramAst::Radar(_) => "radar",
+        DiagramAst::Packet(_) => "packet",
     };
     assert_eq!(type_str, "flowchart");
 }
@@ -82,6 +83,12 @@ fn test_parse_dsl_treemap() {
 fn test_parse_dsl_radar() {
     let ast = xmermaid_parser::parse("radar-beta\n  axis A, B, C\n  curve series{1, 2, 3}\n  max 3").unwrap();
     assert!(matches!(ast, DiagramAst::Radar(_)));
+}
+
+#[test]
+fn test_parse_dsl_packet() {
+    let ast = xmermaid_parser::parse("packet\n  +16: \"Source Port\"\n  +16: \"Destination Port\"").unwrap();
+    assert!(matches!(ast, DiagramAst::Packet(_)));
 }
 
 #[test]

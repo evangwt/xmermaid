@@ -22,6 +22,8 @@ export type {
   C4Relationship,
   ZenUmlAst,
   ZenUmlMessage,
+  PacketAst,
+  PacketField,
   SankeyAst,
   SankeyAstLink,
   XyChartAst,

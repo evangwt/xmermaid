@@ -89,7 +89,7 @@ await renderer.renderToSVGElement(source, { theme: customTheme });
 
 ## Current Support
 
-xmermaid currently focuses on browser-side SVG rendering for Mermaid flowcharts. It supports basic `graph` / `flowchart` declarations, basic nodes and directed edges, common labels, core shapes, and partial subgraph parsing. It also renders deliberately small subsets of Sequence, Class, State, Entity Relationship, User Journey, Gantt, Pie, Mindmap, Timeline, Requirement, GitGraph, C4, ZenUML, and XY Chart diagrams.
+xmermaid currently focuses on browser-side SVG rendering for Mermaid flowcharts. It supports basic `graph` / `flowchart` declarations, basic nodes and directed edges, common labels, core shapes, and partial subgraph parsing. It also renders deliberately small subsets of Sequence, Class, State, Entity Relationship, User Journey, Gantt, Pie, Mindmap, Timeline, Requirement, GitGraph, C4, ZenUML, XY Chart, Sankey, Quadrant, Architecture, Block, Kanban, Treemap, Radar, and Packet diagrams.
 
 This is partial Mermaid support, not full Mermaid compatibility.
 
@@ -120,6 +120,8 @@ All remaining Mermaid catalog families are explicitly marked `planned` in `getSu
 `architecture-beta` is partial: top-level `service id(icon)[label]` declarations and direct port-to-port `--` / `-->` relationships render as a left-to-right service layout. Groups, junctions, service membership, `align`, configuration, icon glyphs, and bidirectional arrows remain unsupported.
 
 `block-beta` is partial: flat rows of named blocks, optional positive `columns N`, `id["Label"]`, `id:N` spans, `space` placeholders, and direct `--` / `-->` relationships render as a native grid. Nested blocks, block arrows, custom shapes, classes, styles, configuration, and edge labels remain unsupported.
+
+`packet` is partial: optional titles, ordered absolute `start-end: "Label"` fields, and sequential `+width: "Label"` fields render as a native 32-bit SVG grid. Overlapping/out-of-order fields, YAML configuration, classes, styles, and accessibility directives remain unsupported.
 
 `kanban` is partial: ordered bare or bracket-labeled columns with space-indented bare or bracket-labeled tasks render as a native board. Task metadata, ticket configuration, YAML, styles, and advanced syntax remain unsupported.
 

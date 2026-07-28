@@ -53,6 +53,10 @@ export class SVGRenderer {
       this.renderRadar(svg, layout);
       return svg;
     }
+    if (layout.packet) {
+      this.renderPacket(svg, layout);
+      return svg;
+    }
 
     // Build node index for bounds lookup
     const nodeMap = new Map<string, LayoutNode>();
@@ -535,6 +539,69 @@ export class SVGRenderer {
       title.setAttribute('font-weight', '700');
       group.appendChild(title);
     }
+    svg.appendChild(group);
+  }
+
+  private renderPacket(svg: SVGSVGElement, layout: LayoutResult): void {
+    const chart = layout.packet!;
+    const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    group.classList.add('packet');
+    const accessibleTitle = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+    accessibleTitle.textContent = chart.title || 'Packet diagram';
+    group.appendChild(accessibleTitle);
+
+    if (chart.title) {
+      const title = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      title.classList.add('packet-title');
+      title.textContent = chart.title;
+      title.setAttribute('x', String(layout.dimensions.width / 2));
+      title.setAttribute('y', '56');
+      title.setAttribute('text-anchor', 'middle');
+      title.setAttribute('fill', this.theme.colors.nodeText);
+      title.setAttribute('font-family', this.theme.fontFamily);
+      title.setAttribute('font-size', String(this.theme.fontSize + 3));
+      title.setAttribute('font-weight', '700');
+      group.appendChild(title);
+    }
+
+    const palette = [this.theme.colors.nodeFill, this.theme.colors.subgraphFill, this.theme.colors.arrowFill, this.theme.colors.nodeStroke];
+    chart.fields.forEach((field, fieldIndex) => {
+      const fieldGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      fieldGroup.classList.add('packet-field');
+      field.segments.forEach((bounds, segmentIndex) => {
+        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        rect.classList.add('packet-segment');
+        rect.setAttribute('x', String(bounds.x));
+        rect.setAttribute('y', String(bounds.y));
+        rect.setAttribute('width', String(bounds.width));
+        rect.setAttribute('height', String(bounds.height));
+        rect.setAttribute('rx', String(Math.min(this.theme.nodeBorderRadius, 5)));
+        rect.setAttribute('fill', palette[fieldIndex % palette.length]!);
+        rect.setAttribute('fill-opacity', '.82');
+        rect.setAttribute('stroke', this.theme.colors.nodeStroke);
+        rect.setAttribute('stroke-width', '1.25');
+        const description = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+        description.textContent = `${field.start}-${field.end}: ${field.label}`;
+        rect.appendChild(description);
+        fieldGroup.appendChild(rect);
+
+        if (segmentIndex === 0 && bounds.width >= 54) {
+          const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+          label.classList.add('packet-field-label');
+          label.textContent = field.label;
+          label.setAttribute('x', String(bounds.x + bounds.width / 2));
+          label.setAttribute('y', String(bounds.y + bounds.height / 2));
+          label.setAttribute('text-anchor', 'middle');
+          label.setAttribute('dominant-baseline', 'middle');
+          label.setAttribute('fill', this.theme.colors.nodeText);
+          label.setAttribute('font-family', this.theme.fontFamily);
+          label.setAttribute('font-size', String(Math.max(10, this.theme.fontSize - 1)));
+          label.setAttribute('font-weight', '600');
+          fieldGroup.appendChild(label);
+        }
+      });
+      group.appendChild(fieldGroup);
+    });
     svg.appendChild(group);
   }
 

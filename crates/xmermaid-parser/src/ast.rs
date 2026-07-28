@@ -298,6 +298,19 @@ pub struct RadarCurve {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PacketAst {
+    pub title: String,
+    pub fields: Vec<PacketField>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PacketField {
+    pub start: u32,
+    pub end: u32,
+    pub label: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum DiagramAst {
     Flowchart(FlowchartAst),
@@ -322,4 +335,5 @@ pub enum DiagramAst {
     Kanban(KanbanAst),
     Treemap(TreemapAst),
     Radar(RadarAst),
+    Packet(PacketAst),
 }
