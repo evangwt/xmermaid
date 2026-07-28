@@ -51,6 +51,7 @@ pub fn get_diagram_type(ast_json: &str) -> Result<String, JsValue> {
         DiagramAst::GitGraph(_) => "gitgraph",
         DiagramAst::C4(_) => "c4",
         DiagramAst::ZenUml(_) => "zenuml",
+        DiagramAst::XyChart(_) => "xychart",
     };
 
     Ok(type_str.to_string())
@@ -218,5 +219,12 @@ mod tests {
         let ast_json = serde_json::to_string(&ast).unwrap();
 
         assert_eq!(get_diagram_type(&ast_json).unwrap(), "zenuml");
+    }
+
+    #[test]
+    fn xychart_diagrams_report_their_own_wasm_type() {
+        let ast = xmermaid_parser::parse("xychart-beta\n  x-axis [Q1, Q2]\n  y-axis 0 --> 100\n  bar [20, 40]").unwrap();
+        let ast_json = serde_json::to_string(&ast).unwrap();
+        assert_eq!(get_diagram_type(&ast_json).unwrap(), "xychart");
     }
 }

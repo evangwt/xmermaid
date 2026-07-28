@@ -34,6 +34,7 @@ fn test_get_diagram_type_flowchart() {
         DiagramAst::GitGraph(_) => "gitgraph",
         DiagramAst::C4(_) => "c4",
         DiagramAst::ZenUml(_) => "zenuml",
+        DiagramAst::XyChart(_) => "xychart",
     };
     assert_eq!(type_str, "flowchart");
 }
@@ -44,6 +45,12 @@ fn test_parse_dsl_zenuml() {
         .unwrap();
 
     assert!(matches!(ast, DiagramAst::ZenUml(_)));
+}
+
+#[test]
+fn test_parse_dsl_xychart() {
+    let ast = xmermaid_parser::parse("xychart-beta\n  x-axis [Q1, Q2]\n  y-axis 0 --> 100\n  bar [20, 40]\n  line [30, 50]").unwrap();
+    assert!(matches!(ast, DiagramAst::XyChart(_)));
 }
 
 #[test]

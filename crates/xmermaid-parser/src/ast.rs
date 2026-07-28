@@ -166,6 +166,14 @@ pub struct ZenUmlMessage {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct XyChartAst { pub title: String, pub x_labels: Vec<String>, pub y_min: f64, pub y_max: f64, pub series: Vec<XySeries> }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct XySeries { pub kind: XySeriesKind, pub values: Vec<f64> }
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum XySeriesKind { Bar, Line }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum DiagramAst {
     Flowchart(FlowchartAst),
@@ -182,4 +190,5 @@ pub enum DiagramAst {
     GitGraph(GitGraphAst),
     C4(C4Ast),
     ZenUml(ZenUmlAst),
+    XyChart(XyChartAst),
 }

@@ -1,7 +1,7 @@
 mod common;
 
 use common::config_for_ast;
-use xmermaid_layout::compute_layout;
+use xmermaid_layout::{compute_layout, LayoutConfig};
 use xmermaid_parser::{parse, DiagramAst};
 
 // ─── Basic layout ────────────────────────────────────────────────
@@ -22,6 +22,15 @@ fn test_layout_empty_flowchart() {
     let config = config_for_ast(&ast);
     let layout = compute_layout(&ast, &config);
     assert_eq!(layout.nodes.len(), 0);
+}
+
+#[test]
+fn xychart_layout_keeps_bar_baselines_and_line_points_inside_the_plot() {
+    let ast = parse("xychart-beta\n  x-axis [Q1, Q2]\n  y-axis 0 --> 100\n  bar [20, 40]\n  line [30, 50]").unwrap();
+    let layout = compute_layout(&ast, &LayoutConfig::default()); let chart = layout.xy_chart.expect("xy chart layout");
+    assert_eq!(chart.x_labels, vec!["Q1", "Q2"]); assert_eq!(chart.series.len(), 2); assert!(chart.plot.height > 0.0); assert!(chart.series.iter().any(|series| !series.bars.is_empty())); assert!(chart.series.iter().any(|series| !series.points.is_empty()));
+    assert!(chart.series.iter().flat_map(|series| series.bars.iter()).all(|bar| bar.left() >= chart.plot.left() && bar.right() <= chart.plot.right() && bar.top() >= chart.plot.top() && bar.bottom() <= chart.plot.bottom()));
+    assert!(chart.series.iter().flat_map(|series| series.points.iter()).all(|point| point.x >= chart.plot.left() && point.x <= chart.plot.right() && point.y >= chart.plot.top() && point.y <= chart.plot.bottom()));
 }
 
 #[test]
