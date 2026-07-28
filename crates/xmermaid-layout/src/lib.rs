@@ -15,6 +15,7 @@ pub mod treemap;
 pub mod radar;
 pub mod packet;
 pub mod venn;
+pub mod swimlanes;
 pub mod types;
 pub mod xychart;
 
@@ -22,5 +23,5 @@ pub use engine::compute_layout;
 pub use error::LayoutError;
 pub use types::{
     Bounds, Dimensions, FlowDirection, LayoutConfig, LayoutEdge, LayoutNode, LayoutResult,
-    BlockDiagramLayout, BlockLayout, KanbanBoardLayout, KanbanColumnLayout, KanbanTaskLayout, NodeShape, PacketFieldLayout, PacketLayout, Point, QuadrantChartLayout, QuadrantPointLayout, RadarAxisLayout, RadarCurveLayout, RadarLayout, SankeyLayout, SankeyLink, SankeyNode, TreemapLayout, TreemapNodeLayout, VennLayout, VennSetLayout, VennUnionLayout, XyChartLayout, XyChartSeries, XySeriesKind,
+    BlockDiagramLayout, BlockLayout, KanbanBoardLayout, KanbanColumnLayout, KanbanTaskLayout, NodeShape, PacketFieldLayout, PacketLayout, Point, QuadrantChartLayout, QuadrantPointLayout, RadarAxisLayout, RadarCurveLayout, RadarLayout, SankeyLayout, SankeyLink, SankeyNode, SwimlaneLaneLayout, SwimlaneLayout, TreemapLayout, TreemapNodeLayout, VennLayout, VennSetLayout, VennUnionLayout, XyChartLayout, XyChartSeries, XySeriesKind,
 };

@@ -55,7 +55,8 @@ export type UnsupportedFeatureId =
   | 'treemap.advanced'
   | 'radar.advanced'
   | 'packet.advanced'
-  | 'venn.advanced';
+  | 'venn.advanced'
+  | 'swimlanes.advanced';
 
 export interface SupportSourceRange {
   startOffset: number;
@@ -190,6 +191,8 @@ const SUPPORT_MATRIX: SupportMatrix = {
                                     ? partialPacket()
                                     : diagramType === 'venn'
                                       ? partialVenn()
+                                      : diagramType === 'swimlanes'
+                                        ? partialSwimlanes()
                             : planned(diagramType)),
   ],
 };
@@ -269,6 +272,7 @@ export function detectUnsupportedFeatures(source: string): UnsupportedFeature[] 
     return detectUnsupportedPacketFeatures(source);
   }
   if (diagramType === 'venn') return detectUnsupportedVennFeatures(source);
+  if (diagramType === 'swimlanes') return detectUnsupportedSwimlaneFeatures(source);
   if (diagramType === 'state') return [];
   if (diagramType === 'er') return [];
   if (diagramType === 'gantt') return [];
@@ -845,6 +849,17 @@ function partialTreemap(): DiagramSupportEntry { return { diagramType: 'treemap'
 function partialRadar(): DiagramSupportEntry { return { diagramType: 'radar', status: 'partial', supportedSyntax: [{ id: 'radar.axes', label: 'three or more named axes', status: 'supported' }, { id: 'radar.curves', label: 'finite numeric curves with matching axis values', status: 'supported' }, { id: 'radar.range', label: 'title and min/max numeric range', status: 'supported' }], unsupportedSyntax: [{ id: 'radar.advanced', label: 'graticules, YAML configuration, classes, styles, and accessibility directives', status: 'unsupported' }] }; }
 function partialPacket(): DiagramSupportEntry { return { diagramType: 'packet', status: 'partial', supportedSyntax: [{ id: 'packet.bit-range', label: 'ordered absolute start-end bit ranges', status: 'supported' }, { id: 'packet.sequential-width', label: 'ordered +width bit fields', status: 'supported' }, { id: 'packet.title', label: 'optional packet title', status: 'supported' }], unsupportedSyntax: [{ id: 'packet.advanced', label: 'YAML configuration, classes, styles, and accessibility directives', status: 'unsupported' }] }; }
 function partialVenn(): DiagramSupportEntry { return { diagramType: 'venn', status: 'partial', supportedSyntax: [{ id: 'venn.set', label: 'two or more named sets with optional display labels', status: 'supported' }, { id: 'venn.union', label: 'labeled unions of declared sets', status: 'supported' }, { id: 'venn.title', label: 'optional title', status: 'supported' }], unsupportedSyntax: [{ id: 'venn.advanced', label: 'sizes, text annotations, configuration, classes, styles, and accessibility directives', status: 'unsupported' }] }; }
+function partialSwimlanes(): DiagramSupportEntry { return { diagramType: 'swimlanes', status: 'partial', supportedSyntax: [{ id: 'swimlanes.basic-lanes', label: 'top-level subgraph lanes with optional labels', status: 'supported' }, { id: 'swimlanes.nodes', label: 'square-bracket lane nodes', status: 'supported' }, { id: 'swimlanes.edges', label: 'directed edges with optional pipe labels', status: 'supported' }], unsupportedSyntax: [{ id: 'swimlanes.advanced', label: 'configuration, nested lanes, classes, styles, advanced shapes, and accessibility directives', status: 'unsupported' }] }; }
+
+function detectUnsupportedSwimlaneFeatures(source: string): UnsupportedFeature[] {
+  const features: UnsupportedFeature[] = [];
+  for (const line of linesWithRanges(source)) {
+    if (/^\s*(?:%%\{init|classDef|class|style|linkStyle|click|accTitle|accDescr|---|config:)\b/i.test(line.text) || /@\{\s*shape\s*:|:::/i.test(line.text)) {
+      features.push(unsupportedSyntax('swimlanes.advanced', line, 'Swimlane configuration, styles, classes, and advanced shapes are not supported yet.', 'error'));
+    }
+  }
+  return features;
+}
 
 function cloneEntry(entry: DiagramSupportEntry): DiagramSupportEntry {
   return {

@@ -61,6 +61,7 @@ pub fn get_diagram_type(ast_json: &str) -> Result<String, JsValue> {
         DiagramAst::Radar(_) => "radar",
         DiagramAst::Packet(_) => "packet",
         DiagramAst::Venn(_) => "venn",
+        DiagramAst::Swimlanes(_) => "swimlanes",
     };
 
     Ok(type_str.to_string())

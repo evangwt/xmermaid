@@ -194,6 +194,8 @@ export interface PacketLayout {
 export interface VennSetLayout { id: string; label: string; center: Point; radius: number; }
 export interface VennUnionLayout { label: string; position: Point; }
 export interface VennLayout { title: string; sets: VennSetLayout[]; unions: VennUnionLayout[]; }
+export interface SwimlaneLaneLayout { id: string; label: string; bounds: Bounds; }
+export interface SwimlaneLayout { direction: FlowDirection; lanes: SwimlaneLaneLayout[]; }
 
 export interface LayoutResult {
   nodes: LayoutNode[];
@@ -209,4 +211,5 @@ export interface LayoutResult {
   radar?: RadarLayout;
   packet?: PacketLayout;
   venn?: VennLayout;
+  swimlanes?: SwimlaneLayout;
 }

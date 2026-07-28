@@ -224,6 +224,8 @@ pub struct PacketLayout { pub title: String, pub fields: Vec<PacketFieldLayout> 
 #[derive(Debug, Clone, Serialize, Deserialize)] pub struct VennSetLayout { pub id: String, pub label: String, pub center: Point, pub radius: f64 }
 #[derive(Debug, Clone, Serialize, Deserialize)] pub struct VennUnionLayout { pub label: String, pub position: Point }
 #[derive(Debug, Clone, Serialize, Deserialize)] pub struct VennLayout { pub title: String, pub sets: Vec<VennSetLayout>, pub unions: Vec<VennUnionLayout> }
+#[derive(Debug, Clone, Serialize, Deserialize)] pub struct SwimlaneLaneLayout { pub id: String, pub label: String, pub bounds: Bounds }
+#[derive(Debug, Clone, Serialize, Deserialize)] pub struct SwimlaneLayout { pub direction: FlowDirection, pub lanes: Vec<SwimlaneLaneLayout> }
 
 /// Complete layout result
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -241,4 +243,5 @@ pub struct LayoutResult {
     #[serde(default, skip_serializing_if = "Option::is_none")] pub radar: Option<RadarLayout>,
     #[serde(default, skip_serializing_if = "Option::is_none")] pub packet: Option<PacketLayout>,
     #[serde(default, skip_serializing_if = "Option::is_none")] pub venn: Option<VennLayout>,
+    #[serde(default, skip_serializing_if = "Option::is_none")] pub swimlanes: Option<SwimlaneLayout>,
 }

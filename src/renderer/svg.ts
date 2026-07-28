@@ -61,6 +61,7 @@ export class SVGRenderer {
       this.renderVenn(svg, layout);
       return svg;
     }
+    if (layout.swimlanes) this.renderSwimlanes(svg, layout);
 
     // Build node index for bounds lookup
     const nodeMap = new Map<string, LayoutNode>();
@@ -621,6 +622,30 @@ export class SVGRenderer {
     });
     chart.unions.forEach(union => { const label = document.createElementNS('http://www.w3.org/2000/svg', 'text'); label.classList.add('venn-union-label'); label.textContent = union.label; label.setAttribute('x', String(union.position.x)); label.setAttribute('y', String(union.position.y)); label.setAttribute('text-anchor', 'middle'); label.setAttribute('dominant-baseline', 'middle'); label.setAttribute('fill', this.theme.colors.nodeText); label.setAttribute('font-family', this.theme.fontFamily); label.setAttribute('font-size', String(this.theme.fontSize + 1)); label.setAttribute('font-weight', '700'); group.appendChild(label); });
     if (chart.title) { const text = document.createElementNS('http://www.w3.org/2000/svg', 'text'); text.classList.add('venn-title'); text.textContent = chart.title; text.setAttribute('x', String(layout.dimensions.width / 2)); text.setAttribute('y', '58'); text.setAttribute('text-anchor', 'middle'); text.setAttribute('fill', this.theme.colors.nodeText); text.setAttribute('font-family', this.theme.fontFamily); text.setAttribute('font-size', String(this.theme.fontSize + 3)); text.setAttribute('font-weight', '700'); group.appendChild(text); }
+    svg.appendChild(group);
+  }
+
+  private renderSwimlanes(svg: SVGSVGElement, layout: LayoutResult): void {
+    const chart = layout.swimlanes!;
+    const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    group.classList.add('swimlanes');
+    chart.lanes.forEach((lane, index) => {
+      const laneGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      laneGroup.classList.add('swimlane');
+      const background = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      background.setAttribute('x', String(lane.bounds.x)); background.setAttribute('y', String(lane.bounds.y));
+      background.setAttribute('width', String(lane.bounds.width)); background.setAttribute('height', String(lane.bounds.height));
+      background.setAttribute('rx', String(this.theme.nodeBorderRadius + 6));
+      background.setAttribute('fill', this.theme.colors.subgraphFill); background.setAttribute('fill-opacity', index % 2 ? '.17' : '.28');
+      background.setAttribute('stroke', this.theme.colors.subgraphStroke); background.setAttribute('stroke-width', '1.25');
+      laneGroup.appendChild(background);
+      const header = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      header.classList.add('swimlane-header'); header.textContent = lane.label;
+      header.setAttribute('x', String(lane.bounds.x + 16)); header.setAttribute('y', String(lane.bounds.y + 23));
+      header.setAttribute('fill', this.theme.colors.nodeText); header.setAttribute('font-family', this.theme.fontFamily);
+      header.setAttribute('font-size', String(Math.max(11, this.theme.fontSize - 1))); header.setAttribute('font-weight', '700');
+      laneGroup.appendChild(header); group.appendChild(laneGroup);
+    });
     svg.appendChild(group);
   }
 

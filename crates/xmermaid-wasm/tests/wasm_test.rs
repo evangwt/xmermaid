@@ -44,6 +44,7 @@ fn test_get_diagram_type_flowchart() {
         DiagramAst::Radar(_) => "radar",
         DiagramAst::Packet(_) => "packet",
         DiagramAst::Venn(_) => "venn",
+        DiagramAst::Swimlanes(_) => "swimlanes",
     };
     assert_eq!(type_str, "flowchart");
 }

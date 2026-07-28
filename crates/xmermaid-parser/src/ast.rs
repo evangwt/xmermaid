@@ -316,6 +316,10 @@ pub struct VennAst { pub title: String, pub sets: Vec<VennSet>, pub unions: Vec<
 pub struct VennSet { pub id: String, pub label: String }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VennUnion { pub sets: Vec<String>, pub label: String }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SwimlaneAst { pub direction: FlowDirection, pub lanes: Vec<Swimlane>, pub nodes: Vec<Node>, pub edges: Vec<Edge> }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Swimlane { pub id: String, pub label: String, pub nodes: Vec<String> }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
@@ -344,4 +348,5 @@ pub enum DiagramAst {
     Radar(RadarAst),
     Packet(PacketAst),
     Venn(VennAst),
+    Swimlanes(SwimlaneAst),
 }
