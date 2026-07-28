@@ -8,6 +8,8 @@ export type {
   ClassRelation,
   StateAst,
   StateTransition,
+  ErAst,
+  ErRelationship,
   EdgeStyle,
   FlowchartNode,
   FlowchartEdge,
