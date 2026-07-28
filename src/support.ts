@@ -52,7 +52,8 @@ export type UnsupportedFeatureId =
   | 'architecture.advanced'
   | 'block.advanced'
   | 'kanban.advanced'
-  | 'treemap.advanced';
+  | 'treemap.advanced'
+  | 'radar.advanced';
 
 export interface SupportSourceRange {
   startOffset: number;
@@ -181,6 +182,8 @@ const SUPPORT_MATRIX: SupportMatrix = {
                                 ? partialKanban()
                                 : diagramType === 'treemap'
                                   ? partialTreemap()
+                                  : diagramType === 'radar'
+                                    ? partialRadar()
                             : planned(diagramType)),
   ],
 };
@@ -252,6 +255,9 @@ export function detectUnsupportedFeatures(source: string): UnsupportedFeature[] 
   }
   if (diagramType === 'treemap') {
     return detectUnsupportedTreemapFeatures(source);
+  }
+  if (diagramType === 'radar') {
+    return detectUnsupportedRadarFeatures(source);
   }
   if (diagramType === 'state') return [];
   if (diagramType === 'er') return [];
@@ -625,6 +631,23 @@ function detectUnsupportedTreemapFeatures(source: string): UnsupportedFeature[] 
   return features;
 }
 
+function detectUnsupportedRadarFeatures(source: string): UnsupportedFeature[] {
+  const features: UnsupportedFeature[] = [];
+  for (const line of linesWithRanges(source)) {
+    const trimmed = line.text.trim();
+    if (!trimmed || trimmed.startsWith('%%') || trimmed === 'radar-beta') continue;
+    if (/^(?:graticule\b|---|config:|themeVariables:|classDef\b|class\b|style\b|accTitle:|accDescr:)/i.test(trimmed) || /:::[A-Za-z0-9_-]+/.test(trimmed)) {
+      features.push(unsupportedSyntax(
+        'radar.advanced',
+        line,
+        'Radar graticules, configuration, classes, styles, and accessibility directives are not supported yet.',
+        'error',
+      ));
+    }
+  }
+  return features;
+}
+
 function parseSankeyCsvRecord(line: string): string[] | null {
   const fields: string[] = [];
   let field = '';
@@ -782,6 +805,7 @@ function partialArchitecture(): DiagramSupportEntry { return { diagramType: 'arc
 function partialBlock(): DiagramSupportEntry { return { diagramType: 'block', status: 'partial', supportedSyntax: [{ id: 'block.grid', label: 'flat rows, columns, and span declarations', status: 'supported' }, { id: 'block.relationship', label: 'direct -- and --> relationships between declared blocks', status: 'supported' }], unsupportedSyntax: [{ id: 'block.advanced', label: 'nested blocks, block arrows, custom shapes, classes, styles, configuration, and edge labels', status: 'unsupported' }] }; }
 function partialKanban(): DiagramSupportEntry { return { diagramType: 'kanban', status: 'partial', supportedSyntax: [{ id: 'kanban.columns', label: 'ordered columns with bracketed or bare labels', status: 'supported' }, { id: 'kanban.tasks', label: 'space-indented tasks within columns', status: 'supported' }], unsupportedSyntax: [{ id: 'kanban.advanced', label: 'task metadata, ticket configuration, YAML, styles, and advanced syntax', status: 'unsupported' }] }; }
 function partialTreemap(): DiagramSupportEntry { return { diagramType: 'treemap', status: 'partial', supportedSyntax: [{ id: 'treemap.hierarchy', label: 'quoted, space-indented category hierarchy', status: 'supported' }, { id: 'treemap.leaf-value', label: 'positive numeric leaf values', status: 'supported' }], unsupportedSyntax: [{ id: 'treemap.advanced', label: 'YAML configuration, classes, styles, and accessibility directives', status: 'unsupported' }] }; }
+function partialRadar(): DiagramSupportEntry { return { diagramType: 'radar', status: 'partial', supportedSyntax: [{ id: 'radar.axes', label: 'three or more named axes', status: 'supported' }, { id: 'radar.curves', label: 'finite numeric curves with matching axis values', status: 'supported' }, { id: 'radar.range', label: 'title and min/max numeric range', status: 'supported' }], unsupportedSyntax: [{ id: 'radar.advanced', label: 'graticules, YAML configuration, classes, styles, and accessibility directives', status: 'unsupported' }] }; }
 
 function cloneEntry(entry: DiagramSupportEntry): DiagramSupportEntry {
   return {

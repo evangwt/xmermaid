@@ -159,6 +159,27 @@ export interface TreemapLayout {
   nodes: TreemapNodeLayout[];
 }
 
+export interface RadarAxisLayout {
+  label: string;
+  end: Point;
+  label_position: Point;
+}
+
+export interface RadarCurveLayout {
+  label: string;
+  points: Point[];
+}
+
+export interface RadarLayout {
+  title: string;
+  center: Point;
+  radius: number;
+  axes: RadarAxisLayout[];
+  curves: RadarCurveLayout[];
+  min: number;
+  max: number;
+}
+
 export interface LayoutResult {
   nodes: LayoutNode[];
   edges: LayoutEdge[];
@@ -170,4 +191,5 @@ export interface LayoutResult {
   block_diagram?: BlockDiagramLayout;
   kanban_board?: KanbanBoardLayout;
   treemap?: TreemapLayout;
+  radar?: RadarLayout;
 }

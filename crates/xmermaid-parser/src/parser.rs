@@ -82,6 +82,7 @@ impl<'a> Parser<'a> {
         if self.input.trim_start().starts_with("block-beta") { return self.parse_block(); }
         if self.input.trim_start().starts_with("kanban") { return self.parse_kanban(); }
         if self.input.trim_start().starts_with("treemap-beta") { return self.parse_treemap(); }
+        if self.input.trim_start().starts_with("radar-beta") { return self.parse_radar(); }
         let keyword = self.expect(TokenType::Keyword)?;
 
         match keyword.as_str() {
@@ -746,6 +747,74 @@ impl<'a> Parser<'a> {
             return Err(ParseError::EmptyInput);
         }
         Ok(DiagramAst::Treemap(TreemapAst { nodes }))
+    }
+
+    fn parse_radar(&self) -> Result<DiagramAst, ParseError> {
+        let mut lines = self.input.lines().filter(|line| !line.trim().is_empty() && !line.trim_start().starts_with("%%"));
+        if lines.next().map(str::trim) != Some("radar-beta") {
+            return Err(ParseError::UnexpectedToken("Radar diagrams must start with radar-beta.".to_string()));
+        }
+
+        let mut title = String::new();
+        let mut axes = Vec::new();
+        let mut curves = Vec::new();
+        let mut min = 0.0;
+        let mut max: Option<f64> = None;
+
+        for line in lines {
+            let statement = line.trim();
+            if let Some(value) = statement.strip_prefix("title ") {
+                if value.trim().is_empty() {
+                    return Err(ParseError::UnexpectedToken("Radar titles cannot be empty.".to_string()));
+                }
+                title = value.trim().trim_matches('"').to_string();
+            } else if let Some(value) = statement.strip_prefix("axis ") {
+                for item in value.split(',') {
+                    let (id, label) = parse_radar_named_item(item.trim(), "axis")?;
+                    if axes.iter().any(|axis: &RadarAxis| axis.id == id) {
+                        return Err(ParseError::UnexpectedToken(format!("Duplicate Radar axis: {}", id)));
+                    }
+                    axes.push(RadarAxis { id, label });
+                }
+            } else if let Some(value) = statement.strip_prefix("curve ") {
+                let (head, values) = value.rsplit_once('{')
+                    .ok_or_else(|| ParseError::UnexpectedToken(format!("Radar curves require values in braces: {}", statement)))?;
+                let values = values.strip_suffix('}')
+                    .ok_or_else(|| ParseError::UnexpectedToken(format!("Radar curves require a closing brace: {}", statement)))?;
+                let (id, label) = parse_radar_named_item(head.trim(), "curve")?;
+                if curves.iter().any(|curve: &RadarCurve| curve.id == id) {
+                    return Err(ParseError::UnexpectedToken(format!("Duplicate Radar curve: {}", id)));
+                }
+                let values = values.split(',').map(|entry| entry.trim().parse::<f64>().ok().filter(|value| value.is_finite())
+                    .ok_or_else(|| ParseError::UnexpectedToken(format!("Radar curve values must be finite numbers: {}", statement))))
+                    .collect::<Result<Vec<_>, _>>()?;
+                if values.is_empty() {
+                    return Err(ParseError::UnexpectedToken(format!("Radar curves require at least one value: {}", statement)));
+                }
+                curves.push(RadarCurve { id, label, values });
+            } else if let Some(value) = statement.strip_prefix("min ") {
+                min = parse_radar_bound(value, "min")?;
+            } else if let Some(value) = statement.strip_prefix("max ") {
+                max = Some(parse_radar_bound(value, "max")?);
+            } else {
+                return Err(ParseError::UnexpectedToken(format!("Unsupported Radar statement: {}", statement)));
+            }
+        }
+
+        if axes.len() < 3 {
+            return Err(ParseError::UnexpectedToken("Radar diagrams require at least three axes.".to_string()));
+        }
+        if curves.is_empty() {
+            return Err(ParseError::EmptyInput);
+        }
+        if curves.iter().any(|curve| curve.values.len() != axes.len()) {
+            return Err(ParseError::UnexpectedToken("Every Radar curve must contain one value for each axis.".to_string()));
+        }
+        let max = max.unwrap_or_else(|| curves.iter().flat_map(|curve| curve.values.iter()).copied().fold(min, f64::max));
+        if max <= min {
+            return Err(ParseError::UnexpectedToken("Radar max must be greater than min.".to_string()));
+        }
+        Ok(DiagramAst::Radar(RadarAst { title, axes, curves, min, max }))
     }
 
     fn parse_kanban(&self) -> Result<DiagramAst, ParseError> {
@@ -1517,6 +1586,27 @@ fn parse_treemap_entry(statement: &str) -> Result<(String, Option<f64>), ParseEr
         .filter(|value| !value.trim().is_empty())
         .ok_or_else(|| ParseError::UnexpectedToken(format!("Treemap labels must use double quotes: {}", statement)))?;
     Ok((label.to_string(), value))
+}
+
+fn parse_radar_named_item(statement: &str, kind: &str) -> Result<(String, String), ParseError> {
+    let (id, label) = match statement.split_once("[") {
+        Some((id, label)) => {
+            let label = label.strip_suffix(']').and_then(|value| value.strip_prefix('"')).and_then(|value| value.strip_suffix('"'))
+                .filter(|value| !value.trim().is_empty())
+                .ok_or_else(|| ParseError::UnexpectedToken(format!("Radar {} labels must use id[\"Label\"] syntax: {}", kind, statement)))?;
+            (id.trim(), label.to_string())
+        }
+        None => (statement.trim(), statement.trim().to_string()),
+    };
+    if !block_identifier(id) {
+        return Err(ParseError::UnexpectedToken(format!("Radar {} ids must be identifiers: {}", kind, statement)));
+    }
+    Ok((id.to_string(), label))
+}
+
+fn parse_radar_bound(value: &str, name: &str) -> Result<f64, ParseError> {
+    value.trim().parse::<f64>().ok().filter(|value| value.is_finite())
+        .ok_or_else(|| ParseError::UnexpectedToken(format!("Radar {} must be a finite number: {}", name, value)))
 }
 
 fn parse_block_cell(value: &str) -> Result<(String, String, usize, bool), ParseError> {

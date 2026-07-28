@@ -49,6 +49,10 @@ export class SVGRenderer {
       this.renderTreemap(svg, layout);
       return svg;
     }
+    if (layout.radar) {
+      this.renderRadar(svg, layout);
+      return svg;
+    }
 
     // Build node index for bounds lookup
     const nodeMap = new Map<string, LayoutNode>();
@@ -438,6 +442,98 @@ export class SVGRenderer {
         cell.appendChild(text);
       }
       group.appendChild(cell);
+    }
+    svg.appendChild(group);
+  }
+
+  private renderRadar(svg: SVGSVGElement, layout: LayoutResult): void {
+    const chart = layout.radar!;
+    const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    group.classList.add('radar');
+    const accessibleTitle = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+    accessibleTitle.textContent = chart.title || 'Radar chart';
+    group.appendChild(accessibleTitle);
+    const point = (x: number, y: number) => `${x},${y}`;
+
+    for (const scale of [.25, .5, .75, 1]) {
+      const grid = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+      grid.classList.add('radar-grid');
+      grid.setAttribute('points', chart.axes.map(axis => point(
+        chart.center.x + (axis.end.x - chart.center.x) * scale,
+        chart.center.y + (axis.end.y - chart.center.y) * scale,
+      )).join(' '));
+      grid.setAttribute('fill', 'none');
+      grid.setAttribute('stroke', this.theme.colors.edgeStroke);
+      grid.setAttribute('stroke-opacity', scale === 1 ? '.72' : '.32');
+      grid.setAttribute('stroke-width', scale === 1 ? '1.4' : '1');
+      group.appendChild(grid);
+    }
+
+    for (const axis of chart.axes) {
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.classList.add('radar-axis');
+      line.setAttribute('x1', String(chart.center.x));
+      line.setAttribute('y1', String(chart.center.y));
+      line.setAttribute('x2', String(axis.end.x));
+      line.setAttribute('y2', String(axis.end.y));
+      line.setAttribute('stroke', this.theme.colors.edgeStroke);
+      line.setAttribute('stroke-opacity', '.54');
+      line.setAttribute('stroke-width', '1');
+      group.appendChild(line);
+
+      const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      label.classList.add('radar-axis-label');
+      label.textContent = axis.label;
+      label.setAttribute('x', String(axis.label_position.x));
+      label.setAttribute('y', String(axis.label_position.y));
+      label.setAttribute('text-anchor', Math.abs(axis.label_position.x - chart.center.x) < 8 ? 'middle' : axis.label_position.x > chart.center.x ? 'start' : 'end');
+      label.setAttribute('dominant-baseline', axis.label_position.y > chart.center.y + 8 ? 'hanging' : axis.label_position.y < chart.center.y - 8 ? 'auto' : 'middle');
+      label.setAttribute('fill', this.theme.colors.nodeText);
+      label.setAttribute('font-family', this.theme.fontFamily);
+      label.setAttribute('font-size', String(Math.max(10, this.theme.fontSize - 1)));
+      label.setAttribute('font-weight', '600');
+      group.appendChild(label);
+    }
+
+    const palette = ['#8b5cf6', '#38bdf8', '#f472b6', '#fbbf24', '#34d399', '#fb7185'];
+    chart.curves.forEach((curve, index) => {
+      const curveGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      curveGroup.classList.add('radar-curve');
+      const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+      polygon.setAttribute('points', curve.points.map(value => point(value.x, value.y)).join(' '));
+      polygon.setAttribute('fill', palette[index % palette.length]!);
+      polygon.setAttribute('fill-opacity', '.2');
+      polygon.setAttribute('stroke', palette[index % palette.length]!);
+      polygon.setAttribute('stroke-width', '2.25');
+      const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+      title.classList.add('radar-curve-title');
+      title.textContent = curve.label;
+      polygon.appendChild(title);
+      curveGroup.appendChild(polygon);
+      for (const value of curve.points) {
+        const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        dot.classList.add('radar-point');
+        dot.setAttribute('cx', String(value.x));
+        dot.setAttribute('cy', String(value.y));
+        dot.setAttribute('r', '3');
+        dot.setAttribute('fill', palette[index % palette.length]!);
+        curveGroup.appendChild(dot);
+      }
+      group.appendChild(curveGroup);
+    });
+
+    if (chart.title) {
+      const title = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      title.classList.add('radar-title');
+      title.textContent = chart.title;
+      title.setAttribute('x', String(chart.center.x));
+      title.setAttribute('y', String(Math.max(28, chart.center.y - chart.radius - 48)));
+      title.setAttribute('text-anchor', 'middle');
+      title.setAttribute('fill', this.theme.colors.nodeText);
+      title.setAttribute('font-family', this.theme.fontFamily);
+      title.setAttribute('font-size', String(this.theme.fontSize + 3));
+      title.setAttribute('font-weight', '700');
+      group.appendChild(title);
     }
     svg.appendChild(group);
   }

@@ -211,6 +211,12 @@ pub struct TreemapNodeLayout {
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TreemapLayout { pub nodes: Vec<TreemapNodeLayout> }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RadarAxisLayout { pub label: String, pub end: Point, pub label_position: Point }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RadarCurveLayout { pub label: String, pub points: Vec<Point> }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RadarLayout { pub title: String, pub center: Point, pub radius: f64, pub axes: Vec<RadarAxisLayout>, pub curves: Vec<RadarCurveLayout>, pub min: f64, pub max: f64 }
 
 /// Complete layout result
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -225,4 +231,5 @@ pub struct LayoutResult {
     #[serde(default, skip_serializing_if = "Option::is_none")] pub block_diagram: Option<BlockDiagramLayout>,
     #[serde(default, skip_serializing_if = "Option::is_none")] pub kanban_board: Option<KanbanBoardLayout>,
     #[serde(default, skip_serializing_if = "Option::is_none")] pub treemap: Option<TreemapLayout>,
+    #[serde(default, skip_serializing_if = "Option::is_none")] pub radar: Option<RadarLayout>,
 }
