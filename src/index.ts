@@ -24,7 +24,7 @@ export { DIAGRAM_CATALOG, MERMAID_COMPATIBILITY_VERSION, detectDiagramType } fro
 export { getSupportMatrix, getDiagramSupport, analyzeSupport, detectUnsupportedFeatures } from './support';
 export { DEFAULT_SECURITY_POLICY } from './security';
 export type { RenderTheme, ThemeColors, ArrowStyle, CurveStyle } from './types/theme';
-export type { LayoutConfig, LayoutResult, LayoutNode, LayoutEdge, Bounds, Point, NodeShape, FlowDirection, Dimensions, SankeyLayout, SankeyLink, SankeyNode, XyChartLayout, XyChartSeries, XyChartSeriesKind } from './types/layout';
+export type { LayoutConfig, LayoutResult, LayoutNode, LayoutEdge, Bounds, Point, NodeShape, FlowDirection, Dimensions, QuadrantChartLayout, QuadrantPointLayout, SankeyLayout, SankeyLink, SankeyNode, XyChartLayout, XyChartSeries, XyChartSeriesKind } from './types/layout';
 export type { RenderOptions, RenderResult, WasmInitOptions, XMermaidOptions } from './types/options';
 export type { SourceRange, XMermaidDiagnostic, XMermaidDiagnosticCode } from './types/diagnostics';
 export type { SecurityLevel, SecurityPolicy } from './security';
