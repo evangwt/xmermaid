@@ -32,6 +32,7 @@ pub fn layout(gantt: &GanttAst, config: &LayoutConfig) -> LayoutResult {
         pie_slices: vec![],
         xy_chart: None,
         sankey: None,
+        quadrant_chart: None,
     }
 }
 

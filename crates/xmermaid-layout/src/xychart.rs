@@ -105,6 +105,7 @@ pub fn layout(chart: &XyChartAst, config: &LayoutConfig) -> LayoutResult {
             series,
         }),
         sankey: None,
+        quadrant_chart: None,
     }
 }
 
