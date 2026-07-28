@@ -209,6 +209,31 @@ fn test_parse_requirement_blocks_with_properties_and_relationships() {
 }
 
 #[test]
+fn test_parse_gitgraph_branches_commits_and_merges() {
+    let ast = parse(
+        "gitGraph\n\
+  commit id: \"ZERO\" tag: \"v0.1.0\"\n\
+  branch develop\n\
+  checkout develop\n\
+  commit id: \"FEATURE\"\n\
+  checkout main\n\
+  merge develop id: \"RELEASE\" tag: \"v1.0.0\"",
+    )
+    .unwrap();
+    let json = serde_json::to_value(ast).unwrap();
+
+    assert_eq!(json["type"], "gitgraph");
+    assert_eq!(json["commits"].as_array().map(Vec::len), Some(3));
+    assert_eq!(json["commits"][0]["branch"], "main");
+    assert_eq!(json["commits"][0]["id"], "ZERO");
+    assert_eq!(json["commits"][0]["tag"], "v0.1.0");
+    assert_eq!(json["commits"][1]["branch"], "develop");
+    assert_eq!(json["commits"][1]["parents"], serde_json::json!(["ZERO"]));
+    assert_eq!(json["commits"][2]["id"], "RELEASE");
+    assert_eq!(json["commits"][2]["parents"], serde_json::json!(["ZERO", "FEATURE"]));
+}
+
+#[test]
 fn test_parse_indented_mindmap_hierarchy() {
     let ast = parse("mindmap\n  Root\n    Product\n      Editor\n    Renderer").unwrap();
     let json = serde_json::to_value(ast).unwrap();

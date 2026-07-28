@@ -68,3 +68,25 @@ fn test_layout_requirement_relationships_from_left_to_right() {
     assert!(login.center.x < authenticate.center.x);
     assert_eq!(result.edges[0].label.as_deref(), Some("satisfies"));
 }
+
+#[test]
+fn test_layout_gitgraph_commits_in_history_order() {
+    let ast = parse(
+        "gitGraph\n\
+  commit id: \"ZERO\"\n\
+  branch develop\n\
+  checkout develop\n\
+  commit id: \"FEATURE\"\n\
+  checkout main\n\
+  merge develop id: \"RELEASE\"",
+    )
+    .unwrap();
+
+    let result = compute_layout(&ast, &config_for_ast(&ast));
+    let zero = result.nodes.iter().find(|node| node.id == "ZERO").unwrap();
+    let release = result.nodes.iter().find(|node| node.id == "RELEASE").unwrap();
+
+    assert_eq!(result.nodes.len(), 3);
+    assert_eq!(result.edges.len(), 3);
+    assert!(zero.center.x < release.center.x);
+}

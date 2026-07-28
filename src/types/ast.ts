@@ -155,4 +155,17 @@ export interface RequirementRelationship {
   label: string;
 }
 
-export type DiagramAst = FlowchartAst | SequenceAst | ClassAst | StateAst | ErAst | GanttAst | UserJourneyAst | TimelineAst | RequirementAst;
+export interface GitGraphAst {
+  type: 'gitgraph';
+  commits: GitCommit[];
+}
+
+export interface GitCommit {
+  id: string;
+  branch: string;
+  tag: string | null;
+  commit_type: string | null;
+  parents: string[];
+}
+
+export type DiagramAst = FlowchartAst | SequenceAst | ClassAst | StateAst | ErAst | GanttAst | UserJourneyAst | TimelineAst | RequirementAst | GitGraphAst;

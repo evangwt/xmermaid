@@ -48,6 +48,7 @@ pub fn get_diagram_type(ast_json: &str) -> Result<String, JsValue> {
         DiagramAst::Timeline(_) => "timeline",
         DiagramAst::Mindmap(_) => "mindmap",
         DiagramAst::Requirement(_) => "requirement",
+        DiagramAst::GitGraph(_) => "gitgraph",
     };
 
     Ok(type_str.to_string())
@@ -191,5 +192,13 @@ mod tests {
         let ast_json = serde_json::to_string(&ast).unwrap();
 
         assert_eq!(get_diagram_type(&ast_json).unwrap(), "requirement");
+    }
+
+    #[test]
+    fn gitgraph_diagrams_report_their_own_wasm_type() {
+        let ast = xmermaid_parser::parse("gitGraph\n  commit id: \"ZERO\"").unwrap();
+        let ast_json = serde_json::to_string(&ast).unwrap();
+
+        assert_eq!(get_diagram_type(&ast_json).unwrap(), "gitgraph");
     }
 }

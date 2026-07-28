@@ -148,6 +148,8 @@ const SUPPORT_MATRIX: SupportMatrix = {
                     ? partialMindmap()
                     : diagramType === 'requirement'
                       ? partialRequirement()
+                      : diagramType === 'gitgraph'
+                        ? partialGitGraph()
           : planned(diagramType)),
   ],
 };
@@ -204,6 +206,7 @@ export function detectUnsupportedFeatures(source: string): UnsupportedFeature[] 
   if (diagramType === 'timeline') return [];
   if (diagramType === 'mindmap') return [];
   if (diagramType === 'requirement') return [];
+  if (diagramType === 'gitgraph') return [];
   if (diagramType !== 'flowchart') {
     return [unsupportedDiagramFeature(source, diagramType)];
   }
@@ -515,6 +518,7 @@ function partialGantt(): DiagramSupportEntry {
 function partialPie(): DiagramSupportEntry { return { diagramType: 'pie', status: 'partial', supportedSyntax: [{ id: 'pie.value', label: 'numeric labeled slices', status: 'supported' }], unsupportedSyntax: [{ id: 'pie.advanced', label: 'showData, custom theme, and advanced formatting', status: 'unsupported' }] }; }
 function partialMindmap(): DiagramSupportEntry { return { diagramType: 'mindmap', status: 'partial', supportedSyntax: [{ id: 'mindmap.indent', label: 'space-indented hierarchy', status: 'supported' }], unsupportedSyntax: [{ id: 'mindmap.advanced', label: 'markdown, icons, and custom shapes', status: 'unsupported' }] }; }
 function partialRequirement(): DiagramSupportEntry { return { diagramType: 'requirement', status: 'partial', supportedSyntax: [{ id: 'requirement.block', label: 'typed requirement blocks with id, text, risk, and verification method', status: 'supported' }, { id: 'requirement.relationship', label: 'labeled semantic relationships', status: 'supported' }], unsupportedSyntax: [{ id: 'requirement.advanced', label: 'custom requirement styling and advanced relation syntax', status: 'unsupported' }] }; }
+function partialGitGraph(): DiagramSupportEntry { return { diagramType: 'gitgraph', status: 'partial', supportedSyntax: [{ id: 'gitgraph.commit', label: 'commits with ids, tags, and types', status: 'supported' }, { id: 'gitgraph.branch-merge', label: 'branch, checkout, and merge history', status: 'supported' }], unsupportedSyntax: [{ id: 'gitgraph.advanced', label: 'cherry-pick, custom branch ordering, and advanced commit options', status: 'unsupported' }] }; }
 
 function cloneEntry(entry: DiagramSupportEntry): DiagramSupportEntry {
   return {

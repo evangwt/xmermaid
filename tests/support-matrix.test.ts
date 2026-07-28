@@ -31,7 +31,7 @@ describe('support matrix production contract', () => {
     ]));
     expect(matrix.entries).toHaveLength(30);
     expect(matrix.entries.find(item => item.diagramType === 'sequence')?.status).toBe('partial');
-    expect(matrix.entries.filter(item => !['flowchart', 'sequence', 'class', 'state', 'er', 'user-journey', 'gantt', 'pie', 'mindmap', 'timeline', 'requirement'].includes(item.diagramType)).every(item => item.status === 'planned')).toBe(true);
+    expect(matrix.entries.filter(item => !['flowchart', 'sequence', 'class', 'state', 'er', 'user-journey', 'gantt', 'pie', 'mindmap', 'timeline', 'requirement', 'gitgraph'].includes(item.diagramType)).every(item => item.status === 'planned')).toBe(true);
   });
 
   it('reports flowchart and sequence sources as partial while planned diagrams stay explicit', () => {
@@ -118,6 +118,12 @@ describe('support matrix production contract', () => {
   it('reports requirement blocks and semantic relationships as partial instead of planned', () => {
     expect(analyzeSupport('requirementDiagram\n  requirement Login {\n    text: User must log in\n  }\n  functionalRequirement Authenticate {\n    text: Validate credentials\n  }\n  Login - satisfies -> Authenticate')).toMatchObject({
       diagramType: 'requirement', status: 'partial', unsupportedFeatures: [],
+    });
+  });
+
+  it('reports GitGraph commits, branches, and merges as partial instead of planned', () => {
+    expect(analyzeSupport('gitGraph\n  commit id: "ZERO"\n  branch develop\n  checkout develop\n  commit id: "FEATURE"\n  checkout main\n  merge develop id: "RELEASE"')).toMatchObject({
+      diagramType: 'gitgraph', status: 'partial', unsupportedFeatures: [],
     });
   });
 

@@ -31,6 +31,7 @@ fn test_get_diagram_type_flowchart() {
         DiagramAst::Timeline(_) => "timeline",
         DiagramAst::Mindmap(_) => "mindmap",
         DiagramAst::Requirement(_) => "requirement",
+        DiagramAst::GitGraph(_) => "gitgraph",
     };
     assert_eq!(type_str, "flowchart");
 }

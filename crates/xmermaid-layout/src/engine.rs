@@ -137,5 +137,24 @@ pub fn compute_layout(ast: &DiagramAst, config: &LayoutConfig) -> LayoutResult {
             cfg.direction = crate::types::FlowDirection::LR;
             flowchart::layout(&ast, &cfg)
         }
+        DiagramAst::GitGraph(gitgraph) => {
+            let ast = xmermaid_parser::ast::FlowchartAst {
+                direction: xmermaid_parser::ast::FlowDirection::LR,
+                nodes: gitgraph.commits.iter().map(|commit| {
+                    let tag = commit.tag.as_ref().map(|tag| format!("\n{}", tag)).unwrap_or_default();
+                    xmermaid_parser::ast::Node {
+                        id: commit.id.clone(), label: Some(format!("{}\n{}{}", commit.id, commit.branch, tag)),
+                        shape: xmermaid_parser::ast::NodeShape::Circle, classes: vec![], styles: vec![],
+                    }
+                }).collect(),
+                edges: gitgraph.commits.iter().flat_map(|commit| commit.parents.iter().map(move |parent| xmermaid_parser::ast::Edge {
+                    from: parent.clone(), to: commit.id.clone(), style: xmermaid_parser::ast::EdgeStyle::Arrow, label: None, min_length: 1,
+                })).collect(),
+                subgraphs: vec![],
+            };
+            let mut cfg = config.clone();
+            cfg.direction = crate::types::FlowDirection::LR;
+            flowchart::layout(&ast, &cfg)
+        }
     }
 }

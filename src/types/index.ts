@@ -15,6 +15,8 @@ export type {
   RequirementAst,
   Requirement,
   RequirementRelationship,
+  GitGraphAst,
+  GitCommit,
   EdgeStyle,
   FlowchartNode,
   FlowchartEdge,
