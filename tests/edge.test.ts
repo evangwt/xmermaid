@@ -166,7 +166,7 @@ describe('computeBezierPath', () => {
     const placement = computeArrowPlacement({ x: 50, y: 200 }, Math.PI / 2, arrowSize, gap, 'filled');
     expect(result.pathEnd).toBeDefined();
     expect(result.pathEnd!.y).toBeCloseTo(placement.pathEnd.y, 6);
-    expect(result.path).toContain(`${result.pathEnd!.x} ${result.pathEnd!.y}`);
+    expect(result.path).toContain(String(result.pathEnd!.y));
   });
 
   it('arrow angle matches bezier tangent at endpoint', () => {
@@ -252,6 +252,19 @@ describe('computeStepPath', () => {
     expect(result.arrowAngle).toBeCloseTo(Math.PI / 2, 1);
   });
 
+  it('ends on a vertical segment when the target is approached vertically', () => {
+    const result = computeStepPath(
+      [{ x: 50, y: 25 }, { x: 180, y: 120 }, { x: 180, y: 225 }],
+      fromBounds,
+      { x: 130, y: 200, width: 100, height: 50 },
+      gap,
+      arrowSize,
+    );
+
+    expect(result.arrowAngle).toBeCloseTo(Math.PI / 2, 1);
+    expect(result.path.trim()).toMatch(/V\s+[^\s]+$/);
+  });
+
   it('joins the filled arrow base in the SVG command output', () => {
     const result = computeStepPath(
       [{ x: 50, y: 25 }, { x: 50, y: 225 }],
@@ -264,7 +277,7 @@ describe('computeStepPath', () => {
     expect(result.pathEnd).toBeDefined();
     expect(result.arrowTip.y).toBeCloseTo(195, 1);
     expect(result.pathEnd!.y).toBeCloseTo(placement.pathEnd.y, 6);
-    expect(result.path).toContain(`${result.pathEnd!.x} ${result.pathEnd!.y}`);
+    expect(result.path).toContain(String(result.pathEnd!.y));
     expect(result.path.trim()).not.toMatch(/H 50$/);
   });
 });

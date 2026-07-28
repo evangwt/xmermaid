@@ -334,6 +334,7 @@ pub enum DiagramAst {
     UserJourney(UserJourneyAst),
     Timeline(TimelineAst),
     Mindmap(MindmapAst),
+    Treeview(MindmapAst),
     Requirement(RequirementAst),
     GitGraph(GitGraphAst),
     C4(C4Ast),

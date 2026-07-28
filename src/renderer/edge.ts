@@ -638,6 +638,7 @@ export function computeStepPath(
     last.y - targetApproach.y,
     last.x - targetApproach.x,
   );
+  const terminalIsVertical = Math.abs(last.y - targetApproach.y) >= Math.abs(last.x - targetApproach.x);
 
   const placement = arrowStyle
     ? computeArrowPlacement(targetBoundary, arrowAngle, arrowSize, gap, arrowStyle, strokeWidth)
@@ -646,14 +647,9 @@ export function computeStepPath(
   let path: string;
 
   if (waypoints.length === 2) {
-    // H-V-H pattern: go horizontal to midpoint.x, then vertical, then horizontal
-    const midX = (start.x + placement.pathEnd.x) / 2;
-    path = [
-      `M ${start.x} ${start.y}`,
-      `H ${midX}`,
-      `V ${placement.pathEnd.y}`,
-      `L ${placement.pathEnd.x} ${placement.pathEnd.y}`,
-    ].join(' ');
+    path = terminalIsVertical
+      ? `M ${start.x} ${start.y} H ${(start.x + placement.pathEnd.x) / 2} V ${placement.pathEnd.y}`
+      : `M ${start.x} ${start.y} V ${(start.y + placement.pathEnd.y) / 2} H ${placement.pathEnd.x}`;
   } else {
     // Between each pair of consecutive waypoints, use H-V-H stepping
     const points: Point[] = [start, ...waypoints.slice(1, -1), placement.pathEnd];
@@ -662,10 +658,17 @@ export function computeStepPath(
     for (let i = 1; i < points.length; i++) {
       const prev = points[i - 1];
       const curr = points[i];
-      const midX = (prev.x + curr.x) / 2;
-      parts.push(`H ${midX}`);
-      parts.push(`V ${curr.y}`);
-      parts.push(`L ${curr.x} ${curr.y}`);
+      if (i === points.length - 1 && terminalIsVertical) {
+        parts.push(`H ${(prev.x + curr.x) / 2}`);
+        parts.push(`V ${curr.y}`);
+      } else if (i === points.length - 1) {
+        parts.push(`V ${(prev.y + curr.y) / 2}`);
+        parts.push(`H ${curr.x}`);
+      } else {
+        parts.push(`H ${(prev.x + curr.x) / 2}`);
+        parts.push(`V ${curr.y}`);
+        parts.push(`L ${curr.x} ${curr.y}`);
+      }
     }
 
     path = parts.join(' ');

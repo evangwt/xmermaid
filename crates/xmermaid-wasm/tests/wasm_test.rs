@@ -30,6 +30,7 @@ fn test_get_diagram_type_flowchart() {
         DiagramAst::UserJourney(_) => "user-journey",
         DiagramAst::Timeline(_) => "timeline",
         DiagramAst::Mindmap(_) => "mindmap",
+        DiagramAst::Treeview(_) => "treeview",
         DiagramAst::Requirement(_) => "requirement",
         DiagramAst::GitGraph(_) => "gitgraph",
         DiagramAst::C4(_) => "c4",

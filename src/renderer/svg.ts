@@ -916,11 +916,11 @@ export class SVGRenderer {
     ];
 
     if (this.theme.curveStyle === 'step') {
-      return this.buildStepPath(points);
+      return this.buildStepPath(points, edge.final_tangent_angle);
     }
 
-    if (this.theme.curveStyle === 'bezier' && points.length === 2) {
-      return this.buildSimpleBezierPath(points[0], points[1]);
+    if (this.theme.curveStyle === 'bezier') {
+      return this.buildExplicitBezierPath(points, edge.final_tangent_angle);
     }
 
     return this.buildStraightPath(points);
@@ -934,16 +934,25 @@ export class SVGRenderer {
     ].join(' ');
   }
 
-  private buildStepPath(points: Point[]): string {
+  private buildStepPath(points: Point[], finalAngle?: number): string {
     const [start, ...rest] = points;
     const parts = [`M ${start.x} ${start.y}`];
 
-    for (const point of rest) {
+    for (const [index, point] of rest.entries()) {
       const prev = this.parsePathEnd(parts[parts.length - 1]) ?? start;
-      const midX = (prev.x + point.x) / 2;
-      parts.push(`H ${midX}`);
-      parts.push(`V ${point.y}`);
-      parts.push(`L ${point.x} ${point.y}`);
+      const isFinal = index === rest.length - 1;
+      const terminalVertical = finalAngle !== undefined && Math.abs(Math.sin(finalAngle)) >= Math.abs(Math.cos(finalAngle));
+      if (isFinal && terminalVertical) {
+        parts.push(`H ${(prev.x + point.x) / 2}`);
+        parts.push(`V ${point.y}`);
+      } else if (isFinal && finalAngle !== undefined) {
+        parts.push(`V ${(prev.y + point.y) / 2}`);
+        parts.push(`H ${point.x}`);
+      } else {
+        parts.push(`H ${(prev.x + point.x) / 2}`);
+        parts.push(`V ${point.y}`);
+        parts.push(`L ${point.x} ${point.y}`);
+      }
     }
 
     return parts.join(' ');
@@ -963,6 +972,20 @@ export class SVGRenderer {
 
     const sign = dx >= 0 ? 1 : -1;
     return `M ${start.x} ${start.y} C ${start.x + tension * sign} ${start.y} ${end.x - tension * sign} ${end.y} ${end.x} ${end.y}`;
+  }
+
+  private buildExplicitBezierPath(points: Point[], finalAngle?: number): string {
+    if (points.length === 2) return this.buildSimpleBezierPath(points[0], points[1]);
+    const end = points.at(-1)!;
+    const beforeEnd = points.at(-2)!;
+    const prefix = points.slice(0, -2);
+    const commands = [`M ${points[0].x} ${points[0].y}`, ...prefix.slice(1).map(point => `L ${point.x} ${point.y}`)];
+    const distance = Math.hypot(end.x - beforeEnd.x, end.y - beforeEnd.y);
+    const control = Math.min(Math.max(distance * .45, 16), 48);
+    const angle = finalAngle ?? Math.atan2(end.y - beforeEnd.y, end.x - beforeEnd.x);
+    const cp2 = { x: end.x - Math.cos(angle) * control, y: end.y - Math.sin(angle) * control };
+    commands.push(`C ${beforeEnd.x} ${beforeEnd.y} ${cp2.x} ${cp2.y} ${end.x} ${end.y}`);
+    return commands.join(' ');
   }
 
   private parsePathEnd(pathPart: string): Point | undefined {
