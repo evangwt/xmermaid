@@ -177,6 +177,38 @@ fn test_parse_timeline_periods_and_multiple_events() {
 }
 
 #[test]
+fn test_parse_requirement_blocks_with_properties_and_relationships() {
+    let ast = parse(
+        "requirementDiagram\n\
+  requirement Login {\n\
+    id: 1\n\
+    text: User must log in\n\
+    risk: high\n\
+    verifymethod: test\n\
+  }\n\
+  functionalRequirement Authenticate {\n\
+    text: Validate credentials\n\
+  }\n\
+  Login - satisfies -> Authenticate",
+    )
+    .unwrap();
+    let json = serde_json::to_value(ast).unwrap();
+
+    assert_eq!(json["type"], "requirement");
+    assert_eq!(json["requirements"].as_array().map(Vec::len), Some(2));
+    assert_eq!(json["requirements"][0]["kind"], "requirement");
+    assert_eq!(json["requirements"][0]["name"], "Login");
+    assert_eq!(json["requirements"][0]["id"], "1");
+    assert_eq!(json["requirements"][0]["text"], "User must log in");
+    assert_eq!(json["requirements"][0]["risk"], "high");
+    assert_eq!(json["requirements"][0]["verify_method"], "test");
+    assert_eq!(json["requirements"][1]["kind"], "functionalRequirement");
+    assert_eq!(json["relationships"][0]["from"], "Login");
+    assert_eq!(json["relationships"][0]["to"], "Authenticate");
+    assert_eq!(json["relationships"][0]["label"], "satisfies");
+}
+
+#[test]
 fn test_parse_indented_mindmap_hierarchy() {
     let ast = parse("mindmap\n  Root\n    Product\n      Editor\n    Renderer").unwrap();
     let json = serde_json::to_value(ast).unwrap();

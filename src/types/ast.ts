@@ -134,4 +134,25 @@ export interface TimelineEntry {
   events: string[];
 }
 
-export type DiagramAst = FlowchartAst | SequenceAst | ClassAst | StateAst | ErAst | GanttAst | UserJourneyAst | TimelineAst;
+export interface RequirementAst {
+  type: 'requirement';
+  requirements: Requirement[];
+  relationships: RequirementRelationship[];
+}
+
+export interface Requirement {
+  kind: string;
+  name: string;
+  id: string | null;
+  text: string | null;
+  risk: string | null;
+  verify_method: string | null;
+}
+
+export interface RequirementRelationship {
+  from: string;
+  to: string;
+  label: string;
+}
+
+export type DiagramAst = FlowchartAst | SequenceAst | ClassAst | StateAst | ErAst | GanttAst | UserJourneyAst | TimelineAst | RequirementAst;

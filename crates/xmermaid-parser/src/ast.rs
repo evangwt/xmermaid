@@ -143,6 +143,9 @@ pub struct TimelineAst { pub title: String, pub entries: Vec<TimelineEntry> }
 pub struct TimelineEntry { pub period: String, pub events: Vec<String> }
 #[derive(Debug, Clone, Serialize, Deserialize)] pub struct MindmapAst { pub nodes: Vec<MindmapNode> }
 #[derive(Debug, Clone, Serialize, Deserialize)] pub struct MindmapNode { pub id: String, pub label: String, pub parent: Option<String> }
+#[derive(Debug, Clone, Serialize, Deserialize)] pub struct RequirementAst { pub requirements: Vec<Requirement>, pub relationships: Vec<RequirementRelationship> }
+#[derive(Debug, Clone, Serialize, Deserialize)] pub struct Requirement { pub kind: String, pub name: String, pub id: Option<String>, pub text: Option<String>, pub risk: Option<String>, pub verify_method: Option<String> }
+#[derive(Debug, Clone, Serialize, Deserialize)] pub struct RequirementRelationship { pub from: String, pub to: String, pub label: String }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
@@ -157,4 +160,5 @@ pub enum DiagramAst {
     UserJourney(UserJourneyAst),
     Timeline(TimelineAst),
     Mindmap(MindmapAst),
+    Requirement(RequirementAst),
 }

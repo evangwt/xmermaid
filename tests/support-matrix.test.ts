@@ -31,7 +31,7 @@ describe('support matrix production contract', () => {
     ]));
     expect(matrix.entries).toHaveLength(30);
     expect(matrix.entries.find(item => item.diagramType === 'sequence')?.status).toBe('partial');
-    expect(matrix.entries.filter(item => !['flowchart', 'sequence', 'class', 'state', 'er', 'user-journey', 'gantt', 'pie', 'mindmap', 'timeline'].includes(item.diagramType)).every(item => item.status === 'planned')).toBe(true);
+    expect(matrix.entries.filter(item => !['flowchart', 'sequence', 'class', 'state', 'er', 'user-journey', 'gantt', 'pie', 'mindmap', 'timeline', 'requirement'].includes(item.diagramType)).every(item => item.status === 'planned')).toBe(true);
   });
 
   it('reports flowchart and sequence sources as partial while planned diagrams stay explicit', () => {
@@ -113,6 +113,12 @@ describe('support matrix production contract', () => {
   });
   it('reports indented Mindmap nodes as partial instead of planned', () => {
     expect(analyzeSupport('mindmap\n  Root\n    Child')).toMatchObject({ diagramType: 'mindmap', status: 'partial', unsupportedFeatures: [] });
+  });
+
+  it('reports requirement blocks and semantic relationships as partial instead of planned', () => {
+    expect(analyzeSupport('requirementDiagram\n  requirement Login {\n    text: User must log in\n  }\n  functionalRequirement Authenticate {\n    text: Validate credentials\n  }\n  Login - satisfies -> Authenticate')).toMatchObject({
+      diagramType: 'requirement', status: 'partial', unsupportedFeatures: [],
+    });
   });
 
   it('reports unknown sources as unsupported with a structured diagram feature', () => {
