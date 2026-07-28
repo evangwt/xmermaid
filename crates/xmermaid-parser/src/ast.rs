@@ -311,6 +311,13 @@ pub struct PacketField {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VennAst { pub title: String, pub sets: Vec<VennSet>, pub unions: Vec<VennUnion> }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VennSet { pub id: String, pub label: String }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VennUnion { pub sets: Vec<String>, pub label: String }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum DiagramAst {
     Flowchart(FlowchartAst),
@@ -336,4 +343,5 @@ pub enum DiagramAst {
     Treemap(TreemapAst),
     Radar(RadarAst),
     Packet(PacketAst),
+    Venn(VennAst),
 }

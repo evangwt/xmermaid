@@ -191,6 +191,9 @@ export interface PacketLayout {
   title: string;
   fields: PacketFieldLayout[];
 }
+export interface VennSetLayout { id: string; label: string; center: Point; radius: number; }
+export interface VennUnionLayout { label: string; position: Point; }
+export interface VennLayout { title: string; sets: VennSetLayout[]; unions: VennUnionLayout[]; }
 
 export interface LayoutResult {
   nodes: LayoutNode[];
@@ -205,4 +208,5 @@ export interface LayoutResult {
   treemap?: TreemapLayout;
   radar?: RadarLayout;
   packet?: PacketLayout;
+  venn?: VennLayout;
 }

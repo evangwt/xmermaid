@@ -43,6 +43,7 @@ fn test_get_diagram_type_flowchart() {
         DiagramAst::Treemap(_) => "treemap",
         DiagramAst::Radar(_) => "radar",
         DiagramAst::Packet(_) => "packet",
+        DiagramAst::Venn(_) => "venn",
     };
     assert_eq!(type_str, "flowchart");
 }
@@ -89,6 +90,12 @@ fn test_parse_dsl_radar() {
 fn test_parse_dsl_packet() {
     let ast = xmermaid_parser::parse("packet\n  +16: \"Source Port\"\n  +16: \"Destination Port\"").unwrap();
     assert!(matches!(ast, DiagramAst::Packet(_)));
+}
+
+#[test]
+fn test_parse_dsl_venn() {
+    let ast = xmermaid_parser::parse("venn-beta\n  set A\n  set B\n  union A,B[\"AB\"]").unwrap();
+    assert!(matches!(ast, DiagramAst::Venn(_)));
 }
 
 #[test]

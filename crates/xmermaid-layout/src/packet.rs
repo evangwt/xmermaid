@@ -31,6 +31,6 @@ pub fn layout(packet: &PacketAst, config: &LayoutConfig) -> LayoutResult {
         },
         pie_slices: vec![], xy_chart: None, sankey: None, quadrant_chart: None,
         block_diagram: None, kanban_board: None, treemap: None, radar: None,
-        packet: Some(PacketLayout { title: packet.title.clone(), fields }),
+        packet: Some(PacketLayout { title: packet.title.clone(), fields }), venn: None,
     }
 }

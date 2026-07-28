@@ -30,7 +30,7 @@ pub fn layout(chart: &TreemapAst, config: &LayoutConfig) -> LayoutResult {
         kanban_board: None,
         treemap: Some(TreemapLayout { nodes: result }),
         radar: None,
-        packet: None,
+        packet: None, venn: None,
     }
 }
 

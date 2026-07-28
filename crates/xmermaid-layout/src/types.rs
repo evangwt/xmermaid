@@ -221,6 +221,9 @@ pub struct RadarLayout { pub title: String, pub center: Point, pub radius: f64, 
 pub struct PacketFieldLayout { pub start: u32, pub end: u32, pub label: String, pub segments: Vec<Bounds> }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PacketLayout { pub title: String, pub fields: Vec<PacketFieldLayout> }
+#[derive(Debug, Clone, Serialize, Deserialize)] pub struct VennSetLayout { pub id: String, pub label: String, pub center: Point, pub radius: f64 }
+#[derive(Debug, Clone, Serialize, Deserialize)] pub struct VennUnionLayout { pub label: String, pub position: Point }
+#[derive(Debug, Clone, Serialize, Deserialize)] pub struct VennLayout { pub title: String, pub sets: Vec<VennSetLayout>, pub unions: Vec<VennUnionLayout> }
 
 /// Complete layout result
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -237,4 +240,5 @@ pub struct LayoutResult {
     #[serde(default, skip_serializing_if = "Option::is_none")] pub treemap: Option<TreemapLayout>,
     #[serde(default, skip_serializing_if = "Option::is_none")] pub radar: Option<RadarLayout>,
     #[serde(default, skip_serializing_if = "Option::is_none")] pub packet: Option<PacketLayout>,
+    #[serde(default, skip_serializing_if = "Option::is_none")] pub venn: Option<VennLayout>,
 }

@@ -84,6 +84,7 @@ impl<'a> Parser<'a> {
         if self.input.trim_start().starts_with("treemap-beta") { return self.parse_treemap(); }
         if self.input.trim_start().starts_with("radar-beta") { return self.parse_radar(); }
         if self.input.trim_start().starts_with("packet") { return self.parse_packet(); }
+        if self.input.trim_start().starts_with("venn-beta") { return self.parse_venn(); }
         let keyword = self.expect(TokenType::Keyword)?;
 
         match keyword.as_str() {
@@ -869,6 +870,30 @@ impl<'a> Parser<'a> {
             return Err(ParseError::EmptyInput);
         }
         Ok(DiagramAst::Packet(PacketAst { title, fields }))
+    }
+
+    fn parse_venn(&self) -> Result<DiagramAst, ParseError> {
+        let mut lines = self.input.lines().filter(|line| !line.trim().is_empty() && !line.trim_start().starts_with("%%"));
+        if lines.next().map(str::trim) != Some("venn-beta") { return Err(ParseError::UnexpectedToken("Venn diagrams must start with venn-beta.".to_string())); }
+        let mut title = String::new(); let mut sets = Vec::new(); let mut unions = Vec::new();
+        for line in lines {
+            let statement = line.trim();
+            if let Some(value) = statement.strip_prefix("title ") { if value.trim().is_empty() || !title.is_empty() { return Err(ParseError::UnexpectedToken(format!("Venn titles must be non-empty and declared once: {}", statement))); } title = value.trim().trim_matches('"').to_string(); continue; }
+            if let Some(value) = statement.strip_prefix("set ") {
+                let (id, label) = parse_venn_named(value, "set")?;
+                if sets.iter().any(|set: &VennSet| set.id == id) { return Err(ParseError::UnexpectedToken(format!("Duplicate Venn set: {}", id))); }
+                sets.push(VennSet { id, label }); continue;
+            }
+            if let Some(value) = statement.strip_prefix("union ") {
+                let (names, label) = parse_venn_named(value, "union")?;
+                let names = names.split(',').map(str::trim).filter(|name| !name.is_empty()).map(ToString::to_string).collect::<Vec<_>>();
+                if names.len() < 2 || names.iter().any(|name| !block_identifier(name)) || names.iter().any(|name| !sets.iter().any(|set| set.id == *name)) { return Err(ParseError::UnexpectedToken(format!("Venn unions require two or more declared set identifiers: {}", statement))); }
+                unions.push(VennUnion { sets: names, label }); continue;
+            }
+            return Err(ParseError::UnexpectedToken(format!("Unsupported Venn statement: {}", statement)));
+        }
+        if sets.len() < 2 { return Err(ParseError::EmptyInput); }
+        Ok(DiagramAst::Venn(VennAst { title, sets, unions }))
     }
 
     fn parse_kanban(&self) -> Result<DiagramAst, ParseError> {
@@ -1668,6 +1693,15 @@ fn parse_packet_label(label: &str, statement: &str) -> Result<String, ParseError
         .filter(|value| !value.trim().is_empty())
         .map(ToString::to_string)
         .ok_or_else(|| ParseError::UnexpectedToken(format!("Packet labels must use non-empty double quotes: {}", statement)))
+}
+
+fn parse_venn_named(value: &str, kind: &str) -> Result<(String, String), ParseError> {
+    let (id, label) = match value.trim().split_once('[') {
+        Some((id, label)) => (id.trim(), label.strip_suffix(']').and_then(|label| label.strip_prefix('"')).and_then(|label| label.strip_suffix('"')).ok_or_else(|| ParseError::UnexpectedToken(format!("Venn {} labels must use id[\"Label\"] syntax: {}", kind, value)))?),
+        None => (value.trim(), value.trim()),
+    };
+    if id.is_empty() || label.trim().is_empty() { return Err(ParseError::UnexpectedToken(format!("Venn {} values cannot be empty: {}", kind, value))); }
+    Ok((id.to_string(), label.to_string()))
 }
 
 fn parse_block_cell(value: &str) -> Result<(String, String, usize, bool), ParseError> {
