@@ -202,8 +202,14 @@ fn test_layout_dimensions_are_reasonable() {
     let layout = compute_layout(&ast, &config);
 
     // Dimensions should encompass all nodes plus padding
-    assert!(layout.dimensions.width >= 200.0, "Width should accommodate node + padding");
-    assert!(layout.dimensions.height >= 200.0, "Height should accommodate 2 nodes + padding");
+    assert!(
+        layout.dimensions.width >= 200.0,
+        "Width should accommodate node + padding"
+    );
+    assert!(
+        layout.dimensions.height >= 200.0,
+        "Height should accommodate 2 nodes + padding"
+    );
 }
 
 // ─── Self-loop ───────────────────────────────────────────────────
@@ -231,19 +237,24 @@ fn test_layout_multiple_edges_same_pair() {
     assert_eq!(layout.nodes.len(), 2);
 }
 
-// ─── Non-flowchart returns empty ─────────────────────────────────
+// ─── Sequence diagrams ───────────────────────────────────────────
 
 #[test]
-fn test_non_flowchart_returns_empty() {
-    // Construct a Sequence AST (not Flowchart)
+fn test_sequence_layout_positions_participants_and_messages() {
     let ast = DiagramAst::Sequence(xmermaid_parser::ast::SequenceAst {
-        participants: vec!["A".to_string()],
+        participants: vec!["Alice".to_string(), "Bob".to_string()],
+        messages: vec![xmermaid_parser::ast::SequenceMessage {
+            from: "Alice".to_string(),
+            to: "Bob".to_string(),
+            label: "Hello".to_string(),
+        }],
     });
     let config = config_for_ast(&ast);
     let result = compute_layout(&ast, &config);
-    // Unsupported types return empty LayoutResult
-    assert_eq!(result.nodes.len(), 0);
-    assert_eq!(result.edges.len(), 0);
+    assert_eq!(result.nodes.len(), 2);
+    assert_eq!(result.edges.len(), 1);
+    assert!(result.nodes[1].center.x > result.nodes[0].center.x);
+    assert_eq!(result.edges[0].label.as_deref(), Some("Hello"));
 }
 
 #[test]
@@ -284,14 +295,20 @@ fn test_cycle_produces_valid_layout() {
     assert_eq!(layout.nodes.len(), 2);
     let a = pos(&layout, "A");
     let b = pos(&layout, "B");
-    assert!(a.1 < b.1, "A should be above B (back-edge B-->A excluded from layering)");
+    assert!(
+        a.1 < b.1,
+        "A should be above B (back-edge B-->A excluded from layering)"
+    );
 }
 
 #[test]
 fn test_edges_to_nonexistent_nodes_ignored() {
     // If we manually construct an AST with edges referencing non-existent nodes,
     // those edges are silently ignored in layout computation
-    assert!(true, "Edges to non-existent nodes are silently ignored in layout");
+    assert!(
+        true,
+        "Edges to non-existent nodes are silently ignored in layout"
+    );
 }
 
 // ─── Helper ──────────────────────────────────────────────────────

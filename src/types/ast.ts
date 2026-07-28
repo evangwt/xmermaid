@@ -49,6 +49,13 @@ export interface FlowchartAst {
 export interface SequenceAst {
   type: 'sequence';
   participants: string[];
+  messages: SequenceMessage[];
+}
+
+export interface SequenceMessage {
+  from: string;
+  to: string;
+  label: string;
 }
 
 export type DiagramAst = FlowchartAst | SequenceAst;

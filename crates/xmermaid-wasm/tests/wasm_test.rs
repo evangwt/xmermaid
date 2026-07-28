@@ -37,14 +37,14 @@ fn test_compute_layout() {
 }
 
 #[test]
-fn test_compute_layout_non_flowchart() {
+fn test_compute_layout_sequence_participants() {
     let ast = DiagramAst::Sequence(xmermaid_parser::ast::SequenceAst {
         participants: vec!["A".to_string()],
+        messages: vec![],
     });
     let config = LayoutConfig::default();
     let result = xmermaid_layout::compute_layout(&ast, &config);
-    // Non-flowchart returns empty LayoutResult
-    assert_eq!(result.nodes.len(), 0);
+    assert_eq!(result.nodes.len(), 1);
     assert_eq!(result.edges.len(), 0);
 }
 
@@ -89,7 +89,10 @@ fn test_render_pipeline_complex() {
 
 #[test]
 fn test_full_pipeline_with_shapes() {
-    let ast = xmermaid_parser::parse("graph TD\n  A[Start]-->B{Decision}\n  B-->|Yes|C[Process]\n  B-->|No|D[End]").unwrap();
+    let ast = xmermaid_parser::parse(
+        "graph TD\n  A[Start]-->B{Decision}\n  B-->|Yes|C[Process]\n  B-->|No|D[End]",
+    )
+    .unwrap();
     let config = LayoutConfig::default();
     let layout = xmermaid_layout::compute_layout(&ast, &config);
 

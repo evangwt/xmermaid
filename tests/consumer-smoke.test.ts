@@ -188,6 +188,8 @@ describe('consumer smoke helpers', () => {
       expect(page).toContain("import { DARK_THEME, XMermaid } from 'xmermaid';");
       expect(page).toContain('themeGeometryReady');
       expect(page).toContain('markerJoinDistance <= 1');
+      expect(page).toContain("sequenceDiagram\\n  Alice-->>Bob: Async reply");
+      expect(page).toContain('sequenceSvgHasLabels');
     } finally {
       rmSync(tempRoot, { recursive: true, force: true });
     }
