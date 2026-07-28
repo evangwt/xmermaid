@@ -152,6 +152,15 @@ fn test_parse_pie_values_with_title() {
 }
 
 #[test]
+fn test_parse_indented_mindmap_hierarchy() {
+    let ast = parse("mindmap\n  Root\n    Product\n      Editor\n    Renderer").unwrap();
+    let json = serde_json::to_value(ast).unwrap();
+    assert_eq!(json["type"], "mindmap");
+    assert_eq!(json["nodes"].as_array().map(Vec::len), Some(4));
+    assert_eq!(json["nodes"][2]["parent"], "mindmap-1");
+}
+
+#[test]
 fn test_parse_flowchart_multiple_edges() {
     let input = "graph TD\n  A-->B\n  B-->C";
     let result = parse(input);

@@ -133,6 +133,8 @@ pub struct GanttTask {
 pub struct PieAst { pub title: String, pub slices: Vec<PieSlice> }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PieSlice { pub label: String, pub value: f64 }
+#[derive(Debug, Clone, Serialize, Deserialize)] pub struct MindmapAst { pub nodes: Vec<MindmapNode> }
+#[derive(Debug, Clone, Serialize, Deserialize)] pub struct MindmapNode { pub id: String, pub label: String, pub parent: Option<String> }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
@@ -144,4 +146,5 @@ pub enum DiagramAst {
     Er(ErAst),
     Gantt(GanttAst),
     Pie(PieAst),
+    Mindmap(MindmapAst),
 }
