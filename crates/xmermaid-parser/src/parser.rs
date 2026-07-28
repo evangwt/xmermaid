@@ -68,6 +68,7 @@ impl<'a> Parser<'a> {
         if self.input.trim_start().starts_with("erDiagram") { return self.parse_er(); }
         if self.input.trim_start().starts_with("gantt") { return self.parse_gantt(); }
         if self.input.trim_start().starts_with("pie") { return self.parse_pie(); }
+        if self.input.trim_start().starts_with("journey") { return self.parse_user_journey(); }
         if self.input.trim_start().starts_with("mindmap") { return self.parse_mindmap(); }
         let keyword = self.expect(TokenType::Keyword)?;
 
@@ -285,6 +286,23 @@ impl<'a> Parser<'a> {
         }
         if slices.is_empty() { return Err(ParseError::EmptyInput); }
         Ok(DiagramAst::Pie(PieAst { title, slices }))
+    }
+    fn parse_user_journey(&self) -> Result<DiagramAst, ParseError> {
+        let mut title = String::new(); let mut section = String::new(); let mut tasks = Vec::new();
+        for line in self.input.lines().skip(1) {
+            let statement = line.trim();
+            if statement.is_empty() || statement.starts_with("%%") { continue; }
+            if let Some(value) = statement.strip_prefix("title ") { title = value.trim().to_string(); continue; }
+            if let Some(value) = statement.strip_prefix("section ") { section = value.trim().to_string(); continue; }
+            let mut parts = statement.split(':').map(str::trim);
+            let label = parts.next().unwrap_or_default();
+            let score = parts.next().and_then(|value| value.parse::<u8>().ok());
+            let actors = parts.next().map(|value| value.split(',').map(str::trim).filter(|actor| !actor.is_empty()).map(ToString::to_string).collect()).unwrap_or_default();
+            if label.is_empty() || section.is_empty() || parts.next().is_some() || !matches!(score, Some(1..=5)) { return Err(ParseError::UnexpectedToken(format!("Journey tasks require a section, label, and score 1-5: {}", statement))); }
+            tasks.push(UserJourneyTask { section: section.clone(), label: label.to_string(), score: score.unwrap(), actors });
+        }
+        if tasks.is_empty() { return Err(ParseError::EmptyInput); }
+        Ok(DiagramAst::UserJourney(UserJourneyAst { title, tasks }))
     }
     fn parse_mindmap(&self) -> Result<DiagramAst, ParseError> {
         let mut nodes = Vec::new(); let mut parents: Vec<String> = Vec::new(); let mut base_indent = None;

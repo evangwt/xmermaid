@@ -44,6 +44,7 @@ pub fn get_diagram_type(ast_json: &str) -> Result<String, JsValue> {
         DiagramAst::Er(_) => "er",
         DiagramAst::Gantt(_) => "gantt",
         DiagramAst::Pie(_) => "pie",
+        DiagramAst::UserJourney(_) => "user-journey",
         DiagramAst::Mindmap(_) => "mindmap",
     };
 

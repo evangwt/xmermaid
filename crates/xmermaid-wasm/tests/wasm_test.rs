@@ -27,9 +27,20 @@ fn test_get_diagram_type_flowchart() {
         DiagramAst::Er(_) => "er",
         DiagramAst::Gantt(_) => "gantt",
         DiagramAst::Pie(_) => "pie",
+        DiagramAst::UserJourney(_) => "user-journey",
         DiagramAst::Mindmap(_) => "mindmap",
     };
     assert_eq!(type_str, "flowchart");
+}
+
+#[test]
+fn test_compute_layout_user_journey_tasks() {
+    let ast = xmermaid_parser::parse("journey\n  section Explore\n    Find product: 5: Buyer\n  section Buy\n    Checkout: 4: Buyer").unwrap();
+    let result = xmermaid_layout::compute_layout(&ast, &LayoutConfig::default());
+
+    assert_eq!(result.nodes.len(), 2);
+    assert_eq!(result.edges.len(), 1);
+    assert!(result.nodes[0].label.contains("Explore · Find product"));
 }
 
 #[test]
