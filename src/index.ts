@@ -67,4 +67,4 @@ export type {
   FlowchartDslParser,
   FlowchartDslRenderer,
 } from './editor';
-export type { DiagramAst, FlowchartAst, SequenceAst, EdgeStyle, FlowchartNode, FlowchartEdge, Subgraph } from './types/ast';
+export type { DiagramAst, FlowchartAst, SequenceAst, SequenceMessage, EdgeStyle, FlowchartNode, FlowchartEdge, Subgraph } from './types/ast';

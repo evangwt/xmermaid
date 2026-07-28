@@ -37,7 +37,8 @@ export type UnsupportedFeatureId =
   | 'flowchart.edgeToSubgraph'
   | 'flowchart.hyphenatedNodeId'
   | 'flowchart.inlineClass'
-  | 'flowchart.linkStyle';
+  | 'flowchart.linkStyle'
+  | 'sequence.advanced';
 
 export interface SupportSourceRange {
   startOffset: number;
@@ -126,7 +127,7 @@ const SUPPORT_MATRIX: SupportMatrix = {
     },
     ...DIAGRAM_CATALOG
       .filter(([diagramType]) => diagramType !== 'flowchart')
-      .map(([diagramType]) => planned(diagramType)),
+      .map(([diagramType]) => diagramType === 'sequence' ? partialSequence() : planned(diagramType)),
   ],
 };
 
@@ -168,6 +169,9 @@ export function analyzeSupport(source: string): SupportReport {
 
 export function detectUnsupportedFeatures(source: string): UnsupportedFeature[] {
   const diagramType = detectDiagramType(source);
+  if (diagramType === 'sequence') {
+    return detectUnsupportedSequenceFeatures(source);
+  }
   if (diagramType !== 'flowchart') {
     return [unsupportedDiagramFeature(source, diagramType)];
   }
@@ -341,6 +345,21 @@ export function detectUnsupportedFeatures(source: string): UnsupportedFeature[] 
   return features;
 }
 
+function detectUnsupportedSequenceFeatures(source: string): UnsupportedFeature[] {
+  const features: UnsupportedFeature[] = [];
+  for (const line of linesWithRanges(source)) {
+    if (/^\s*(?:participant|actor|create|destroy|activate|deactivate|note|rect|loop|alt|else|opt|par|and|critical|option|break|end)\b/i.test(line.text)) {
+      features.push(unsupportedSyntax(
+        'sequence.advanced',
+        line,
+        'Sequence activation, participant declarations, notes, and control blocks are not supported yet.',
+        'error',
+      ));
+    }
+  }
+  return features;
+}
+
 function collectSubgraphIds(lines: SourceLine[]): Set<string> {
   const ids = new Set<string>();
   for (const line of lines) {
@@ -375,6 +394,20 @@ function planned(diagramType: DiagramType): DiagramSupportEntry {
         status: 'unsupported',
         notes: 'Planned for a future compatibility roadmap.',
       },
+    ],
+  };
+}
+
+function partialSequence(): DiagramSupportEntry {
+  return {
+    diagramType: 'sequence',
+    status: 'partial',
+    supportedSyntax: [
+      { id: 'sequence.participants', label: 'participants inferred from messages', status: 'supported' },
+      { id: 'sequence.message', label: 'direct messages with labels', status: 'supported' },
+    ],
+    unsupportedSyntax: [
+      { id: 'sequence.advanced', label: 'activation, notes, loops, and alternate branches', status: 'unsupported' },
     ],
   };
 }

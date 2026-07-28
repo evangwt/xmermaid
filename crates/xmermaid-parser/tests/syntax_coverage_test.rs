@@ -9,7 +9,10 @@ fn fc(input: &str) -> xmermaid_parser::FlowchartAst {
 }
 
 /// Helper: find a node by ID in the flowchart.
-fn find_node<'a>(fc: &'a xmermaid_parser::FlowchartAst, id: &str) -> Option<&'a xmermaid_parser::Node> {
+fn find_node<'a>(
+    fc: &'a xmermaid_parser::FlowchartAst,
+    id: &str,
+) -> Option<&'a xmermaid_parser::Node> {
     fc.nodes.iter().find(|n| n.id == id)
 }
 
@@ -234,7 +237,11 @@ fn test_falsify_stadium_shape_unsupported() {
     // then ) closes. Result: Rounded shape with label containing brackets.
     let fc = fc("graph TD\n  A([Stadium])");
     let node = find_node(&fc, "A").unwrap();
-    assert_eq!(node.shape, NodeShape::Rounded, "([text]) parsed as Rounded, not Stadium");
+    assert_eq!(
+        node.shape,
+        NodeShape::Rounded,
+        "([text]) parsed as Rounded, not Stadium"
+    );
     assert!(node.label.as_ref().unwrap().contains('['));
 }
 
@@ -245,7 +252,11 @@ fn test_falsify_cylinder_shape_unsupported() {
     // then ] closes. Result: Rect shape with label containing parentheses.
     let fc = fc("graph TD\n  A[(Database)]");
     let node = find_node(&fc, "A").unwrap();
-    assert_eq!(node.shape, NodeShape::Rect, "[(text)] parsed as Rect, not Cylinder");
+    assert_eq!(
+        node.shape,
+        NodeShape::Rect,
+        "[(text)] parsed as Rect, not Cylinder"
+    );
     assert!(node.label.as_ref().unwrap().starts_with('('));
 }
 
@@ -257,8 +268,11 @@ fn test_falsify_expanded_shape_syntax_unsupported() {
     if let Ok(DiagramAst::Flowchart(fc)) = result {
         let node = find_node(&fc, "A");
         if let Some(n) = node {
-            assert_eq!(n.shape, NodeShape::Rect,
-                "expanded shape syntax should not change the node shape");
+            assert_eq!(
+                n.shape,
+                NodeShape::Rect,
+                "expanded shape syntax should not change the node shape"
+            );
         }
     }
     // If it errors, that's also acceptable
@@ -303,7 +317,11 @@ fn test_edge_thick_line() {
     // KNOWN LIMITATION: === should be Thick without arrowhead, but parser treats
     // unrecognized arrow patterns as Arrow
     let fc = fc("graph TD\n  A===B");
-    assert_eq!(fc.edges[0].style, EdgeStyle::Arrow, "Known limitation: === parsed as Arrow, not Thick");
+    assert_eq!(
+        fc.edges[0].style,
+        EdgeStyle::Arrow,
+        "Known limitation: === parsed as Arrow, not Thick"
+    );
 }
 
 #[test]
@@ -324,14 +342,22 @@ fn test_edge_extended_arrow() {
 fn test_edge_extended_line() {
     // KNOWN LIMITATION: ---- should be Line with extended length
     let fc = fc("graph TD\n  A----B");
-    assert_eq!(fc.edges[0].style, EdgeStyle::Arrow, "Known limitation: ---- parsed as Arrow, not Line");
+    assert_eq!(
+        fc.edges[0].style,
+        EdgeStyle::Arrow,
+        "Known limitation: ---- parsed as Arrow, not Line"
+    );
 }
 
 #[test]
 fn test_edge_extended_thick() {
     // KNOWN LIMITATION: ===> should be Thick with extended length
     let fc = fc("graph TD\n  A===>B");
-    assert_eq!(fc.edges[0].style, EdgeStyle::Arrow, "Known limitation: ===> parsed as Arrow, not Thick");
+    assert_eq!(
+        fc.edges[0].style,
+        EdgeStyle::Arrow,
+        "Known limitation: ===> parsed as Arrow, not Thick"
+    );
 }
 
 // ─── Edge labels (now supported) ───────────────────────────────
@@ -381,7 +407,10 @@ fn test_falsify_bidirectional_arrow_unsupported() {
         && fc.edges[0].from == "A"
         && fc.edges[0].to == "B"
         && fc.edges[0].style == EdgeStyle::Arrow;
-    assert!(!clean_edge, "bidirectional arrows should not produce a clean Arrow edge");
+    assert!(
+        !clean_edge,
+        "bidirectional arrows should not produce a clean Arrow edge"
+    );
 }
 
 #[test]
@@ -389,7 +418,10 @@ fn test_falsify_circle_edge_unsupported() {
     // Circle edge --o is not supported.
     // The lexer reads -- as Arrow, then oB as a single NodeId.
     let fc = fc("graph TD\n  A--oB");
-    assert_eq!(fc.edges[0].to, "oB", "Circle edge --o parsed incorrectly (o absorbed into node ID)");
+    assert_eq!(
+        fc.edges[0].to, "oB",
+        "Circle edge --o parsed incorrectly (o absorbed into node ID)"
+    );
 }
 
 #[test]
@@ -397,7 +429,10 @@ fn test_falsify_cross_edge_unsupported() {
     // Cross edge --x is not supported.
     // Similar to circle edge: xB becomes a single NodeId.
     let fc = fc("graph TD\n  A--xB");
-    assert_eq!(fc.edges[0].to, "xB", "Cross edge --x parsed incorrectly (x absorbed into node ID)");
+    assert_eq!(
+        fc.edges[0].to, "xB",
+        "Cross edge --x parsed incorrectly (x absorbed into node ID)"
+    );
 }
 
 #[test]
@@ -406,7 +441,11 @@ fn test_falsify_inline_edge_label_unsupported() {
     // The parser treats "text" as a NodeId, creating extra nodes/edges.
     let fc = fc("graph TD\n  A-- text -->B");
     // Creates 2 edges (A->text, text->B) instead of 1 labeled edge
-    assert_eq!(fc.edges.len(), 2, "Inline label creates extra edges instead of a labeled edge");
+    assert_eq!(
+        fc.edges.len(),
+        2,
+        "Inline label creates extra edges instead of a labeled edge"
+    );
 }
 
 #[test]
@@ -421,7 +460,10 @@ fn test_falsify_edge_id_syntax_unsupported() {
             && fc.edges[0].from == "A"
             && fc.edges[0].to == "B"
             && fc.nodes.len() == 2;
-        assert!(!clean_parse, "edge ID syntax should not produce a clean parse");
+        assert!(
+            !clean_parse,
+            "edge ID syntax should not produce a clean parse"
+        );
     }
 }
 
@@ -548,7 +590,10 @@ fn test_falsify_end_as_node_id() {
     let result = parse("graph TD\n  end-->B");
     // The parser sees Keyword("end") in the flowchart body and skips it.
     // This is the correct behavior for a reserved word.
-    assert!(result.is_ok(), "'end' is correctly treated as a keyword, not a node ID");
+    assert!(
+        result.is_ok(),
+        "'end' is correctly treated as a keyword, not a node ID"
+    );
 }
 
 #[test]
@@ -613,7 +658,10 @@ fn test_falsify_markdown_labels_unsupported() {
     let fc = fc("graph TD\n  A[\"`**Bold**`\"]");
     // Markdown syntax is preserved as-is, not rendered
     let label = fc.nodes[0].label.as_ref().unwrap();
-    assert!(label.contains("**"), "Markdown not rendered, preserved as text");
+    assert!(
+        label.contains("**"),
+        "Markdown not rendered, preserved as text"
+    );
 }
 
 #[test]
@@ -659,8 +707,10 @@ fn test_subgraph_with_direction() {
     assert_eq!(fc.subgraphs.len(), 1);
     assert_eq!(fc.subgraphs[0].title, "S1");
     // "direction" keyword should be consumed, not create a spurious node
-    assert!(!fc.nodes.iter().any(|n| n.id == "direction"),
-        "direction keyword inside subgraph should not create a node");
+    assert!(
+        !fc.nodes.iter().any(|n| n.id == "direction"),
+        "direction keyword inside subgraph should not create a node"
+    );
 }
 
 #[test]
@@ -713,7 +763,10 @@ fn test_class_assignment_is_parsed_but_skipped() {
     // A:::myClass creates a spurious "myClass" node due to ::: tokenization,
     // but the diagram should still parse without error.
     let result = parse("graph TD\n  A:::myClass-->B");
-    assert!(result.is_ok(), "::: class assignment should not cause a parse error");
+    assert!(
+        result.is_ok(),
+        "::: class assignment should not cause a parse error"
+    );
     if let Ok(DiagramAst::Flowchart(fc)) = result {
         // The edge should exist
         assert!(!fc.edges.is_empty());
@@ -727,8 +780,10 @@ fn test_falsify_link_style_unsupported() {
     if let Ok(DiagramAst::Flowchart(fc)) = result {
         // "linkStyle" or "0" may appear as spurious nodes
         let has_spurious = fc.nodes.iter().any(|n| n.id == "linkStyle" || n.id == "0");
-        assert!(has_spurious || fc.nodes.len() > 2,
-            "linkStyle should not be properly handled yet");
+        assert!(
+            has_spurious || fc.nodes.len() > 2,
+            "linkStyle should not be properly handled yet"
+        );
     }
 }
 
@@ -839,7 +894,11 @@ fn test_state_machine_like() {
     let fc = fc("graph TD\n  Idle-->Running\n  Running-->Paused\n  Paused-->Running\n  Running-->Stopped\n  Idle-->Stopped");
     assert_eq!(fc.nodes.len(), 4);
     assert_eq!(fc.edges.len(), 5);
-    let edges: Vec<_> = fc.edges.iter().map(|e| (e.from.as_str(), e.to.as_str())).collect();
+    let edges: Vec<_> = fc
+        .edges
+        .iter()
+        .map(|e| (e.from.as_str(), e.to.as_str()))
+        .collect();
     assert!(edges.contains(&("Idle", "Running")));
     assert!(edges.contains(&("Running", "Paused")));
     assert!(edges.contains(&("Paused", "Running")));
@@ -917,7 +976,12 @@ fn test_node_styles_always_empty() {
     // from classDef/style/class statements is not applied to nodes.
     let fc = fc("graph TD\n  A[Hello]-->B[World]");
     for node in &fc.nodes {
-        assert!(node.styles.is_empty(), "node {} has styles: {:?}", node.id, node.styles);
+        assert!(
+            node.styles.is_empty(),
+            "node {} has styles: {:?}",
+            node.id,
+            node.styles
+        );
     }
 }
 
@@ -926,13 +990,19 @@ fn test_subgraphs_not_empty_when_present() {
     // Subgraphs are now supported; a diagram with subgraphs should
     // have a non-empty subgraphs vec.
     let fc = fc("graph TD\n  subgraph sg\n    A-->B\n  end");
-    assert!(!fc.subgraphs.is_empty(), "Subgraphs should be populated when defined");
+    assert!(
+        !fc.subgraphs.is_empty(),
+        "Subgraphs should be populated when defined"
+    );
 }
 
 #[test]
 fn test_subgraphs_empty_when_absent() {
     let fc = fc("graph TD\n  A-->B");
-    assert!(fc.subgraphs.is_empty(), "Subgraphs should be empty when not defined");
+    assert!(
+        fc.subgraphs.is_empty(),
+        "Subgraphs should be empty when not defined"
+    );
 }
 
 // ============================================================
@@ -950,8 +1020,11 @@ fn test_falsify_yaml_front_matter_unsupported() {
 // ============================================================
 
 #[test]
-fn test_falsify_sequence_diagram() {
-    assert!(parse("sequenceDiagram\n  A->>B: Hello").is_err());
+fn test_sequence_diagram_is_parsed() {
+    assert!(matches!(
+        parse("sequenceDiagram\n  A->>B: Hello"),
+        Ok(DiagramAst::Sequence(_))
+    ));
 }
 
 #[test]
@@ -1027,7 +1100,10 @@ fn test_dedup_self_loop() {
 fn test_json_contains_type_tag() {
     let ast = parse("graph TD\n  A-->B").unwrap();
     let json = serde_json::to_string(&ast).unwrap();
-    assert!(json.contains("\"type\""), "JSON must contain type discriminator");
+    assert!(
+        json.contains("\"type\""),
+        "JSON must contain type discriminator"
+    );
 }
 
 #[test]
@@ -1068,5 +1144,8 @@ fn test_error_unexpected_token_describes_expected() {
     let result = parse("TD\n  A-->B");
     let err = result.unwrap_err();
     let msg = err.to_string();
-    assert!(msg.contains("Keyword") || msg.contains("Expected"), "Error should describe what was expected");
+    assert!(
+        msg.contains("Keyword") || msg.contains("Expected"),
+        "Error should describe what was expected"
+    );
 }

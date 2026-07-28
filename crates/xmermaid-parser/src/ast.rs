@@ -71,6 +71,14 @@ pub struct FlowchartAst {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SequenceAst {
     pub participants: Vec<String>,
+    pub messages: Vec<SequenceMessage>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SequenceMessage {
+    pub from: String,
+    pub to: String,
+    pub label: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

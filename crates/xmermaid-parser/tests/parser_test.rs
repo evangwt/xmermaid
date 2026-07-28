@@ -61,6 +61,37 @@ fn test_parse_flowchart_with_shapes() {
 }
 
 #[test]
+fn test_parse_sequence_participants_and_messages() {
+    let ast = parse("sequenceDiagram\n  Alice->>Bob: Hello").unwrap();
+
+    match ast {
+        DiagramAst::Sequence(sequence) => {
+            assert_eq!(sequence.participants, vec!["Alice", "Bob"]);
+            assert_eq!(sequence.messages.len(), 1);
+            assert_eq!(sequence.messages[0].from, "Alice");
+            assert_eq!(sequence.messages[0].to, "Bob");
+            assert_eq!(sequence.messages[0].label, "Hello");
+        }
+        _ => panic!("expected sequence diagram"),
+    }
+}
+
+#[test]
+fn test_parse_sequence_dashed_message_without_mutating_sender() {
+    let ast = parse("sequenceDiagram\n  Alice-->>Bob: Async reply").unwrap();
+
+    match ast {
+        DiagramAst::Sequence(sequence) => {
+            assert_eq!(sequence.participants, vec!["Alice", "Bob"]);
+            assert_eq!(sequence.messages[0].from, "Alice");
+            assert_eq!(sequence.messages[0].to, "Bob");
+            assert_eq!(sequence.messages[0].label, "Async reply");
+        }
+        _ => panic!("expected sequence diagram"),
+    }
+}
+
+#[test]
 fn test_parse_flowchart_multiple_edges() {
     let input = "graph TD\n  A-->B\n  B-->C";
     let result = parse(input);

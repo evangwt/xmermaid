@@ -23,7 +23,10 @@ fn test_layout_ci_cd_pipeline_lr() {
         .collect();
 
     for i in 0..3 {
-        assert!(positions[i].0 < positions[i + 1].0, "LR: nodes should increase in x");
+        assert!(
+            positions[i].0 < positions[i + 1].0,
+            "LR: nodes should increase in x"
+        );
     }
 }
 
@@ -87,14 +90,22 @@ fn test_layout_star_topology() {
     }
     let s1_y = pos(&layout, "S1").1;
     for id in &["S2", "S3", "S4"] {
-        assert_eq!(pos(&layout, id).1, s1_y, "{} should be at same layer as S1", id);
+        assert_eq!(
+            pos(&layout, id).1,
+            s1_y,
+            "{} should be at same layer as S1",
+            id
+        );
     }
 }
 
 #[test]
 fn test_falsify_state_machine_back_edge() {
     // Paused-->Running is a back-edge; cycle detection now handles it.
-    let ast = parse("graph TD\n  Idle-->Running\n  Running-->Paused\n  Paused-->Running\n  Running-->Stopped").unwrap();
+    let ast = parse(
+        "graph TD\n  Idle-->Running\n  Running-->Paused\n  Paused-->Running\n  Running-->Stopped",
+    )
+    .unwrap();
     let config = config_for_ast(&ast);
     let layout = compute_layout(&ast, &config);
 
@@ -110,7 +121,10 @@ fn test_falsify_state_machine_back_edge() {
     // Stopped is at layer 3 (Running-->Stopped via longest path through Paused or directly)
     // The back-edge Paused-->Running is excluded from layering
     assert!(idle.1 < running.1, "Idle above Running");
-    assert!(running.1 < paused.1, "Running above Paused (back-edge excluded)");
+    assert!(
+        running.1 < paused.1,
+        "Running above Paused (back-edge excluded)"
+    );
     assert!(running.1 < stopped.1, "Running above Stopped");
 }
 
@@ -195,8 +209,14 @@ fn test_layout_dimensions_encompass_all_nodes() {
     let layout = compute_layout(&ast, &config);
 
     for n in &layout.nodes {
-        assert!(n.center.x + 60.0 <= layout.dimensions.width, "x + half_width within bounds");
-        assert!(n.center.y + 20.0 <= layout.dimensions.height, "y + half_height within bounds");
+        assert!(
+            n.center.x + 60.0 <= layout.dimensions.width,
+            "x + half_width within bounds"
+        );
+        assert!(
+            n.center.y + 20.0 <= layout.dimensions.height,
+            "y + half_height within bounds"
+        );
     }
 }
 
@@ -208,7 +228,10 @@ fn test_layout_dimensions_increase_with_nodes() {
     let layout2 = compute_layout(&ast2, &config);
     let layout4 = compute_layout(&ast4, &config);
 
-    assert!(layout4.dimensions.height > layout2.dimensions.height, "More nodes = taller");
+    assert!(
+        layout4.dimensions.height > layout2.dimensions.height,
+        "More nodes = taller"
+    );
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -281,14 +304,14 @@ fn test_falsify_self_loop_layout() {
 }
 
 #[test]
-fn test_falsify_non_flowchart_rejected() {
+fn test_sequence_with_participants_has_a_layout() {
     let ast = DiagramAst::Sequence(xmermaid_parser::ast::SequenceAst {
         participants: vec!["A".to_string()],
+        messages: vec![],
     });
     let config = config_for_ast(&ast);
     let result = compute_layout(&ast, &config);
-    // Unsupported types return empty LayoutResult
-    assert_eq!(result.nodes.len(), 0);
+    assert_eq!(result.nodes.len(), 1);
     assert_eq!(result.edges.len(), 0);
 }
 
