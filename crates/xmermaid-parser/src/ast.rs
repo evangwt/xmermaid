@@ -270,9 +270,31 @@ pub struct TreemapAst {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TreemapNode {
+  pub label: String,
+  pub value: Option<f64>,
+  pub parent: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RadarAst {
+    pub title: String,
+    pub axes: Vec<RadarAxis>,
+    pub curves: Vec<RadarCurve>,
+    pub min: f64,
+    pub max: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RadarAxis {
+    pub id: String,
     pub label: String,
-    pub value: Option<f64>,
-    pub parent: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RadarCurve {
+    pub id: String,
+    pub label: String,
+    pub values: Vec<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -299,4 +321,5 @@ pub enum DiagramAst {
     Block(BlockAst),
     Kanban(KanbanAst),
     Treemap(TreemapAst),
+    Radar(RadarAst),
 }
