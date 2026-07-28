@@ -181,6 +181,12 @@ pub enum XySeriesKind { Bar, Line }
 pub struct XyChartSeries { pub kind: XySeriesKind, #[serde(default, skip_serializing_if = "Vec::is_empty")] pub bars: Vec<Bounds>, #[serde(default, skip_serializing_if = "Vec::is_empty")] pub points: Vec<Point> }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct XyChartLayout { pub title: String, pub plot: Bounds, pub x_labels: Vec<String>, pub y_min: f64, pub y_max: f64, pub series: Vec<XyChartSeries> }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SankeyNode { pub id: String, pub bounds: Bounds, pub value: f64, pub column: usize }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SankeyLink { pub source: String, pub target: String, pub value: f64, pub source_y: f64, pub target_y: f64, pub thickness: f64 }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SankeyLayout { pub nodes: Vec<SankeyNode>, pub links: Vec<SankeyLink> }
 
 /// Complete layout result
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -190,4 +196,5 @@ pub struct LayoutResult {
     pub dimensions: Dimensions,
     #[serde(default)] pub pie_slices: Vec<PieSlice>,
     #[serde(default, skip_serializing_if = "Option::is_none")] pub xy_chart: Option<XyChartLayout>,
+    #[serde(default, skip_serializing_if = "Option::is_none")] pub sankey: Option<SankeyLayout>,
 }
