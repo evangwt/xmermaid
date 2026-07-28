@@ -30,6 +30,7 @@ fn test_get_diagram_type_flowchart() {
         DiagramAst::UserJourney(_) => "user-journey",
         DiagramAst::Timeline(_) => "timeline",
         DiagramAst::Mindmap(_) => "mindmap",
+        DiagramAst::Requirement(_) => "requirement",
     };
     assert_eq!(type_str, "flowchart");
 }

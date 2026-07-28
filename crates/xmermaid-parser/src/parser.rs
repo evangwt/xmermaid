@@ -71,6 +71,7 @@ impl<'a> Parser<'a> {
         if self.input.trim_start().starts_with("journey") { return self.parse_user_journey(); }
         if self.input.trim_start().starts_with("timeline") { return self.parse_timeline(); }
         if self.input.trim_start().starts_with("mindmap") { return self.parse_mindmap(); }
+        if self.input.trim_start().starts_with("requirementDiagram") { return self.parse_requirement(); }
         let keyword = self.expect(TokenType::Keyword)?;
 
         match keyword.as_str() {
@@ -328,6 +329,58 @@ impl<'a> Parser<'a> {
             let id = format!("mindmap-{}", nodes.len()); let parent = if level == 0 { None } else { Some(parents[level - 1].clone()) };
             parents.truncate(level); parents.push(id.clone()); nodes.push(MindmapNode { id, label: label.to_string(), parent }); }
         if nodes.is_empty() { return Err(ParseError::EmptyInput); } Ok(DiagramAst::Mindmap(MindmapAst { nodes }))
+    }
+    fn parse_requirement(&self) -> Result<DiagramAst, ParseError> {
+        let mut requirements = Vec::new();
+        let mut relationships = Vec::new();
+        let mut lines = self.input.lines().skip(1).peekable();
+
+        while let Some(line) = lines.next() {
+            let statement = line.trim();
+            if statement.is_empty() || statement.starts_with("%%") { continue; }
+            if let Some((from, rest)) = statement.split_once(" - ") {
+                let (label, to) = rest.split_once(" -> ").ok_or_else(|| ParseError::UnexpectedToken(format!("Invalid requirement relationship: {}", statement)))?;
+                let (from, label, to) = (from.trim(), label.trim(), to.trim());
+                if from.is_empty() || label.is_empty() || to.is_empty() { return Err(ParseError::UnexpectedToken(format!("Invalid requirement relationship: {}", statement))); }
+                relationships.push(RequirementRelationship { from: from.to_string(), to: to.to_string(), label: label.to_string() });
+                continue;
+            }
+
+            let header = statement.strip_suffix('{').map(str::trim).ok_or_else(|| ParseError::UnexpectedToken(format!("Requirement declarations must end with '{{': {}", statement)))?;
+            let mut header_parts = header.split_whitespace();
+            let kind = header_parts.next().unwrap_or_default();
+            let name = header_parts.next().unwrap_or_default();
+            if !matches!(kind, "requirement" | "functionalRequirement" | "interfaceRequirement" | "performanceRequirement" | "physicalRequirement" | "designConstraint") || name.is_empty() || header_parts.next().is_some() {
+                return Err(ParseError::UnexpectedToken(format!("Invalid requirement declaration: {}", statement)));
+            }
+
+            let mut id = None;
+            let mut text = None;
+            let mut risk = None;
+            let mut verify_method = None;
+            let mut closed = false;
+            for property_line in lines.by_ref() {
+                let property = property_line.trim();
+                if property.is_empty() || property.starts_with("%%") { continue; }
+                if property == "}" { closed = true; break; }
+                let (key, value) = property.split_once(':').ok_or_else(|| ParseError::UnexpectedToken(format!("Requirement properties require key: value syntax: {}", property)))?;
+                let value = value.trim();
+                if value.is_empty() { return Err(ParseError::UnexpectedToken(format!("Requirement property cannot be empty: {}", property))); }
+                let target = match key.trim() {
+                    "id" => &mut id,
+                    "text" => &mut text,
+                    "risk" => &mut risk,
+                    "verifymethod" => &mut verify_method,
+                    _ => return Err(ParseError::UnexpectedToken(format!("Unsupported requirement property: {}", key.trim()))),
+                };
+                if target.replace(value.to_string()).is_some() { return Err(ParseError::UnexpectedToken(format!("Duplicate requirement property: {}", key.trim()))); }
+            }
+            if !closed { return Err(ParseError::UnexpectedToken(format!("Requirement block is missing a closing brace: {}", name))); }
+            requirements.push(Requirement { kind: kind.to_string(), name: name.to_string(), id, text, risk, verify_method });
+        }
+
+        if requirements.is_empty() { return Err(ParseError::EmptyInput); }
+        Ok(DiagramAst::Requirement(RequirementAst { requirements, relationships }))
     }
 
     fn add_class_if_new(classes: &mut Vec<ClassDefinition>, id: &str) {

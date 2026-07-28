@@ -114,5 +114,28 @@ pub fn compute_layout(ast: &DiagramAst, config: &LayoutConfig) -> LayoutResult {
         DiagramAst::Mindmap(mindmap) => {
             let ast = xmermaid_parser::ast::FlowchartAst { direction: xmermaid_parser::ast::FlowDirection::LR, nodes: mindmap.nodes.iter().map(|node| xmermaid_parser::ast::Node { id: node.id.clone(), label: Some(node.label.clone()), shape: xmermaid_parser::ast::NodeShape::Rounded, classes: vec![], styles: vec![] }).collect(), edges: mindmap.nodes.iter().filter_map(|node| node.parent.as_ref().map(|parent| xmermaid_parser::ast::Edge { from: parent.clone(), to: node.id.clone(), style: xmermaid_parser::ast::EdgeStyle::Arrow, label: None, min_length: 1 })).collect(), subgraphs: vec![] }; let mut cfg = config.clone(); cfg.direction = crate::types::FlowDirection::LR; flowchart::layout(&ast, &cfg)
         }
+        DiagramAst::Requirement(requirements) => {
+            let ast = xmermaid_parser::ast::FlowchartAst {
+                direction: xmermaid_parser::ast::FlowDirection::LR,
+                nodes: requirements.requirements.iter().map(|requirement| {
+                    let label = requirement.text.as_ref()
+                        .map(|text| format!("{}\n{}", requirement.name, text))
+                        .unwrap_or_else(|| requirement.name.clone());
+                    xmermaid_parser::ast::Node {
+                        id: requirement.name.clone(), label: Some(label),
+                        shape: if requirement.kind == "requirement" { xmermaid_parser::ast::NodeShape::Rect } else { xmermaid_parser::ast::NodeShape::Rounded },
+                        classes: vec![], styles: vec![],
+                    }
+                }).collect(),
+                edges: requirements.relationships.iter().map(|relationship| xmermaid_parser::ast::Edge {
+                    from: relationship.from.clone(), to: relationship.to.clone(), style: xmermaid_parser::ast::EdgeStyle::Arrow,
+                    label: Some(relationship.label.clone()), min_length: 1,
+                }).collect(),
+                subgraphs: vec![],
+            };
+            let mut cfg = config.clone();
+            cfg.direction = crate::types::FlowDirection::LR;
+            flowchart::layout(&ast, &cfg)
+        }
     }
 }
