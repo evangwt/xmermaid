@@ -37,6 +37,7 @@ fn test_get_diagram_type_flowchart() {
         DiagramAst::XyChart(_) => "xychart",
         DiagramAst::Sankey(_) => "sankey",
         DiagramAst::Quadrant(_) => "quadrant",
+        DiagramAst::Architecture(_) => "architecture",
     };
     assert_eq!(type_str, "flowchart");
 }
