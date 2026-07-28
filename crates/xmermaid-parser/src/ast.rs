@@ -264,6 +264,18 @@ pub struct KanbanTask {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TreemapAst {
+    pub nodes: Vec<TreemapNode>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TreemapNode {
+    pub label: String,
+    pub value: Option<f64>,
+    pub parent: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum DiagramAst {
     Flowchart(FlowchartAst),
@@ -286,4 +298,5 @@ pub enum DiagramAst {
     Architecture(ArchitectureAst),
     Block(BlockAst),
     Kanban(KanbanAst),
+    Treemap(TreemapAst),
 }

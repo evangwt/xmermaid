@@ -147,6 +147,18 @@ export interface KanbanBoardLayout {
   columns: KanbanColumnLayout[];
 }
 
+export interface TreemapNodeLayout {
+  label: string;
+  value: number;
+  bounds: Bounds;
+  depth: number;
+  is_leaf: boolean;
+}
+
+export interface TreemapLayout {
+  nodes: TreemapNodeLayout[];
+}
+
 export interface LayoutResult {
   nodes: LayoutNode[];
   edges: LayoutEdge[];
@@ -157,4 +169,5 @@ export interface LayoutResult {
   quadrant_chart?: QuadrantChartLayout;
   block_diagram?: BlockDiagramLayout;
   kanban_board?: KanbanBoardLayout;
+  treemap?: TreemapLayout;
 }
