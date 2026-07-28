@@ -47,6 +47,7 @@ pub fn get_diagram_type(ast_json: &str) -> Result<String, JsValue> {
         DiagramAst::UserJourney(_) => "user-journey",
         DiagramAst::Timeline(_) => "timeline",
         DiagramAst::Mindmap(_) => "mindmap",
+        DiagramAst::Requirement(_) => "requirement",
     };
 
     Ok(type_str.to_string())
@@ -179,5 +180,16 @@ mod tests {
             "LR flowcharts should place B to the right of A in the compatibility compute_layout API"
         );
         assert_eq!(a.center.y, b.center.y);
+    }
+
+    #[test]
+    fn requirement_diagrams_report_their_own_wasm_type() {
+        let ast = xmermaid_parser::parse(
+            "requirementDiagram\n  requirement Login {\n    text: User must log in\n  }",
+        )
+        .unwrap();
+        let ast_json = serde_json::to_string(&ast).unwrap();
+
+        assert_eq!(get_diagram_type(&ast_json).unwrap(), "requirement");
     }
 }

@@ -43,3 +43,28 @@ fn test_layout_lr_direction() {
 
     assert!(a_node.center.x < b_node.center.x); // A is left of B in LR direction
 }
+
+#[test]
+fn test_layout_requirement_relationships_from_left_to_right() {
+    let ast = parse(
+        "requirementDiagram\n\
+  requirement Login {\n\
+    id: 1\n\
+    text: User must log in\n\
+  }\n\
+  functionalRequirement Authenticate {\n\
+    text: Validate credentials\n\
+  }\n\
+  Login - satisfies -> Authenticate",
+    )
+    .unwrap();
+
+    let result = compute_layout(&ast, &config_for_ast(&ast));
+    let login = result.nodes.iter().find(|node| node.id == "Login").unwrap();
+    let authenticate = result.nodes.iter().find(|node| node.id == "Authenticate").unwrap();
+
+    assert_eq!(result.nodes.len(), 2);
+    assert_eq!(result.edges.len(), 1);
+    assert!(login.center.x < authenticate.center.x);
+    assert_eq!(result.edges[0].label.as_deref(), Some("satisfies"));
+}
