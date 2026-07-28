@@ -152,6 +152,19 @@ fn test_parse_pie_values_with_title() {
 }
 
 #[test]
+fn test_parse_user_journey_sections_scores_and_actors() {
+    let ast = parse("journey\n  title Checkout\n  section Discovery\n    Find product: 5: Buyer\n  section Purchase\n    Pay securely: 4: Buyer, Store").unwrap();
+    let json = serde_json::to_value(ast).unwrap();
+
+    assert_eq!(json["type"], "userjourney");
+    assert_eq!(json["title"], "Checkout");
+    assert_eq!(json["tasks"].as_array().map(Vec::len), Some(2));
+    assert_eq!(json["tasks"][0]["section"], "Discovery");
+    assert_eq!(json["tasks"][0]["score"], 5);
+    assert_eq!(json["tasks"][1]["actors"][1], "Store");
+}
+
+#[test]
 fn test_parse_indented_mindmap_hierarchy() {
     let ast = parse("mindmap\n  Root\n    Product\n      Editor\n    Renderer").unwrap();
     let json = serde_json::to_value(ast).unwrap();
