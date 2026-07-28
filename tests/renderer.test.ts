@@ -167,6 +167,27 @@ describe('SVGRenderer', () => {
     expect(svg.querySelector('.block-node text')?.textContent).toBe('A');
   });
 
+  it('renders a native Kanban board with headers and task cards', () => {
+    const layout = {
+      nodes: [],
+      edges: [],
+      dimensions: { width: 516, height: 224 },
+      kanban_board: {
+        columns: [
+          { id: 'todo', label: 'To do', header: { x: 40, y: 40, width: 220, height: 46 }, tasks: [{ id: 'write', label: 'Write docs', bounds: { x: 40, y: 104, width: 220, height: 64 } }] },
+          { id: 'done', label: 'Done', header: { x: 278, y: 40, width: 220, height: 46 }, tasks: [] },
+        ],
+      },
+    } as LayoutResult;
+
+    const svg = new SVGRenderer(DARK_THEME).render(layout);
+
+    expect(svg.querySelectorAll('.kanban-column')).toHaveLength(2);
+    expect(svg.querySelectorAll('.kanban-header')).toHaveLength(2);
+    expect(svg.querySelectorAll('.kanban-task')).toHaveLength(1);
+    expect(svg.querySelector('.kanban-task-label')?.textContent).toBe('Write docs');
+  });
+
   it('creates an SVG element with correct dimensions', () => {
     const renderer = new SVGRenderer();
     const layout = createTestLayout();

@@ -130,6 +130,23 @@ export interface BlockDiagramLayout {
   blocks: BlockLayout[];
 }
 
+export interface KanbanTaskLayout {
+  id: string;
+  label: string;
+  bounds: Bounds;
+}
+
+export interface KanbanColumnLayout {
+  id: string;
+  label: string;
+  header: Bounds;
+  tasks: KanbanTaskLayout[];
+}
+
+export interface KanbanBoardLayout {
+  columns: KanbanColumnLayout[];
+}
+
 export interface LayoutResult {
   nodes: LayoutNode[];
   edges: LayoutEdge[];
@@ -139,4 +156,5 @@ export interface LayoutResult {
   sankey?: SankeyLayout;
   quadrant_chart?: QuadrantChartLayout;
   block_diagram?: BlockDiagramLayout;
+  kanban_board?: KanbanBoardLayout;
 }

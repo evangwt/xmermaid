@@ -195,6 +195,12 @@ pub struct QuadrantChartLayout { pub title: String, pub plot: Bounds, pub x_axis
 pub struct BlockLayout { pub id: String, pub label: String, pub span: usize, pub bounds: Bounds }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BlockDiagramLayout { pub columns: usize, pub blocks: Vec<BlockLayout> }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct KanbanTaskLayout { pub id: String, pub label: String, pub bounds: Bounds }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct KanbanColumnLayout { pub id: String, pub label: String, pub header: Bounds, pub tasks: Vec<KanbanTaskLayout> }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct KanbanBoardLayout { pub columns: Vec<KanbanColumnLayout> }
 
 /// Complete layout result
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -207,4 +213,5 @@ pub struct LayoutResult {
     #[serde(default, skip_serializing_if = "Option::is_none")] pub sankey: Option<SankeyLayout>,
     #[serde(default, skip_serializing_if = "Option::is_none")] pub quadrant_chart: Option<QuadrantChartLayout>,
     #[serde(default, skip_serializing_if = "Option::is_none")] pub block_diagram: Option<BlockDiagramLayout>,
+    #[serde(default, skip_serializing_if = "Option::is_none")] pub kanban_board: Option<KanbanBoardLayout>,
 }

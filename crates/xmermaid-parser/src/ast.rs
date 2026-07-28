@@ -246,6 +246,24 @@ pub struct BlockRelationship {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct KanbanAst {
+    pub columns: Vec<KanbanColumn>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct KanbanColumn {
+    pub id: String,
+    pub label: String,
+    pub tasks: Vec<KanbanTask>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct KanbanTask {
+    pub id: String,
+    pub label: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum DiagramAst {
     Flowchart(FlowchartAst),
@@ -267,4 +285,5 @@ pub enum DiagramAst {
     Quadrant(QuadrantAst),
     Architecture(ArchitectureAst),
     Block(BlockAst),
+    Kanban(KanbanAst),
 }

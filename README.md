@@ -121,6 +121,8 @@ All remaining Mermaid catalog families are explicitly marked `planned` in `getSu
 
 `block-beta` is partial: flat rows of named blocks, optional positive `columns N`, `id["Label"]`, `id:N` spans, `space` placeholders, and direct `--` / `-->` relationships render as a native grid. Nested blocks, block arrows, custom shapes, classes, styles, configuration, and edge labels remain unsupported.
 
+`kanban` is partial: ordered bare or bracket-labeled columns with space-indented bare or bracket-labeled tasks render as a native board. Task metadata, ticket configuration, YAML, styles, and advanced syntax remain unsupported.
+
 `zenuml` is partial: labeled `->` calls and `-->` returns render as distinct solid and dashed arrows; blocks, declarations, async messages, and advanced control syntax remain unsupported.
 
 `xychart-beta` is partial: quoted titles, categorical `x-axis [label, ...]`, numeric `y-axis [label] min --> max`, and ordered `bar` / `line` series render as native SVG axes, bars, and polylines. Numeric x-axes, horizontal orientation, and advanced directives remain unsupported.
