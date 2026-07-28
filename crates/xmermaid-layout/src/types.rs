@@ -201,6 +201,16 @@ pub struct KanbanTaskLayout { pub id: String, pub label: String, pub bounds: Bou
 pub struct KanbanColumnLayout { pub id: String, pub label: String, pub header: Bounds, pub tasks: Vec<KanbanTaskLayout> }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KanbanBoardLayout { pub columns: Vec<KanbanColumnLayout> }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TreemapNodeLayout {
+    pub label: String,
+    pub value: f64,
+    pub bounds: Bounds,
+    pub depth: usize,
+    pub is_leaf: bool,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TreemapLayout { pub nodes: Vec<TreemapNodeLayout> }
 
 /// Complete layout result
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -214,4 +224,5 @@ pub struct LayoutResult {
     #[serde(default, skip_serializing_if = "Option::is_none")] pub quadrant_chart: Option<QuadrantChartLayout>,
     #[serde(default, skip_serializing_if = "Option::is_none")] pub block_diagram: Option<BlockDiagramLayout>,
     #[serde(default, skip_serializing_if = "Option::is_none")] pub kanban_board: Option<KanbanBoardLayout>,
+    #[serde(default, skip_serializing_if = "Option::is_none")] pub treemap: Option<TreemapLayout>,
 }
