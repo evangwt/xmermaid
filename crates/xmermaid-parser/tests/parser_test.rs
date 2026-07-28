@@ -26,6 +26,26 @@ fn rejects_nested_or_overflowing_block_rows() {
 }
 
 #[test]
+fn parses_kanban_columns_and_unique_bare_tasks() {
+    let ast = parse("kanban\n  Todo\n    [Write documentation]\n  Done\n    [Ship release]").unwrap();
+
+    match ast {
+        DiagramAst::Kanban(board) => {
+            assert_eq!(board.columns.len(), 2);
+            assert_eq!(board.columns[0].label, "Todo");
+            assert_eq!(board.columns[0].tasks[0].id, "task-2");
+            assert_eq!(board.columns[1].tasks[0].id, "task-4");
+        }
+        _ => panic!("expected Kanban diagram"),
+    }
+}
+
+#[test]
+fn rejects_nested_kanban_task_indentation() {
+    assert!(parse("kanban\n  Todo\n    task[Top-level]\n      child[Not supported]").is_err());
+}
+
+#[test]
 fn parses_quadrant_chart_labels_and_normalized_points() {
     let ast = parse("quadrantChart\n title Reach and engagement\n x-axis Low --> High\n y-axis Low --> High\n quadrant-1 Expand\n quadrant-2 Promote\n Campaign A: [0.3, 0.6]").unwrap();
 
