@@ -242,7 +242,7 @@ function writeConsumerProject(consumerDir, tarballPath) {
     "if (!matrix.entries.some(entry => entry.diagramType === 'flowchart')) {",
     "  throw new Error('flowchart support entry missing');",
     '}',
-    "if (report.diagramType !== 'sequence' || report.status !== 'unsupported') {",
+    "if (report.diagramType !== 'sequence' || report.status !== 'planned') {",
     "  throw new Error('support analyzer import smoke failed');",
     '}',
   ].join('\n'));

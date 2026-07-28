@@ -1,5 +1,6 @@
 import { XMermaid } from '../xmermaid';
 import { XMermaidError } from '../types/error';
+import { detectDiagramType, type DetectedDiagramType } from '../diagram-catalog';
 import type { RenderOptions, XMermaidOptions } from '../types/options';
 import type { SourceRange, XMermaidDiagnostic, XMermaidDiagnosticCode } from '../types/diagnostics';
 import type { LayoutConfig } from '../types/layout';
@@ -84,7 +85,7 @@ export interface DiagramBlock {
   origin: DiagramOrigin;
   language: 'mermaid' | 'xmermaid' | null;
   range: SourceRange;
-  diagramType: 'flowchart' | 'unsupported' | 'unknown';
+  diagramType: DetectedDiagramType;
 }
 
 export interface DiagramDocument {
@@ -827,12 +828,12 @@ function createDiagramBlock(input: CreateDiagramBlockInput): DiagramBlock {
       endLine: end.line,
       endColumn: end.column,
     },
-    diagramType: isMermaidStart(input.source) ? 'flowchart' : 'unknown',
+    diagramType: detectDiagramType(input.source),
   };
 }
 
 function isMermaidStart(source: string): boolean {
-  return /^(graph|flowchart)\s+(TD|TB|BT|LR|RL)\b/i.test(source);
+  return detectDiagramType(source) !== 'unknown';
 }
 
 function flowchartDirection(source: string): FlowchartGraphDirection | null {
