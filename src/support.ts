@@ -134,9 +134,11 @@ const SUPPORT_MATRIX: SupportMatrix = {
           ? partialClass()
           : diagramType === 'state'
             ? partialState()
-            : diagramType === 'er'
-              ? partialEr()
-              : diagramType === 'gantt'
+              : diagramType === 'er'
+                ? partialEr()
+                : diagramType === 'user-journey'
+                  ? partialUserJourney()
+                : diagramType === 'gantt'
                 ? partialGantt()
                 : diagramType === 'pie'
                   ? partialPie()
@@ -194,6 +196,7 @@ export function detectUnsupportedFeatures(source: string): UnsupportedFeature[] 
   if (diagramType === 'er') return [];
   if (diagramType === 'gantt') return [];
   if (diagramType === 'pie') return [];
+  if (diagramType === 'user-journey') return [];
   if (diagramType === 'mindmap') return [];
   if (diagramType !== 'flowchart') {
     return [unsupportedDiagramFeature(source, diagramType)];
@@ -477,6 +480,14 @@ function partialEr(): DiagramSupportEntry {
     { id: 'er.relationship', label: 'basic crow’s-foot relationships with labels', status: 'supported' },
   ], unsupportedSyntax: [
     { id: 'er.attributes', label: 'entity attribute blocks and extended cardinalities', status: 'unsupported' },
+  ] };
+}
+
+function partialUserJourney(): DiagramSupportEntry {
+  return { diagramType: 'user-journey', status: 'partial', supportedSyntax: [
+    { id: 'user-journey.scored-task', label: 'sectioned tasks with 1–5 scores and actors', status: 'supported' },
+  ], unsupportedSyntax: [
+    { id: 'user-journey.advanced', label: 'custom task styling and advanced accessibility configuration', status: 'unsupported' },
   ] };
 }
 

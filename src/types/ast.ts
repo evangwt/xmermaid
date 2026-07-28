@@ -110,4 +110,17 @@ export interface GanttTask {
   duration_days: number;
 }
 
-export type DiagramAst = FlowchartAst | SequenceAst | ClassAst | StateAst | ErAst | GanttAst;
+export interface UserJourneyAst {
+  type: 'userjourney';
+  title: string;
+  tasks: UserJourneyTask[];
+}
+
+export interface UserJourneyTask {
+  section: string;
+  label: string;
+  score: number;
+  actors: string[];
+}
+
+export type DiagramAst = FlowchartAst | SequenceAst | ClassAst | StateAst | ErAst | GanttAst | UserJourneyAst;
