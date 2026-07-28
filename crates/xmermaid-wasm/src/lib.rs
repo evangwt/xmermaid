@@ -42,6 +42,7 @@ pub fn get_diagram_type(ast_json: &str) -> Result<String, JsValue> {
         DiagramAst::Class(_) => "class",
         DiagramAst::State(_) => "state",
         DiagramAst::Er(_) => "er",
+        DiagramAst::Gantt(_) => "gantt",
     };
 
     Ok(type_str.to_string())

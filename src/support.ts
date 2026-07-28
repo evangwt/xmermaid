@@ -136,6 +136,8 @@ const SUPPORT_MATRIX: SupportMatrix = {
             ? partialState()
             : diagramType === 'er'
               ? partialEr()
+              : diagramType === 'gantt'
+                ? partialGantt()
           : planned(diagramType)),
   ],
 };
@@ -186,6 +188,7 @@ export function detectUnsupportedFeatures(source: string): UnsupportedFeature[] 
   }
   if (diagramType === 'state') return [];
   if (diagramType === 'er') return [];
+  if (diagramType === 'gantt') return [];
   if (diagramType !== 'flowchart') {
     return [unsupportedDiagramFeature(source, diagramType)];
   }
@@ -468,6 +471,14 @@ function partialEr(): DiagramSupportEntry {
     { id: 'er.relationship', label: 'basic crow’s-foot relationships with labels', status: 'supported' },
   ], unsupportedSyntax: [
     { id: 'er.attributes', label: 'entity attribute blocks and extended cardinalities', status: 'unsupported' },
+  ] };
+}
+
+function partialGantt(): DiagramSupportEntry {
+  return { diagramType: 'gantt', status: 'partial', supportedSyntax: [
+    { id: 'gantt.dated-task', label: 'sectioned tasks with ISO start dates and Nd durations', status: 'supported' },
+  ], unsupportedSyntax: [
+    { id: 'gantt.advanced', label: 'task states, dependencies, milestones, and custom date formats', status: 'unsupported' },
   ] };
 }
 

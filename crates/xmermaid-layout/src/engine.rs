@@ -3,7 +3,7 @@
 //! Routes layout computation to the appropriate diagram-specific module
 //! based on the `DiagramAst` variant.
 
-use crate::flowchart;
+use crate::{flowchart, gantt};
 use crate::types::{LayoutConfig, LayoutResult};
 use xmermaid_parser::ast::DiagramAst;
 
@@ -103,5 +103,6 @@ pub fn compute_layout(ast: &DiagramAst, config: &LayoutConfig) -> LayoutResult {
             er_config.direction = crate::types::FlowDirection::LR;
             flowchart::layout(&flowchart_ast, &er_config)
         }
+        DiagramAst::Gantt(gantt_ast) => gantt::layout(gantt_ast, config),
     }
 }

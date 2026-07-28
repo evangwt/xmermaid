@@ -66,6 +66,7 @@ impl<'a> Parser<'a> {
         }
         if self.input.trim_start().starts_with("stateDiagram") { return self.parse_state(); }
         if self.input.trim_start().starts_with("erDiagram") { return self.parse_er(); }
+        if self.input.trim_start().starts_with("gantt") { return self.parse_gantt(); }
         let keyword = self.expect(TokenType::Keyword)?;
 
         match keyword.as_str() {
@@ -226,6 +227,44 @@ impl<'a> Parser<'a> {
             entities,
             relationships,
         }))
+    }
+
+    fn parse_gantt(&self) -> Result<DiagramAst, ParseError> {
+        let mut section = String::new();
+        let mut tasks = Vec::new();
+
+        for line in self.input.lines().skip(1) {
+            let statement = line.trim();
+            if statement.is_empty() || statement.starts_with("%%") {
+                continue;
+            }
+            if let Some(value) = statement.strip_prefix("section ") {
+                section = value.trim().to_string();
+                continue;
+            }
+            if statement.starts_with("title ") || statement.starts_with("dateFormat ") || statement.starts_with("axisFormat ") {
+                continue;
+            }
+
+            let (label, schedule) = statement.split_once(':').ok_or_else(|| {
+                ParseError::UnexpectedToken(format!("Invalid Gantt task: {}", statement))
+            })?;
+            let (start, duration) = schedule.trim().split_once(',').ok_or_else(|| {
+                ParseError::UnexpectedToken(format!("Gantt tasks require a start date and duration: {}", statement))
+            })?;
+            let start = start.trim();
+            let duration = duration.trim();
+            let days = duration.strip_suffix('d').and_then(|value| value.trim().parse::<u32>().ok()).filter(|days| *days > 0).ok_or_else(|| {
+                ParseError::UnexpectedToken(format!("Gantt duration must use positive Nd syntax: {}", statement))
+            })?;
+            if !is_iso_date(start) || label.trim().is_empty() {
+                return Err(ParseError::UnexpectedToken(format!("Invalid Gantt task: {}", statement)));
+            }
+            tasks.push(GanttTask { section: section.clone(), label: label.trim().to_string(), start: start.to_string(), duration_days: days });
+        }
+
+        if tasks.is_empty() { return Err(ParseError::EmptyInput); }
+        Ok(DiagramAst::Gantt(GanttAst { tasks }))
     }
 
     fn add_class_if_new(classes: &mut Vec<ClassDefinition>, id: &str) {
@@ -724,6 +763,13 @@ impl<'a> Parser<'a> {
 
         Ok(())
     }
+}
+
+fn is_iso_date(value: &str) -> bool {
+    value.len() == 10
+        && value.as_bytes()[4] == b'-'
+        && value.as_bytes()[7] == b'-'
+        && value.chars().enumerate().all(|(index, character)| index == 4 || index == 7 || character.is_ascii_digit())
 }
 
 pub fn parse_input(input: &str) -> Result<DiagramAst, ParseError> {

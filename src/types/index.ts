@@ -10,6 +10,8 @@ export type {
   StateTransition,
   ErAst,
   ErRelationship,
+  GanttAst,
+  GanttTask,
   EdgeStyle,
   FlowchartNode,
   FlowchartEdge,
