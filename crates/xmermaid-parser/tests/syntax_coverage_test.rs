@@ -1028,8 +1028,11 @@ fn test_sequence_diagram_is_parsed() {
 }
 
 #[test]
-fn test_falsify_class_diagram() {
-    assert!(parse("classDiagram\n  class A").is_err());
+fn test_class_diagram_is_parsed() {
+    assert!(matches!(
+        parse("classDiagram\n  class A"),
+        Ok(DiagramAst::Class(_))
+    ));
 }
 
 #[test]

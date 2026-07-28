@@ -61,6 +61,9 @@ impl<'a> Parser<'a> {
         if self.input.trim_start().starts_with("sequenceDiagram") {
             return self.parse_sequence();
         }
+        if self.input.trim_start().starts_with("classDiagram") {
+            return self.parse_class();
+        }
         let keyword = self.expect(TokenType::Keyword)?;
 
         match keyword.as_str() {
@@ -119,6 +122,56 @@ impl<'a> Parser<'a> {
             participants,
             messages,
         }))
+    }
+
+    fn parse_class(&self) -> Result<DiagramAst, ParseError> {
+        let mut classes = Vec::new();
+        let mut relations = Vec::new();
+        for line in self.input.lines().skip(1) {
+            let statement = line.trim();
+            if statement.is_empty() || statement.starts_with("%%") || statement == "{" || statement == "}" {
+                continue;
+            }
+            if let Some(class) = statement.strip_prefix("class ") {
+                let id = class.trim().split_whitespace().next().unwrap_or("");
+                if id.is_empty() {
+                    return Err(ParseError::UnexpectedToken("Class declarations require a name.".to_string()));
+                }
+                Self::add_class_if_new(&mut classes, id);
+                continue;
+            }
+            if let Some((parent, child)) = statement.split_once("<|--") {
+                let (parent, child) = (parent.trim(), child.trim());
+                if parent.is_empty() || child.is_empty() {
+                    return Err(ParseError::UnexpectedToken(format!("Invalid class relation: {}", statement)));
+                }
+                Self::add_class_if_new(&mut classes, parent);
+                Self::add_class_if_new(&mut classes, child);
+                relations.push(ClassRelation { from: child.to_string(), to: parent.to_string() });
+                continue;
+            }
+            if let Some((from, to)) = statement.split_once("-->") {
+                let (from, to) = (from.trim(), to.trim());
+                if from.is_empty() || to.is_empty() {
+                    return Err(ParseError::UnexpectedToken(format!("Invalid class relation: {}", statement)));
+                }
+                Self::add_class_if_new(&mut classes, from);
+                Self::add_class_if_new(&mut classes, to);
+                relations.push(ClassRelation { from: from.to_string(), to: to.to_string() });
+                continue;
+            }
+            return Err(ParseError::UnexpectedToken(format!("Invalid class statement: {}", statement)));
+        }
+        if classes.is_empty() {
+            return Err(ParseError::EmptyInput);
+        }
+        Ok(DiagramAst::Class(ClassAst { classes, relations }))
+    }
+
+    fn add_class_if_new(classes: &mut Vec<ClassDefinition>, id: &str) {
+        if !classes.iter().any(|class| class.id == id) {
+            classes.push(ClassDefinition { id: id.to_string(), label: id.to_string() });
+        }
     }
 
     fn parse_flowchart(&mut self) -> Result<DiagramAst, ParseError> {

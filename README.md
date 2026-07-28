@@ -95,7 +95,6 @@ This is partial Mermaid support, not full Mermaid compatibility.
 
 Diagram families that are not rendered currently include:
 
-- `classDiagram`
 - `stateDiagram`
 - `erDiagram`
 - `gantt`
@@ -103,6 +102,8 @@ Diagram families that are not rendered currently include:
 - `mindmap`
 
 `sequenceDiagram` is partial: activation bars, explicit participant aliases, notes, loops, and alternate branches remain unsupported. `getSupportMatrix()` or `analyzeSupport(source)` exposes that boundary programmatically.
+
+`classDiagram` is partial: named classes plus inheritance (`<|--`) and directed relations (`-->`) render as a relationship layout; members, namespaces, composition, aggregation, and dependency relation styles remain unsupported.
 
 Unsupported or partial flowchart syntax includes invalid `graph` / `flowchart` directions, `class`, `classDef`, `style`, `click`, `linkStyle`, HTML labels, Markdown labels, quoted labels, entity-code labels, FontAwesome icon labels, expanded/stadium/cylinder shape syntax, thick/extended edge forms, bidirectional/circle/cross edge endings, inline edge labels, edge IDs, edges to subgraph ids, hyphenated node ids, and inline class assignments. Use `getSupportMatrix()` or `analyzeSupport(source)` to inspect the current production support contract from code.
 

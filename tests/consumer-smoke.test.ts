@@ -190,6 +190,8 @@ describe('consumer smoke helpers', () => {
       expect(page).toContain('markerJoinDistance <= 1');
       expect(page).toContain("sequenceDiagram\\n  Alice-->>Bob: Async reply");
       expect(page).toContain('sequenceSvgHasLabels');
+      expect(page).toContain("classDiagram\\n  class Animal\\n  class Duck\\n  Animal <|-- Duck");
+      expect(page).toContain('classSvgHasLabels');
     } finally {
       rmSync(tempRoot, { recursive: true, force: true });
     }
