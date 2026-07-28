@@ -47,7 +47,8 @@ export type UnsupportedFeatureId =
   | 'sankey.invalidCsv'
   | 'sankey.invalidValue'
   | 'sankey.cycle'
-  | 'sankey.advanced';
+  | 'sankey.advanced'
+  | 'quadrant.advanced';
 
 export interface SupportSourceRange {
   startOffset: number;
@@ -164,6 +165,8 @@ const SUPPORT_MATRIX: SupportMatrix = {
                             ? partialZenUml()
                             : diagramType === 'sankey'
                               ? partialSankey()
+                            : diagramType === 'quadrant'
+                              ? partialQuadrant()
                             : diagramType === 'xychart'
                               ? partialXyChart()
                             : planned(diagramType)),
@@ -222,6 +225,9 @@ export function detectUnsupportedFeatures(source: string): UnsupportedFeature[] 
   }
   if (diagramType === 'sankey') {
     return detectUnsupportedSankeyFeatures(source);
+  }
+  if (diagramType === 'quadrant') {
+    return detectUnsupportedQuadrantFeatures(source);
   }
   if (diagramType === 'state') return [];
   if (diagramType === 'er') return [];
@@ -510,6 +516,18 @@ function detectUnsupportedSankeyFeatures(source: string): UnsupportedFeature[] {
   return features;
 }
 
+function detectUnsupportedQuadrantFeatures(source: string): UnsupportedFeature[] {
+  const features: UnsupportedFeature[] = [];
+  for (const line of linesWithRanges(source)) {
+    const trimmed = line.text.trim();
+    if (!trimmed || /^quadrantChart\b/i.test(trimmed)) continue;
+    if (/^(?:---|config:|themeVariables:|classDef\b)|:::\w+|\]\s+(?:radius|color|stroke-)/i.test(trimmed)) {
+      features.push(unsupportedSyntax('quadrant.advanced', line, 'Quadrant configuration and point styling are not supported yet.', 'error'));
+    }
+  }
+  return features;
+}
+
 function parseSankeyCsvRecord(line: string): string[] | null {
   const fields: string[] = [];
   let field = '';
@@ -661,6 +679,7 @@ function partialGitGraph(): DiagramSupportEntry { return { diagramType: 'gitgrap
 function partialC4(): DiagramSupportEntry { return { diagramType: 'c4', status: 'partial', supportedSyntax: [{ id: 'c4.element', label: 'people, systems, containers, components, and external elements', status: 'supported' }, { id: 'c4.relationship', label: 'labeled directional relationships', status: 'supported' }], unsupportedSyntax: [{ id: 'c4.advanced', label: 'boundaries, deployment nodes, styling, and advanced relationship macros', status: 'unsupported' }] }; }
 function partialZenUml(): DiagramSupportEntry { return { diagramType: 'zenuml', status: 'partial', supportedSyntax: [{ id: 'zenuml.call', label: 'labeled direct calls', status: 'supported' }, { id: 'zenuml.return', label: 'labeled returns', status: 'supported' }], unsupportedSyntax: [{ id: 'zenuml.advanced', label: 'blocks, declarations, async messages, and advanced control syntax', status: 'unsupported' }] }; }
 function partialSankey(): DiagramSupportEntry { return { diagramType: 'sankey', status: 'partial', supportedSyntax: [{ id: 'sankey.csv', label: 'three-column weighted CSV records', status: 'supported' }, { id: 'sankey.dag', label: 'acyclic weighted flows', status: 'supported' }], unsupportedSyntax: [{ id: 'sankey.invalidCsv', label: 'malformed CSV and non-three-column records', status: 'unsupported' }, { id: 'sankey.invalidValue', label: 'zero, negative, and non-finite weights', status: 'unsupported' }, { id: 'sankey.cycle', label: 'cyclic flow graphs', status: 'unsupported' }, { id: 'sankey.advanced', label: 'diagram configuration and custom node styling', status: 'unsupported' }] }; }
+function partialQuadrant(): DiagramSupportEntry { return { diagramType: 'quadrant', status: 'partial', supportedSyntax: [{ id: 'quadrant.axes', label: 'title, axis labels, and quadrant captions', status: 'supported' }, { id: 'quadrant.points', label: 'normalized [0, 1] coordinate points', status: 'supported' }], unsupportedSyntax: [{ id: 'quadrant.advanced', label: 'configuration, classes, and direct point styling', status: 'unsupported' }] }; }
 function partialXyChart(): DiagramSupportEntry { return { diagramType: 'xychart', status: 'partial', supportedSyntax: [{ id: 'xychart.categorical-axis', label: 'categorical x-axis labels and numeric y-axis ranges', status: 'supported' }, { id: 'xychart.bar-line-series', label: 'ordered bar and line series', status: 'supported' }], unsupportedSyntax: [{ id: 'xychart.numericXAxis', label: 'numeric x-axis ranges', status: 'unsupported' }, { id: 'xychart.horizontal', label: 'horizontal XY chart orientation', status: 'unsupported' }, { id: 'xychart.advanced', label: 'advanced directives and custom chart configuration', status: 'unsupported' }] }; }
 
 function cloneEntry(entry: DiagramSupportEntry): DiagramSupportEntry {
