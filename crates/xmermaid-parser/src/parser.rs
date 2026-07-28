@@ -71,6 +71,7 @@ impl<'a> Parser<'a> {
         if self.input.trim_start().starts_with("journey") { return self.parse_user_journey(); }
         if self.input.trim_start().starts_with("timeline") { return self.parse_timeline(); }
         if self.input.trim_start().starts_with("mindmap") { return self.parse_mindmap(); }
+        if self.input.trim_start().split_once('\n').map(|(line, _)| line.trim()).unwrap_or_else(|| self.input.trim()) == "tree" { return self.parse_treeview(); }
         if self.input.trim_start().starts_with("requirementDiagram") { return self.parse_requirement(); }
         if self.input.trim_start().starts_with("gitGraph") { return self.parse_gitgraph(); }
         if self.input.trim_start().starts_with("C4") { return self.parse_c4(); }
@@ -343,6 +344,16 @@ impl<'a> Parser<'a> {
             let id = format!("mindmap-{}", nodes.len()); let parent = if level == 0 { None } else { Some(parents[level - 1].clone()) };
             parents.truncate(level); parents.push(id.clone()); nodes.push(MindmapNode { id, label: label.to_string(), parent }); }
         if nodes.is_empty() { return Err(ParseError::EmptyInput); } Ok(DiagramAst::Mindmap(MindmapAst { nodes }))
+    }
+    fn parse_treeview(&self) -> Result<DiagramAst, ParseError> {
+        let mut nodes = Vec::new(); let mut parents: Vec<String> = Vec::new(); let mut base_indent = None;
+        for line in self.input.lines().skip(1) { let raw = line.trim_end(); if raw.trim().is_empty() { continue; }
+            let depth = raw.len() - raw.trim_start().len(); let base = *base_indent.get_or_insert(depth); let level = (depth.saturating_sub(base)) / 2; let label = raw.trim();
+            if level > parents.len() || label.is_empty() { return Err(ParseError::UnexpectedToken(format!("Invalid Treeview indentation: {}", raw))); }
+            if label.contains(['(', ')', '[', ']', '{', '}']) { return Err(ParseError::UnexpectedToken(format!("Treeview node shapes are not supported: {}", label))); }
+            let id = format!("tree-{}", nodes.len()); let parent = if level == 0 { None } else { Some(parents[level - 1].clone()) };
+            parents.truncate(level); parents.push(id.clone()); nodes.push(MindmapNode { id, label: label.to_string(), parent }); }
+        if nodes.is_empty() { return Err(ParseError::EmptyInput); } Ok(DiagramAst::Treeview(MindmapAst { nodes }))
     }
     fn parse_requirement(&self) -> Result<DiagramAst, ParseError> {
         let mut requirements = Vec::new();
