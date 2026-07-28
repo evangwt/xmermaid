@@ -53,6 +53,7 @@ pub fn get_diagram_type(ast_json: &str) -> Result<String, JsValue> {
         DiagramAst::ZenUml(_) => "zenuml",
         DiagramAst::XyChart(_) => "xychart",
         DiagramAst::Sankey(_) => "sankey",
+        DiagramAst::Quadrant(_) => "quadrant",
     };
 
     Ok(type_str.to_string())

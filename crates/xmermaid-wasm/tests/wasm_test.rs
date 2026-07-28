@@ -36,6 +36,7 @@ fn test_get_diagram_type_flowchart() {
         DiagramAst::ZenUml(_) => "zenuml",
         DiagramAst::XyChart(_) => "xychart",
         DiagramAst::Sankey(_) => "sankey",
+        DiagramAst::Quadrant(_) => "quadrant",
     };
     assert_eq!(type_str, "flowchart");
 }
@@ -58,6 +59,12 @@ fn test_parse_dsl_xychart() {
 fn test_parse_dsl_sankey() {
     let ast = xmermaid_parser::parse("sankey\n  A,B,8\n  B,C,8").unwrap();
     assert!(matches!(ast, DiagramAst::Sankey(_)));
+}
+
+#[test]
+fn test_parse_dsl_quadrant() {
+    let ast = xmermaid_parser::parse("quadrantChart\n  A: [0.25, 0.75]").unwrap();
+    assert!(matches!(ast, DiagramAst::Quadrant(_)));
 }
 
 #[test]
