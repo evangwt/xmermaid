@@ -123,4 +123,15 @@ export interface UserJourneyTask {
   actors: string[];
 }
 
-export type DiagramAst = FlowchartAst | SequenceAst | ClassAst | StateAst | ErAst | GanttAst | UserJourneyAst;
+export interface TimelineAst {
+  type: 'timeline';
+  title: string;
+  entries: TimelineEntry[];
+}
+
+export interface TimelineEntry {
+  period: string;
+  events: string[];
+}
+
+export type DiagramAst = FlowchartAst | SequenceAst | ClassAst | StateAst | ErAst | GanttAst | UserJourneyAst | TimelineAst;

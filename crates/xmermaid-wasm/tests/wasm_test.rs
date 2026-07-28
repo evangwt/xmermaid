@@ -28,6 +28,7 @@ fn test_get_diagram_type_flowchart() {
         DiagramAst::Gantt(_) => "gantt",
         DiagramAst::Pie(_) => "pie",
         DiagramAst::UserJourney(_) => "user-journey",
+        DiagramAst::Timeline(_) => "timeline",
         DiagramAst::Mindmap(_) => "mindmap",
     };
     assert_eq!(type_str, "flowchart");

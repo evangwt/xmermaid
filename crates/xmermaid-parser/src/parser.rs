@@ -69,6 +69,7 @@ impl<'a> Parser<'a> {
         if self.input.trim_start().starts_with("gantt") { return self.parse_gantt(); }
         if self.input.trim_start().starts_with("pie") { return self.parse_pie(); }
         if self.input.trim_start().starts_with("journey") { return self.parse_user_journey(); }
+        if self.input.trim_start().starts_with("timeline") { return self.parse_timeline(); }
         if self.input.trim_start().starts_with("mindmap") { return self.parse_mindmap(); }
         let keyword = self.expect(TokenType::Keyword)?;
 
@@ -303,6 +304,20 @@ impl<'a> Parser<'a> {
         }
         if tasks.is_empty() { return Err(ParseError::EmptyInput); }
         Ok(DiagramAst::UserJourney(UserJourneyAst { title, tasks }))
+    }
+    fn parse_timeline(&self) -> Result<DiagramAst, ParseError> {
+        let mut title = String::new(); let mut entries: Vec<TimelineEntry> = Vec::new();
+        for line in self.input.lines().skip(1) {
+            let statement = line.trim();
+            if statement.is_empty() || statement.starts_with("%%") { continue; }
+            if let Some(value) = statement.strip_prefix("title ") { title = value.trim().to_string(); continue; }
+            let (period, event) = statement.split_once(':').ok_or_else(|| ParseError::UnexpectedToken(format!("Timeline entries require period : event syntax: {}", statement)))?;
+            let period = period.trim(); let event = event.trim();
+            if event.is_empty() { return Err(ParseError::UnexpectedToken(format!("Timeline events cannot be empty: {}", statement))); }
+            if period.is_empty() { if let Some(entry) = entries.last_mut() { entry.events.push(event.to_string()); } else { return Err(ParseError::UnexpectedToken(format!("Timeline event has no preceding period: {}", statement))); } } else { entries.push(TimelineEntry { period: period.to_string(), events: vec![event.to_string()] }); }
+        }
+        if entries.is_empty() { return Err(ParseError::EmptyInput); }
+        Ok(DiagramAst::Timeline(TimelineAst { title, entries }))
     }
     fn parse_mindmap(&self) -> Result<DiagramAst, ParseError> {
         let mut nodes = Vec::new(); let mut parents: Vec<String> = Vec::new(); let mut base_indent = None;

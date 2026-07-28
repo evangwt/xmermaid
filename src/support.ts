@@ -138,7 +138,9 @@ const SUPPORT_MATRIX: SupportMatrix = {
                 ? partialEr()
                 : diagramType === 'user-journey'
                   ? partialUserJourney()
-                : diagramType === 'gantt'
+                  : diagramType === 'timeline'
+                    ? partialTimeline()
+                  : diagramType === 'gantt'
                 ? partialGantt()
                 : diagramType === 'pie'
                   ? partialPie()
@@ -197,6 +199,7 @@ export function detectUnsupportedFeatures(source: string): UnsupportedFeature[] 
   if (diagramType === 'gantt') return [];
   if (diagramType === 'pie') return [];
   if (diagramType === 'user-journey') return [];
+  if (diagramType === 'timeline') return [];
   if (diagramType === 'mindmap') return [];
   if (diagramType !== 'flowchart') {
     return [unsupportedDiagramFeature(source, diagramType)];
@@ -488,6 +491,14 @@ function partialUserJourney(): DiagramSupportEntry {
     { id: 'user-journey.scored-task', label: 'sectioned tasks with 1–5 scores and actors', status: 'supported' },
   ], unsupportedSyntax: [
     { id: 'user-journey.advanced', label: 'custom task styling and advanced accessibility configuration', status: 'unsupported' },
+  ] };
+}
+
+function partialTimeline(): DiagramSupportEntry {
+  return { diagramType: 'timeline', status: 'partial', supportedSyntax: [
+    { id: 'timeline.period-event', label: 'ordered period and event entries', status: 'supported' },
+  ], unsupportedSyntax: [
+    { id: 'timeline.advanced', label: 'advanced styling and event metadata', status: 'unsupported' },
   ] };
 }
 

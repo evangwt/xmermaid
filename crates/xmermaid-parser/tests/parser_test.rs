@@ -165,6 +165,18 @@ fn test_parse_user_journey_sections_scores_and_actors() {
 }
 
 #[test]
+fn test_parse_timeline_periods_and_multiple_events() {
+    let ast = parse("timeline\n  title Product history\n  2024 : First release\n       : Team grows\n  2025 : Global launch").unwrap();
+    let json = serde_json::to_value(ast).unwrap();
+
+    assert_eq!(json["type"], "timeline");
+    assert_eq!(json["title"], "Product history");
+    assert_eq!(json["entries"].as_array().map(Vec::len), Some(2));
+    assert_eq!(json["entries"][0]["period"], "2024");
+    assert_eq!(json["entries"][0]["events"][1], "Team grows");
+}
+
+#[test]
 fn test_parse_indented_mindmap_hierarchy() {
     let ast = parse("mindmap\n  Root\n    Product\n      Editor\n    Renderer").unwrap();
     let json = serde_json::to_value(ast).unwrap();
