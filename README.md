@@ -117,6 +117,8 @@ All remaining Mermaid catalog families are explicitly marked `planned` in `getSu
 
 `C4Context`, `C4Container`, `C4Component`, `C4Dynamic`, and `C4Deployment` are partial: people, systems, containers, components, external elements, and labeled relationships render as connected nodes; boundaries, deployment nodes, styling, and advanced relationship macros remain unsupported.
 
+`architecture-beta` is partial: top-level `service id(icon)[label]` declarations and direct port-to-port `--` / `-->` relationships render as a left-to-right service layout. Groups, junctions, service membership, `align`, configuration, icon glyphs, and bidirectional arrows remain unsupported.
+
 `zenuml` is partial: labeled `->` calls and `-->` returns render as distinct solid and dashed arrows; blocks, declarations, async messages, and advanced control syntax remain unsupported.
 
 `xychart-beta` is partial: quoted titles, categorical `x-axis [label, ...]`, numeric `y-axis [label] min --> max`, and ordered `bar` / `line` series render as native SVG axes, bars, and polylines. Numeric x-axes, horizontal orientation, and advanced directives remain unsupported.

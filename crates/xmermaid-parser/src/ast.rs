@@ -203,6 +203,26 @@ pub struct QuadrantPoint {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ArchitectureAst {
+    pub services: Vec<ArchitectureService>,
+    pub relationships: Vec<ArchitectureRelationship>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ArchitectureService {
+    pub id: String,
+    pub icon: String,
+    pub label: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ArchitectureRelationship {
+    pub from: String,
+    pub to: String,
+    pub arrow_at_target: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum DiagramAst {
     Flowchart(FlowchartAst),
@@ -222,4 +242,5 @@ pub enum DiagramAst {
     XyChart(XyChartAst),
     Sankey(SankeyAst),
     Quadrant(QuadrantAst),
+    Architecture(ArchitectureAst),
 }

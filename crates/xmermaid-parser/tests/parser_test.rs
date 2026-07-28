@@ -22,6 +22,25 @@ fn rejects_quadrant_points_outside_the_normalized_range() {
 }
 
 #[test]
+fn parses_architecture_services_and_directed_relationships() {
+    let ast = parse("architecture-beta\n  service db(database)[Database]\n  service api(server)[API]\n  db:R --> L:api").unwrap();
+
+    match ast {
+        DiagramAst::Architecture(diagram) => {
+            assert_eq!(diagram.services.len(), 2);
+            assert_eq!(diagram.services[0].id, "db");
+            assert_eq!(diagram.services[0].icon, "database");
+            assert_eq!(diagram.services[0].label, "Database");
+            assert_eq!(diagram.relationships.len(), 1);
+            assert_eq!(diagram.relationships[0].from, "db");
+            assert_eq!(diagram.relationships[0].to, "api");
+            assert!(diagram.relationships[0].arrow_at_target);
+        }
+        _ => panic!("expected architecture diagram"),
+    }
+}
+
+#[test]
 fn parses_sankey_csv_with_quoted_labels_and_blank_rows() {
     let ast = parse("sankey\n\nSource,\"Target, with comma\",12.5\nSource,Other,3\n").unwrap();
 
