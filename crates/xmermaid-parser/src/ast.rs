@@ -187,6 +187,22 @@ pub struct SankeyLink {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QuadrantAst {
+    pub title: String,
+    pub x_axis: Option<(String, String)>,
+    pub y_axis: Option<(String, String)>,
+    pub quadrants: [String; 4],
+    pub points: Vec<QuadrantPoint>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QuadrantPoint {
+    pub label: String,
+    pub x: f64,
+    pub y: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum DiagramAst {
     Flowchart(FlowchartAst),
@@ -205,4 +221,5 @@ pub enum DiagramAst {
     ZenUml(ZenUmlAst),
     XyChart(XyChartAst),
     Sankey(SankeyAst),
+    Quadrant(QuadrantAst),
 }
