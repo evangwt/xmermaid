@@ -228,7 +228,7 @@ describe('computeStepPath', () => {
     expect(result.path.startsWith('M')).toBe(true);
   });
 
-  it('uses H-V-H stepping pattern', () => {
+  it('uses a direct vertical segment when both endpoints share an x coordinate', () => {
     const result = computeStepPath(
       [{ x: 50, y: 25 }, { x: 50, y: 225 }],
       fromBounds,
@@ -236,7 +236,7 @@ describe('computeStepPath', () => {
       gap,
       arrowSize,
     );
-    expect(result.path).toContain('H');
+    expect(result.path).not.toContain('H');
     expect(result.path).toContain('V');
   });
 

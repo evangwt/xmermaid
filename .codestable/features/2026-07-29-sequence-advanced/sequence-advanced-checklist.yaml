@@ -1,0 +1,36 @@
+feature: 2026-07-29-sequence-advanced
+created: 2026-07-29
+
+steps:
+  - action: "RED: add parser, support-analysis, layout, renderer, and real-WASM expectations for advanced sequence statements"
+    exit_signal: "focused tests fail because the current implementation rejects or omits the syntax"
+    status: completed
+  - action: "Add typed sequence AST events and parser validation"
+    exit_signal: "parser tests preserve ordered messages, notes, activations, and nested blocks"
+    status: completed
+  - action: "Add native sequence layout and SVG rendering"
+    exit_signal: "layout and renderer tests expose lifelines, activation bars, notes, and block frames"
+    status: completed
+  - action: "Update support contract and public TypeScript types"
+    exit_signal: "supported advanced sequence inputs produce no unsupported diagnostic; create/destroy remains rejected"
+    status: completed
+  - action: "Build, package, vendor, and prove the live browser path"
+    exit_signal: "Rust, TypeScript, packed-package, and three-browser tests pass"
+    status: completed
+
+checks:
+  - item: "The original activation/note/control-block input does not produce unsupported_syntax"
+    source: user-reported failure
+    status: completed
+  - item: "Valid nested control blocks are ordered in the AST and malformed nesting is rejected"
+    source: parser contract
+    status: completed
+  - item: "A rendered sequence exposes lifelines, activation bars, notes, and block frames"
+    source: SVG contract
+    status: completed
+  - item: "Participant declarations, aliases, actors, and direct messages remain compatible"
+    source: backward compatibility
+    status: completed
+  - item: "create and destroy remain explicitly unsupported"
+    source: scope guard
+    status: completed

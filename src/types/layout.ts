@@ -196,6 +196,24 @@ export interface VennUnionLayout { label: string; position: Point; }
 export interface VennLayout { title: string; sets: VennSetLayout[]; unions: VennUnionLayout[]; }
 export interface SwimlaneLaneLayout { id: string; label: string; bounds: Bounds; }
 export interface SwimlaneLayout { direction: FlowDirection; lanes: SwimlaneLaneLayout[]; }
+export interface SequenceParticipantLayout { id: string; label: string; kind: 'participant' | 'actor'; header: Bounds; }
+export interface SequenceLifelineLayout { participant: string; start: Point; end: Point; }
+export interface SequenceMessageLayout { from: string; to: string; from_x: number; to_x: number; y: number; label: string; label_position: Point; self_width?: number; dashed: boolean; number?: number; end_marker?: 'arrow' | 'cross'; }
+export type SequenceNotePlacementLayout = 'left_of' | 'right_of' | 'over';
+export interface SequenceNoteLayout { placement: SequenceNotePlacementLayout; participants: string[]; bounds: Bounds; text: string; lines?: string[]; }
+export interface SequenceActivationLayout { participant: string; bounds: Bounds; }
+export interface SequenceBlockDividerLayout { label: string; y: number; }
+export interface SequenceBlockLayout { kind: string; label: string; color?: string; bounds: Bounds; dividers: SequenceBlockDividerLayout[]; }
+export interface SequenceLayout { participants: SequenceParticipantLayout[]; lifelines: SequenceLifelineLayout[]; messages: SequenceMessageLayout[]; activations: SequenceActivationLayout[]; notes: SequenceNoteLayout[]; blocks: SequenceBlockLayout[]; }
+export interface IshikawaCauseLayout { label: string; parent: string | null; depth: number; branch_anchor: Point; position: Point; }
+export interface IshikawaLayout { effect: string; effect_bounds: Bounds; spine_start: Point; spine_end: Point; causes: IshikawaCauseLayout[]; }
+export interface WardleyComponentLayout { id: string; label: string; center: Point; anchor: boolean; }
+export interface WardleyDependencyLayout { from: string; to: string; }
+export interface WardleyLayout { title: string; plot: Bounds; components: WardleyComponentLayout[]; dependencies: WardleyDependencyLayout[]; }
+export interface CynefinItemLayout { label: string; }
+export interface CynefinDomainLayout { id: string; label: string; bounds: Bounds; items: CynefinItemLayout[]; }
+export interface CynefinTransitionLayout { from: string; to: string; label: string; }
+export interface CynefinLayout { title: string; domains: CynefinDomainLayout[]; transitions: CynefinTransitionLayout[]; }
 
 export interface LayoutResult {
   nodes: LayoutNode[];
@@ -212,4 +230,8 @@ export interface LayoutResult {
   packet?: PacketLayout;
   venn?: VennLayout;
   swimlanes?: SwimlaneLayout;
+  sequence?: SequenceLayout;
+  ishikawa?: IshikawaLayout;
+  wardley?: WardleyLayout;
+  cynefin?: CynefinLayout;
 }

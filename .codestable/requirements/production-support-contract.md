@@ -3,7 +3,7 @@ doc_type: requirement
 slug: production-support-contract
 pitch: 让用户在安装前就知道 xmermaid 当前支持什么、不支持什么
 status: current
-last_reviewed: 2026-06-07
+last_reviewed: 2026-07-29
 implemented_by:
   - ARCHITECTURE
   - 2026-06-02-release-support-matrix
@@ -16,6 +16,7 @@ implemented_by:
   - 2026-06-07-visual-flowchart-ast-contract
   - 2026-06-07-visual-edit-safety-gate
   - 2026-06-07-visual-roundtrip-contract-tests
+  - 2026-07-29-sequence-advanced
 tags: [production, support, release]
 ---
 
@@ -70,3 +71,5 @@ tags: [production, support, release]
 - 2026-06-08：补齐 edges to subgraph ids 的 support analyzer error diagnostics 和 README docs-sync gate；当前只承诺 partial subgraph parse，不承诺 Mermaid compound edge 语义。
 - 2026-06-08：补齐 quoted label 的 support analyzer diagnostics 和 README docs-sync gate；当前 parser 会保留引号字面量，不承诺 Mermaid quoted label 语义。
 - 2026-06-08：补齐 hyphenated node ids 的 support analyzer error diagnostics 和 README docs-sync gate；当前 parser 会把 `my-node` 拆成错误节点，不承诺该 id 语义。
+- 2026-07-29：`sequenceDiagram` 新增原生 timeline 路径，支持 activation/deactivation（含消息 `+` / `-`）、单行 note 和嵌套 control block；support analyzer 继续 fail-closed `create` / `destroy`、`box`、link 等未实现语法。
+- 2026-07-29：以 live browser 文档复现为输入，补齐 bare `autonumber`、已校验的 `rect rgb(red, green, blue)` frame 与虚线 `--x` 交叉终止；advanced autonumber 或 rect 形式仍 fail-closed。

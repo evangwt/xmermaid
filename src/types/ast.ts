@@ -48,15 +48,42 @@ export interface FlowchartAst {
 
 export interface SequenceAst {
   type: 'sequence';
-  participants: string[];
+  participants: SequenceParticipant[];
   messages: SequenceMessage[];
+  events: SequenceEvent[];
+}
+
+export type SequenceParticipantKind = 'participant' | 'actor';
+
+export interface SequenceParticipant {
+  id: string;
+  label: string;
+  kind: SequenceParticipantKind;
 }
 
 export interface SequenceMessage {
   from: string;
   to: string;
   label: string;
+  line_style?: SequenceMessageLineStyle;
+  end_marker?: SequenceMessageEnd;
+  activate_target?: boolean;
+  deactivate_source?: boolean;
 }
+
+export type SequenceMessageLineStyle = 'solid' | 'dashed';
+export type SequenceMessageEnd = 'arrow' | 'cross';
+export type SequenceNotePlacement = 'left_of' | 'right_of' | 'over';
+export type SequenceBlockKind = 'rect' | 'loop' | 'alt' | 'opt' | 'par' | 'critical' | 'break';
+export type SequenceBlockDividerKind = 'else' | 'and' | 'option';
+export type SequenceEvent =
+  | { kind: 'autonumber' }
+  | { kind: 'message'; message_index: number }
+  | { kind: 'activation'; participant: string; active: boolean }
+  | { kind: 'note'; placement: SequenceNotePlacement; participants: string[]; text: string }
+  | { kind: 'block_start'; block: SequenceBlockKind; label: string; color?: string }
+  | { kind: 'block_divider'; divider: SequenceBlockDividerKind; label: string }
+  | { kind: 'block_end' };
 
 export interface ClassAst {
   type: 'class';

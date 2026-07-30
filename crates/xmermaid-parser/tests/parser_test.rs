@@ -178,11 +178,37 @@ fn test_parse_sequence_participants_and_messages() {
 
     match ast {
         DiagramAst::Sequence(sequence) => {
-            assert_eq!(sequence.participants, vec!["Alice", "Bob"]);
+            assert_eq!(
+                sequence.participants.iter().map(|participant| participant.id.as_str()).collect::<Vec<_>>(),
+                vec!["Alice", "Bob"]
+            );
             assert_eq!(sequence.messages.len(), 1);
             assert_eq!(sequence.messages[0].from, "Alice");
             assert_eq!(sequence.messages[0].to, "Bob");
             assert_eq!(sequence.messages[0].label, "Hello");
+        }
+        _ => panic!("expected sequence diagram"),
+    }
+}
+
+#[test]
+fn test_parse_sequence_explicit_participant_and_actor_declarations() {
+    let ast = parse(
+        "sequenceDiagram\n  participant Alice\n  participant Payments as Payment service\n  actor User\n  User->>Payments: Sign in\n  Payments-->>User: Signed in",
+    )
+    .expect("standard sequence participant declarations should parse");
+
+    match ast {
+        DiagramAst::Sequence(sequence) => {
+            assert_eq!(sequence.participants.len(), 3);
+            assert_eq!(sequence.participants[0].label, "Alice");
+            assert_eq!(sequence.participants[1].id, "Payments");
+            assert_eq!(sequence.participants[1].label, "Payment service");
+            assert_eq!(sequence.participants[2].kind, xmermaid_parser::ast::SequenceParticipantKind::Actor);
+            assert_eq!(sequence.messages.len(), 2);
+            assert_eq!(sequence.messages[0].from, "User");
+            assert_eq!(sequence.messages[0].to, "Payments");
+            assert_eq!(sequence.messages[1].label, "Signed in");
         }
         _ => panic!("expected sequence diagram"),
     }
@@ -194,13 +220,70 @@ fn test_parse_sequence_dashed_message_without_mutating_sender() {
 
     match ast {
         DiagramAst::Sequence(sequence) => {
-            assert_eq!(sequence.participants, vec!["Alice", "Bob"]);
+            assert_eq!(
+                sequence.participants.iter().map(|participant| participant.id.as_str()).collect::<Vec<_>>(),
+                vec!["Alice", "Bob"]
+            );
             assert_eq!(sequence.messages[0].from, "Alice");
             assert_eq!(sequence.messages[0].to, "Bob");
             assert_eq!(sequence.messages[0].label, "Async reply");
         }
         _ => panic!("expected sequence diagram"),
     }
+}
+
+#[test]
+fn test_parse_sequence_activations_notes_and_nested_control_blocks() {
+    let ast = parse(
+        "sequenceDiagram\n  participant Client\n  participant API\n  Client->>+API: Request\n  Note right of API: Validate request\n  alt Authorized\n    loop Retry\n      API-->>-Client: Response\n    end\n  else Rejected\n    API-->>Client: Denied\n  end",
+    )
+    .expect("standard advanced sequence statements should parse");
+
+    let json = serde_json::to_value(ast).unwrap();
+    assert_eq!(json["type"], "sequence");
+    assert_eq!(json["messages"].as_array().map(Vec::len), Some(3));
+    assert_eq!(json["messages"][0]["line_style"], "solid");
+    assert_eq!(json["messages"][0]["activate_target"], true);
+    assert_eq!(json["messages"][1]["line_style"], "dashed");
+    assert_eq!(json["messages"][1]["deactivate_source"], true);
+    assert_eq!(json["events"][0]["kind"], "message");
+    assert_eq!(json["events"][1]["kind"], "note");
+    assert_eq!(json["events"][2]["kind"], "block_start");
+    assert_eq!(json["events"][3]["kind"], "block_start");
+    assert_eq!(json["events"][5]["kind"], "block_end");
+    assert_eq!(json["events"][6]["kind"], "block_divider");
+    assert_eq!(json["events"][8]["kind"], "block_end");
+}
+
+#[test]
+fn test_parse_sequence_message_suffix_deactivates_its_sender() {
+    let ast = parse("sequenceDiagram\n  Alice->>+Bob: Request\n  Bob-->>-Alice: Response")
+        .expect("the - suffix should close the active message sender");
+    let json = serde_json::to_value(ast).unwrap();
+
+    assert_eq!(json["messages"][1]["deactivate_source"], true);
+}
+
+#[test]
+fn test_parse_sequence_autonumber_rect_and_cross_termination() {
+    let ast = parse(
+        "sequenceDiagram\n  autonumber\n  participant EventBus\n  participant CraneJob\n  rect rgb(255, 235, 235)\n    EventBus--xCraneJob: Drop Stop\n  end",
+    )
+    .expect("document sequence framing, numbering, and cross termination should parse");
+    let json = serde_json::to_value(ast).unwrap();
+
+    assert_eq!(json["events"][0]["kind"], "autonumber");
+    assert_eq!(json["events"][1]["kind"], "block_start");
+    assert_eq!(json["events"][1]["block"], "rect");
+    assert_eq!(json["events"][1]["color"], "rgb(255, 235, 235)");
+    assert_eq!(json["messages"][0]["end_marker"], "cross");
+    assert_eq!(json["messages"][0]["line_style"], "dashed");
+}
+
+#[test]
+fn test_parse_sequence_rejects_deactivation_without_an_open_activation() {
+    assert!(parse("sequenceDiagram\n  Alice->>Bob: Hello\n  deactivate Bob").is_err());
+    assert!(parse("sequenceDiagram\n  Alice-->>-Bob: Goodbye").is_err());
 }
 
 #[test]

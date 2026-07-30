@@ -31,7 +31,7 @@ describe('support matrix production contract', () => {
     ]));
     expect(matrix.entries).toHaveLength(30);
     expect(matrix.entries.find(item => item.diagramType === 'sequence')?.status).toBe('partial');
-    expect(matrix.entries.filter(item => !['flowchart', 'swimlanes', 'treeview', 'sequence', 'class', 'state', 'er', 'user-journey', 'gantt', 'pie', 'quadrant', 'mindmap', 'timeline', 'requirement', 'gitgraph', 'c4', 'zenuml', 'sankey', 'xychart', 'architecture', 'block', 'packet', 'kanban', 'treemap', 'radar', 'venn'].includes(item.diagramType)).every(item => item.status === 'planned')).toBe(true);
+    expect(matrix.entries.filter(item => !['flowchart', 'swimlanes', 'treeview', 'ishikawa', 'event-modeling', 'wardley', 'cynefin', 'sequence', 'class', 'state', 'er', 'user-journey', 'gantt', 'pie', 'quadrant', 'mindmap', 'timeline', 'requirement', 'gitgraph', 'c4', 'zenuml', 'sankey', 'xychart', 'architecture', 'block', 'packet', 'kanban', 'treemap', 'radar', 'venn'].includes(item.diagramType)).every(item => item.status === 'planned')).toBe(true);
   });
 
   it('reports flowchart, sequence, Sankey, and Quadrant sources as partial while planned diagrams stay explicit', () => {
@@ -107,17 +107,75 @@ describe('support matrix production contract', () => {
     });
   });
 
-  it('surfaces unsupported sequence control syntax before the WASM render path', () => {
-    expect(analyzeSupport('sequenceDiagram\n  activate Alice\n  Alice->>Bob: Hi')).toMatchObject({
+  it('allows implemented sequence activations, notes, and control blocks into the WASM render path', () => {
+    expect(analyzeSupport('sequenceDiagram\n  Alice->>+Bob: Request\n  Note right of Bob: Validate\n  alt Accepted\n    Bob-->>-Alice: Response\n  else Rejected\n    Bob-->>Alice: Denied\n  end')).toMatchObject({
       diagramType: 'sequence',
       status: 'partial',
-      unsupportedFeatures: [
+      unsupportedFeatures: [],
+    });
+  });
+
+  it('allows document sequence numbering, RGB frames, and cross-ended messages into the WASM render path', () => {
+    const source = [
+      'sequenceDiagram',
+      '  autonumber',
+      '  participant EventBus',
+      '  participant CraneJob',
+      '  rect rgb(255, 235, 235)',
+      '    EventBus--xCraneJob: Drop Stop',
+      '  end',
+    ].join('\n');
+
+    expect(analyzeSupport(source)).toMatchObject({
+      diagramType: 'sequence',
+      status: 'partial',
+      unsupportedFeatures: [],
+    });
+    expect(getDiagramSupport('sequence')?.supportedSyntax.map(item => item.id)).toEqual(expect.arrayContaining([
+      'sequence.autonumber',
+      'sequence.rect',
+      'sequence.cross-ending',
+    ]));
+  });
+
+  it('keeps invalid RGB sequence frames fail-closed before the parser', () => {
+    expect(analyzeSupport('sequenceDiagram\n  rect rgb(256, 0, 0)\n    A->>B: Invalid')).toMatchObject({
+      diagramType: 'sequence',
+      status: 'partial',
+      unsupportedFeatures: expect.arrayContaining([
         expect.objectContaining({
           id: 'sequence.advanced',
           severity: 'error',
-          range: expect.objectContaining({ startLine: 2, startColumn: 3 }),
         }),
-      ],
+      ]),
+    });
+  });
+
+  it('keeps unimplemented sequence lifecycle statements fail-closed', () => {
+    expect(analyzeSupport('sequenceDiagram\n  create participant Worker\n  destroy Worker')).toMatchObject({
+      diagramType: 'sequence',
+      status: 'partial',
+      unsupportedFeatures: expect.arrayContaining([
+        expect.objectContaining({
+          id: 'sequence.advanced',
+          severity: 'error',
+          message: 'Sequence create/destroy, box, links, and advanced autonumber or rect syntax are not supported yet.',
+        }),
+      ]),
+    });
+  });
+
+  it('accepts explicit sequence participants and actors while retaining other capability boundaries', () => {
+    expect(analyzeSupport([
+      'sequenceDiagram',
+      '  participant Alice',
+      '  participant Payments as Payment service',
+      '  actor User',
+      '  User->>Payments: Sign in',
+    ].join('\n'))).toMatchObject({
+      diagramType: 'sequence',
+      status: 'partial',
+      unsupportedFeatures: [],
     });
   });
 
@@ -192,6 +250,49 @@ describe('support matrix production contract', () => {
   });
   it('reports indented Mindmap nodes as partial instead of planned', () => {
     expect(analyzeSupport('mindmap\n  Root\n    Child')).toMatchObject({ diagramType: 'mindmap', status: 'partial', unsupportedFeatures: [] });
+  });
+
+  it('reports indented Ishikawa causes as partial instead of planned', () => {
+    expect(analyzeSupport('ishikawa-beta\n  Blurry photo\n  Process\n    Out of focus')).toMatchObject({
+      diagramType: 'ishikawa', status: 'partial', unsupportedFeatures: [],
+    });
+  });
+
+  it('reports documented Event Modeling time frames as partial instead of planned', () => {
+    expect(analyzeSupport('eventmodeling\n  tf 01 ui CartUI\n  tf 02 cmd AddItem')).toMatchObject({
+      diagramType: 'event-modeling', status: 'partial', unsupportedFeatures: [],
+    });
+  });
+
+  it('reports coordinate-based Wardley maps as partial instead of planned', () => {
+    expect(analyzeSupport('wardley-beta\n  title Tea shop value chain\n  anchor Business [0.95, 0.63]\n  component Tea [0.63, 0.81]\n  Business -> Tea')).toMatchObject({
+      diagramType: 'wardley', status: 'partial', unsupportedFeatures: [],
+    });
+  });
+
+  it('reports core Cynefin domains and transitions as partial instead of planned', () => {
+    expect(analyzeSupport('cynefin-beta\ntitle Incident Response\ncomplex\n"Investigate root cause"\nclear\n"Restart service"\ncomplex --> clear : "Pattern identified"')).toMatchObject({
+      diagramType: 'cynefin', status: 'partial', unsupportedFeatures: [],
+    });
+  });
+
+  it('blocks Cynefin configuration and styles outside the native fixed-domain subset', () => {
+    expect(analyzeSupport('cynefin-beta\ncomplex\n"Investigate"\n---\nconfig:\n  cynefin:\n    curve: 0.5\nclassDef accent fill:#7c3aed')).toMatchObject({
+      diagramType: 'cynefin', status: 'partial',
+      unsupportedFeatures: expect.arrayContaining([
+        expect.objectContaining({ id: 'cynefin.advanced', severity: 'error', range: expect.objectContaining({ startLine: 4 }) }),
+        expect.objectContaining({ id: 'cynefin.advanced', severity: 'error', range: expect.objectContaining({ startLine: 5 }) }),
+        expect.objectContaining({ id: 'cynefin.advanced', severity: 'error', range: expect.objectContaining({ startLine: 7 }) }),
+      ]),
+    });
+  });
+
+  it('blocks advanced Wardley syntax before the WASM render path', () => {
+    expect(analyzeSupport('wardley-beta\n  component Tea [0.63, 0.81]\n  evolve Tea 0.8')).toMatchObject({
+      diagramType: 'wardley',
+      status: 'partial',
+      unsupportedFeatures: [expect.objectContaining({ id: 'wardley.advanced', severity: 'error', range: expect.objectContaining({ startLine: 3 }) })],
+    });
   });
 
   it('reports requirement blocks and semantic relationships as partial instead of planned', () => {

@@ -179,7 +179,7 @@ function writeConsumerProject(consumerDir, tarballPath) {
     private: true,
     type: 'module',
     dependencies: {
-      xmermaid: `file:${tarballPath}`,
+      '@evangwt/xmermaid': `file:${tarballPath}`,
     },
   }, null, 2));
   writeFileSync(join(consumerDir, 'tsconfig.json'), JSON.stringify({
@@ -195,8 +195,8 @@ function writeConsumerProject(consumerDir, tarballPath) {
     include: ['src/**/*.ts'],
   }, null, 2));
   writeFileSync(join(consumerDir, 'src', 'typecheck.ts'), [
-    "import { DARK_THEME, DEFAULT_SECURITY_POLICY, LIGHT_THEME, XMermaid, analyzeSupport, computeArrowPlacement, detectUnsupportedFeatures, getSupportMatrix, type ErAst, type ErRelationship, type RenderOptions, type RenderResult, type RenderTheme, type SecurityLevel, type SecurityPolicy, type SequenceMessage, type SourceRange, type SupportMatrix, type SupportSourceRange, type UnsupportedFeature, type WasmInitOptions, type XMermaidDiagnostic, type XMermaidDiagnosticCode, type XMermaidOptions } from 'xmermaid';",
-    "import { XMermaidLiveEditor, type XMermaidLiveEditorOptions } from 'xmermaid/editor';",
+    "import { DARK_THEME, DEFAULT_SECURITY_POLICY, LIGHT_THEME, XMermaid, analyzeSupport, computeArrowPlacement, detectUnsupportedFeatures, getSupportMatrix, type ErAst, type ErRelationship, type RenderOptions, type RenderResult, type RenderTheme, type SecurityLevel, type SecurityPolicy, type SequenceMessage, type SourceRange, type SupportMatrix, type SupportSourceRange, type UnsupportedFeature, type WasmInitOptions, type XMermaidDiagnostic, type XMermaidDiagnosticCode, type XMermaidOptions } from '@evangwt/xmermaid';",
+    "import { XMermaidLiveEditor, type XMermaidLiveEditorOptions } from '@evangwt/xmermaid/editor';",
     '',
     'const matrix: SupportMatrix = getSupportMatrix();',
     "const report = analyzeSupport('graph TD\\n  A-->B');",
@@ -236,8 +236,8 @@ function writeConsumerProject(consumerDir, tarballPath) {
     '}',
   ].join('\n'));
   writeFileSync(join(consumerDir, 'node-import.mjs'), [
-    "import { analyzeSupport, getSupportMatrix } from 'xmermaid';",
-    "import { XMermaidLiveEditor } from 'xmermaid/editor';",
+    "import { analyzeSupport, getSupportMatrix } from '@evangwt/xmermaid';",
+    "import { XMermaidLiveEditor } from '@evangwt/xmermaid/editor';",
     '',
     'const matrix = getSupportMatrix();',
     "const report = analyzeSupport('sequenceDiagram\\n  A->>B: Hi');",
@@ -252,8 +252,8 @@ function writeConsumerProject(consumerDir, tarballPath) {
     '}',
   ].join('\n'));
   writeFileSync(join(consumerDir, 'cjs-require.cjs'), [
-    "const { XMermaid, analyzeSupport } = require('xmermaid');",
-    "const { XMermaidLiveEditor } = require('xmermaid/editor');",
+    "const { XMermaid, analyzeSupport } = require('@evangwt/xmermaid');",
+    "const { XMermaidLiveEditor } = require('@evangwt/xmermaid/editor');",
     '',
     "const report = analyzeSupport('graph TD\\n  A-->B');",
     "if (typeof XMermaid !== 'function' || typeof XMermaidLiveEditor !== 'function' || report.diagramType !== 'flowchart') {",
@@ -299,11 +299,11 @@ function writeBrowserSmokePage(consumerDir) {
     '<div id="container"></div>',
     '<div id="editor"></div>',
     '<script type="importmap">',
-    '{"imports":{"xmermaid":"/node_modules/xmermaid/dist/xmermaid.esm.js","xmermaid/editor":"/node_modules/xmermaid/dist/xmermaid.esm.js"}}',
+    '{"imports":{"@evangwt/xmermaid":"/node_modules/@evangwt/xmermaid/dist/xmermaid.esm.js","@evangwt/xmermaid/editor":"/node_modules/@evangwt/xmermaid/dist/xmermaid.esm.js"}}',
     '</script>',
     '<script type="module">',
-    "import { DARK_THEME, XMermaid } from 'xmermaid';",
-    "import { XMermaidLiveEditor } from 'xmermaid/editor';",
+    "import { DARK_THEME, XMermaid } from '@evangwt/xmermaid';",
+    "import { XMermaidLiveEditor } from '@evangwt/xmermaid/editor';",
     "window.__xmermaidSmoke = { done: false, ok: false };",
     'const waitFor = async (predicate, label) => {',
     '  const startedAt = performance.now();',

@@ -107,7 +107,7 @@ pub fn layout(chart: &XyChartAst, config: &LayoutConfig) -> LayoutResult {
         sankey: None,
         quadrant_chart: None,
         block_diagram: None,
-        kanban_board: None, treemap: None, radar: None, packet: None, venn: None, swimlanes: None,
+        kanban_board: None, treemap: None, radar: None, packet: None, venn: None, swimlanes: None, sequence: None, ishikawa: None, wardley: None, cynefin: None,
     }
 }
 

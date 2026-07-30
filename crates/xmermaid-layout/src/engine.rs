@@ -3,7 +3,7 @@
 //! Routes layout computation to the appropriate diagram-specific module
 //! based on the `DiagramAst` variant.
 
-use crate::{flowchart, gantt};
+use crate::{flowchart, gantt, sequence};
 use crate::types::{LayoutConfig, LayoutResult};
 use xmermaid_parser::ast::DiagramAst;
 
@@ -14,37 +14,7 @@ use xmermaid_parser::ast::DiagramAst;
 pub fn compute_layout(ast: &DiagramAst, config: &LayoutConfig) -> LayoutResult {
     match ast {
         DiagramAst::Flowchart(fc) => flowchart::layout(fc, config),
-        DiagramAst::Sequence(sequence) => {
-            let flowchart_ast = xmermaid_parser::ast::FlowchartAst {
-                direction: xmermaid_parser::ast::FlowDirection::LR,
-                nodes: sequence
-                    .participants
-                    .iter()
-                    .map(|participant| xmermaid_parser::ast::Node {
-                        id: participant.clone(),
-                        label: Some(participant.clone()),
-                        shape: xmermaid_parser::ast::NodeShape::Rect,
-                        classes: vec![],
-                        styles: vec![],
-                    })
-                    .collect(),
-                edges: sequence
-                    .messages
-                    .iter()
-                    .map(|message| xmermaid_parser::ast::Edge {
-                        from: message.from.clone(),
-                        to: message.to.clone(),
-                        style: xmermaid_parser::ast::EdgeStyle::Arrow,
-                        label: Some(message.label.clone()),
-                        min_length: 1,
-                    })
-                    .collect(),
-                subgraphs: vec![],
-            };
-            let mut sequence_config = config.clone();
-            sequence_config.direction = crate::types::FlowDirection::LR;
-            flowchart::layout(&flowchart_ast, &sequence_config)
-        }
+        DiagramAst::Sequence(sequence) => sequence::layout(sequence, config),
         DiagramAst::Class(class) => {
             let flowchart_ast = xmermaid_parser::ast::FlowchartAst {
                 direction: xmermaid_parser::ast::FlowDirection::LR,
@@ -134,6 +104,10 @@ pub fn compute_layout(ast: &DiagramAst, config: &LayoutConfig) -> LayoutResult {
         DiagramAst::Packet(packet) => crate::packet::layout(packet, config),
         DiagramAst::Venn(venn) => crate::venn::layout(venn, config),
         DiagramAst::Swimlanes(swimlanes) => crate::swimlanes::layout(swimlanes, config),
+        DiagramAst::Ishikawa(ishikawa) => crate::ishikawa::layout(ishikawa, config),
+        DiagramAst::EventModeling(event_modeling) => crate::event_modeling::layout(event_modeling, config),
+        DiagramAst::Wardley(wardley) => crate::wardley::layout(wardley, config),
+        DiagramAst::Cynefin(cynefin) => crate::cynefin::layout(cynefin, config),
         DiagramAst::UserJourney(journey) => {
             let ast = xmermaid_parser::ast::FlowchartAst { direction: xmermaid_parser::ast::FlowDirection::LR, nodes: journey.tasks.iter().enumerate().map(|(index, task)| xmermaid_parser::ast::Node { id: format!("journey-{}", index), label: Some(format!("{} · {}\\n{}/5", task.section, task.label, task.score)), shape: xmermaid_parser::ast::NodeShape::Rounded, classes: vec![], styles: vec![] }).collect(), edges: (1..journey.tasks.len()).map(|index| xmermaid_parser::ast::Edge { from: format!("journey-{}", index - 1), to: format!("journey-{}", index), style: xmermaid_parser::ast::EdgeStyle::Arrow, label: None, min_length: 1 }).collect(), subgraphs: vec![] }; let mut cfg = config.clone(); cfg.direction = crate::types::FlowDirection::LR; flowchart::layout(&ast, &cfg)
         }

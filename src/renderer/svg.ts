@@ -3,6 +3,10 @@ import type { ArrowStyle, RenderTheme } from '../types/theme';
 import { DEFAULT_THEME } from '../types/theme';
 import { computeArrowPlacement, computeEdgePath, computeArrowPoints, type EdgePathResult } from './edge';
 
+function sameCoordinate(a: number, b: number): boolean {
+  return Math.abs(a - b) < 1e-6;
+}
+
 export class SVGRenderer {
   private theme: RenderTheme;
 
@@ -59,6 +63,22 @@ export class SVGRenderer {
     }
     if (layout.venn) {
       this.renderVenn(svg, layout);
+      return svg;
+    }
+    if (layout.cynefin) {
+      this.renderCynefin(svg, layout);
+      return svg;
+    }
+    if (layout.ishikawa) {
+      this.renderIshikawa(svg, layout);
+      return svg;
+    }
+    if (layout.wardley) {
+      this.renderWardley(svg, layout);
+      return svg;
+    }
+    if (layout.sequence) {
+      this.renderSequence(svg, layout);
       return svg;
     }
     if (layout.swimlanes) this.renderSwimlanes(svg, layout);
@@ -625,6 +645,194 @@ export class SVGRenderer {
     svg.appendChild(group);
   }
 
+  private renderCynefin(svg: SVGSVGElement, layout: LayoutResult): void {
+    const chart = layout.cynefin!;
+    const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    group.classList.add('cynefin');
+    const accessibleTitle = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+    accessibleTitle.textContent = chart.title || 'Cynefin framework';
+    group.appendChild(accessibleTitle);
+
+    const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+    const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+    marker.setAttribute('id', 'cynefin-arrow'); marker.setAttribute('viewBox', '0 0 10 10'); marker.setAttribute('refX', '8'); marker.setAttribute('refY', '5'); marker.setAttribute('markerWidth', '5'); marker.setAttribute('markerHeight', '5'); marker.setAttribute('orient', 'auto');
+    const markerPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    markerPath.setAttribute('d', 'M 0 0 L 10 5 L 0 10 z'); markerPath.setAttribute('fill', this.theme.colors.edgeStroke);
+    marker.appendChild(markerPath); defs.appendChild(marker); group.appendChild(defs);
+
+    const domains = new Map(chart.domains.map(domain => [domain.id, domain]));
+    const text = (value: string, x: number, y: number, className: string, size: number, weight = '500') => {
+      const element = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      element.classList.add(className); element.textContent = value;
+      element.setAttribute('x', String(x)); element.setAttribute('y', String(y)); element.setAttribute('text-anchor', 'middle');
+      element.setAttribute('fill', this.theme.colors.nodeText); element.setAttribute('font-family', this.theme.fontFamily);
+      element.setAttribute('font-size', String(size)); element.setAttribute('font-weight', weight);
+      group.appendChild(element);
+    };
+
+    for (const domain of chart.domains) {
+      const element = document.createElementNS('http://www.w3.org/2000/svg', domain.id === 'confusion' ? 'ellipse' : 'rect');
+      element.classList.add('cynefin-domain');
+      if (domain.id === 'confusion') element.classList.add('cynefin-confusion');
+      if (domain.id === 'confusion') {
+        element.setAttribute('cx', String(domain.bounds.x + domain.bounds.width / 2)); element.setAttribute('cy', String(domain.bounds.y + domain.bounds.height / 2));
+        element.setAttribute('rx', String(domain.bounds.width / 2)); element.setAttribute('ry', String(domain.bounds.height / 2));
+      } else {
+        element.setAttribute('x', String(domain.bounds.x)); element.setAttribute('y', String(domain.bounds.y));
+        element.setAttribute('width', String(domain.bounds.width)); element.setAttribute('height', String(domain.bounds.height)); element.setAttribute('rx', '18');
+      }
+      element.setAttribute('fill', this.theme.colors.subgraphFill); element.setAttribute('fill-opacity', domain.id === 'confusion' ? '.88' : '.42');
+      element.setAttribute('stroke', this.theme.colors.subgraphStroke); element.setAttribute('stroke-width', domain.id === 'confusion' ? '2' : '1.25');
+      group.appendChild(element);
+      text(domain.label, domain.bounds.x + domain.bounds.width / 2, domain.bounds.y + 31, 'cynefin-domain-label', Math.max(11, this.theme.fontSize - 1), '700');
+    }
+
+    for (const transition of chart.transitions) {
+      const from = domains.get(transition.from); const to = domains.get(transition.to);
+      if (!from || !to) continue;
+      const start = { x: from.bounds.x + from.bounds.width / 2, y: from.bounds.y + from.bounds.height / 2 };
+      const end = { x: to.bounds.x + to.bounds.width / 2, y: to.bounds.y + to.bounds.height / 2 };
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'path'); line.classList.add('cynefin-transition');
+      line.setAttribute('d', `M ${start.x} ${start.y} L ${end.x} ${end.y}`); line.setAttribute('fill', 'none'); line.setAttribute('stroke', this.theme.colors.edgeStroke); line.setAttribute('stroke-opacity', '.68'); line.setAttribute('stroke-width', '1.5'); line.setAttribute('marker-end', 'url(#cynefin-arrow)'); group.appendChild(line);
+      if (transition.label) text(transition.label, (start.x + end.x) / 2, (start.y + end.y) / 2 - 6, 'cynefin-transition-label', Math.max(10, this.theme.fontSize - 3));
+    }
+
+    for (const domain of chart.domains) {
+      for (const [index, item] of domain.items.entries()) {
+        const itemGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g'); itemGroup.classList.add('cynefin-item');
+        const center = domain.id === 'confusion'
+          ? { x: domain.bounds.x + domain.bounds.width / 2, y: domain.bounds.y + 31 + Math.min(index, 2) * 24 }
+          : { x: domain.bounds.x + domain.bounds.width / 2, y: domain.bounds.y + 62 + index * 34 };
+        const width = Math.min(domain.bounds.width - 36, Math.max(108, this.measureText(item.label, this.theme.fontSize - 2) + 26));
+        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        rect.setAttribute('x', String(center.x - width / 2)); rect.setAttribute('y', String(center.y - 13)); rect.setAttribute('width', String(width)); rect.setAttribute('height', '26'); rect.setAttribute('rx', '8');
+        rect.setAttribute('fill', this.theme.colors.nodeFill); rect.setAttribute('stroke', this.theme.colors.nodeStroke); rect.setAttribute('stroke-width', '1'); itemGroup.appendChild(rect);
+        const label = document.createElementNS('http://www.w3.org/2000/svg', 'text'); label.textContent = item.label;
+        label.setAttribute('x', String(center.x)); label.setAttribute('y', String(center.y + 4)); label.setAttribute('text-anchor', 'middle');
+        label.setAttribute('fill', this.theme.colors.nodeText); label.setAttribute('font-family', this.theme.fontFamily); label.setAttribute('font-size', String(Math.max(10, this.theme.fontSize - 2))); itemGroup.appendChild(label);
+        group.appendChild(itemGroup);
+      }
+    }
+    if (chart.title) text(chart.title, layout.dimensions.width / 2, 42, 'cynefin-title', this.theme.fontSize + 5, '700');
+    svg.appendChild(group);
+  }
+
+  private renderIshikawa(svg: SVGSVGElement, layout: LayoutResult): void {
+    const chart = layout.ishikawa!;
+    const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    group.classList.add('ishikawa');
+    const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+    title.textContent = `Ishikawa: ${chart.effect}`;
+    group.appendChild(title);
+
+    const spine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    spine.classList.add('ishikawa-spine');
+    spine.setAttribute('x1', String(chart.spine_start.x)); spine.setAttribute('y1', String(chart.spine_start.y));
+    spine.setAttribute('x2', String(chart.spine_end.x)); spine.setAttribute('y2', String(chart.spine_end.y));
+    spine.setAttribute('stroke', this.theme.colors.edgeStroke); spine.setAttribute('stroke-width', '2.5');
+    group.appendChild(spine);
+
+    for (const cause of chart.causes) {
+      const causeGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      causeGroup.classList.add('ishikawa-cause');
+      const branch = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      branch.classList.add('ishikawa-branch');
+      branch.setAttribute('x1', String(cause.branch_anchor.x)); branch.setAttribute('y1', String(cause.branch_anchor.y));
+      branch.setAttribute('x2', String(cause.position.x)); branch.setAttribute('y2', String(cause.position.y));
+      branch.setAttribute('stroke', this.theme.colors.edgeStroke); branch.setAttribute('stroke-width', cause.depth ? '1.25' : '1.8');
+      causeGroup.appendChild(branch);
+      const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      label.classList.add('ishikawa-cause-label'); label.textContent = cause.label;
+      label.setAttribute('x', String(cause.position.x - 7));
+      label.setAttribute('y', String(cause.position.y + (cause.position.y < chart.spine_start.y ? -5 : 15)));
+      label.setAttribute('text-anchor', 'end'); label.setAttribute('fill', this.theme.colors.nodeText);
+      label.setAttribute('font-family', this.theme.fontFamily); label.setAttribute('font-size', String(Math.max(10, this.theme.fontSize - cause.depth)));
+      label.setAttribute('font-weight', cause.depth ? '500' : '700');
+      causeGroup.appendChild(label); group.appendChild(causeGroup);
+    }
+
+    const effect = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    effect.classList.add('ishikawa-effect');
+    const bounds = chart.effect_bounds;
+    const box = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    box.setAttribute('x', String(bounds.x)); box.setAttribute('y', String(bounds.y));
+    box.setAttribute('width', String(bounds.width)); box.setAttribute('height', String(bounds.height));
+    box.setAttribute('rx', String(Math.max(8, this.theme.nodeBorderRadius)));
+    box.setAttribute('fill', this.theme.colors.nodeFill); box.setAttribute('stroke', this.theme.colors.nodeStroke); box.setAttribute('stroke-width', '2');
+    effect.appendChild(box);
+    const effectLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    effectLabel.textContent = chart.effect; effectLabel.setAttribute('x', String(bounds.x + bounds.width / 2));
+    effectLabel.setAttribute('y', String(bounds.y + bounds.height / 2)); effectLabel.setAttribute('text-anchor', 'middle');
+    effectLabel.setAttribute('dominant-baseline', 'middle'); effectLabel.setAttribute('fill', this.theme.colors.nodeText);
+    effectLabel.setAttribute('font-family', this.theme.fontFamily); effectLabel.setAttribute('font-size', String(this.theme.fontSize)); effectLabel.setAttribute('font-weight', '700');
+    effect.appendChild(effectLabel); group.appendChild(effect);
+    svg.appendChild(group);
+  }
+
+  private renderWardley(svg: SVGSVGElement, layout: LayoutResult): void {
+    const chart = layout.wardley!;
+    const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    group.classList.add('wardley');
+    const accessibleTitle = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+    accessibleTitle.textContent = chart.title || 'Wardley map';
+    group.appendChild(accessibleTitle);
+
+    const plot = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    plot.classList.add('wardley-plot');
+    plot.setAttribute('x', String(chart.plot.x)); plot.setAttribute('y', String(chart.plot.y));
+    plot.setAttribute('width', String(chart.plot.width)); plot.setAttribute('height', String(chart.plot.height));
+    plot.setAttribute('fill', this.theme.colors.subgraphFill); plot.setAttribute('fill-opacity', '.18');
+    plot.setAttribute('stroke', this.theme.colors.subgraphStroke); plot.setAttribute('stroke-width', '1.25');
+    group.appendChild(plot);
+
+    for (let step = 1; step < 4; step++) {
+      const x = chart.plot.x + chart.plot.width * step / 4;
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.classList.add('wardley-evolution-grid');
+      line.setAttribute('x1', String(x)); line.setAttribute('x2', String(x));
+      line.setAttribute('y1', String(chart.plot.y)); line.setAttribute('y2', String(chart.plot.y + chart.plot.height));
+      line.setAttribute('stroke', this.theme.colors.edgeStroke); line.setAttribute('stroke-opacity', '.23'); line.setAttribute('stroke-dasharray', '4 6');
+      group.appendChild(line);
+    }
+    for (const [label, fraction] of [['Genesis', .125], ['Custom', .375], ['Product', .625], ['Commodity', .875]] as const) {
+      const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      text.classList.add('wardley-evolution-label'); text.textContent = label;
+      text.setAttribute('x', String(chart.plot.x + chart.plot.width * fraction)); text.setAttribute('y', String(chart.plot.y + chart.plot.height + 24));
+      text.setAttribute('text-anchor', 'middle'); text.setAttribute('fill', this.theme.colors.edgeLabel);
+      text.setAttribute('font-family', this.theme.fontFamily); text.setAttribute('font-size', String(Math.max(10, this.theme.fontSize - 2)));
+      group.appendChild(text);
+    }
+
+    const componentMap = new Map(chart.components.map(component => [component.id, component]));
+    const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+    const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+    marker.setAttribute('id', 'wardley-arrow'); marker.setAttribute('viewBox', '0 0 10 10'); marker.setAttribute('refX', '9'); marker.setAttribute('refY', '5'); marker.setAttribute('markerWidth', '6'); marker.setAttribute('markerHeight', '6'); marker.setAttribute('orient', 'auto-start-reverse');
+    const markerPath = document.createElementNS('http://www.w3.org/2000/svg', 'path'); markerPath.setAttribute('d', 'M 0 0 L 10 5 L 0 10 z'); markerPath.setAttribute('fill', this.theme.colors.edgeStroke); marker.appendChild(markerPath); defs.appendChild(marker); group.appendChild(defs);
+    for (const dependency of chart.dependencies) {
+      const from = componentMap.get(dependency.from); const to = componentMap.get(dependency.to);
+      if (!from || !to) continue;
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line'); line.classList.add('wardley-dependency');
+      line.setAttribute('x1', String(from.center.x)); line.setAttribute('y1', String(from.center.y)); line.setAttribute('x2', String(to.center.x)); line.setAttribute('y2', String(to.center.y));
+      line.setAttribute('stroke', this.theme.colors.edgeStroke); line.setAttribute('stroke-width', '1.5'); line.setAttribute('marker-end', 'url(#wardley-arrow)'); group.appendChild(line);
+    }
+    for (const component of chart.components) {
+      const item = document.createElementNS('http://www.w3.org/2000/svg', 'g'); item.classList.add(component.anchor ? 'wardley-anchor' : 'wardley-component');
+      const title = document.createElementNS('http://www.w3.org/2000/svg', 'title'); title.textContent = component.label; item.appendChild(title);
+      if (component.anchor) {
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle'); circle.setAttribute('cx', String(component.center.x)); circle.setAttribute('cy', String(component.center.y)); circle.setAttribute('r', '8'); circle.setAttribute('fill', this.theme.colors.nodeStroke); item.appendChild(circle);
+      } else {
+        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect'); rect.setAttribute('x', String(component.center.x - 48)); rect.setAttribute('y', String(component.center.y - 16)); rect.setAttribute('width', '96'); rect.setAttribute('height', '32'); rect.setAttribute('rx', String(Math.min(this.theme.nodeBorderRadius, 8))); rect.setAttribute('fill', this.theme.colors.nodeFill); rect.setAttribute('stroke', this.theme.colors.nodeStroke); rect.setAttribute('stroke-width', '1.5'); item.appendChild(rect);
+      }
+      const label = document.createElementNS('http://www.w3.org/2000/svg', 'text'); label.classList.add('wardley-component-label'); label.textContent = component.label;
+      label.setAttribute('x', String(component.center.x)); label.setAttribute('y', String(component.center.y + (component.anchor ? -13 : 5))); label.setAttribute('text-anchor', 'middle'); label.setAttribute('fill', this.theme.colors.nodeText); label.setAttribute('font-family', this.theme.fontFamily); label.setAttribute('font-size', String(Math.max(10, this.theme.fontSize - 1))); label.setAttribute('font-weight', component.anchor ? '700' : '600'); item.appendChild(label); group.appendChild(item);
+    }
+    if (chart.title) {
+      const title = document.createElementNS('http://www.w3.org/2000/svg', 'text'); title.classList.add('wardley-title'); title.textContent = chart.title;
+      title.setAttribute('x', String(chart.plot.x)); title.setAttribute('y', String(chart.plot.y - 20)); title.setAttribute('fill', this.theme.colors.nodeText); title.setAttribute('font-family', this.theme.fontFamily); title.setAttribute('font-size', String(this.theme.fontSize + 4)); title.setAttribute('font-weight', '700'); group.appendChild(title);
+    }
+    svg.appendChild(group);
+  }
+
   private renderSwimlanes(svg: SVGSVGElement, layout: LayoutResult): void {
     const chart = layout.swimlanes!;
     const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
@@ -647,6 +855,132 @@ export class SVGRenderer {
       laneGroup.appendChild(header); group.appendChild(laneGroup);
     });
     svg.appendChild(group);
+  }
+
+  private renderSequence(svg: SVGSVGElement, layout: LayoutResult): void {
+    const sequence = layout.sequence!;
+    const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    group.classList.add('sequence');
+    const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+    title.textContent = 'Sequence diagram';
+    group.appendChild(title);
+
+    for (const block of sequence.blocks) {
+      const blockGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      blockGroup.classList.add('sequence-block');
+      const frame = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      frame.setAttribute('x', String(block.bounds.x)); frame.setAttribute('y', String(block.bounds.y));
+      frame.setAttribute('width', String(block.bounds.width)); frame.setAttribute('height', String(block.bounds.height));
+      if (block.kind === 'rect') {
+        frame.classList.add('sequence-rect');
+        frame.setAttribute('fill', block.color ?? this.theme.colors.subgraphFill);
+        frame.setAttribute('fill-opacity', '.45');
+      } else {
+        frame.setAttribute('fill', this.theme.colors.subgraphFill); frame.setAttribute('fill-opacity', '.22');
+      }
+      frame.setAttribute('stroke', this.theme.colors.subgraphStroke); frame.setAttribute('stroke-width', '1.25');
+      blockGroup.appendChild(frame);
+      if (block.label) this.appendSequenceText(blockGroup, block.label, block.bounds.x + 10, block.bounds.y + 17, 'start', 'sequence-block-label', Math.max(10, this.theme.fontSize - 2));
+      for (const divider of block.dividers) {
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.classList.add('sequence-block-divider'); line.setAttribute('x1', String(block.bounds.x)); line.setAttribute('x2', String(block.bounds.x + block.bounds.width));
+        line.setAttribute('y1', String(divider.y)); line.setAttribute('y2', String(divider.y));
+        line.setAttribute('stroke', this.theme.colors.subgraphStroke); line.setAttribute('stroke-width', '1'); line.setAttribute('stroke-dasharray', '4 4');
+        blockGroup.appendChild(line);
+        this.appendSequenceText(blockGroup, divider.label, block.bounds.x + 10, divider.y - 7, 'start', 'sequence-block-divider-label', Math.max(10, this.theme.fontSize - 3));
+      }
+      group.appendChild(blockGroup);
+    }
+
+    for (const lifeline of sequence.lifelines) {
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.classList.add('sequence-lifeline'); line.setAttribute('x1', String(lifeline.start.x)); line.setAttribute('x2', String(lifeline.end.x));
+      line.setAttribute('y1', String(lifeline.start.y)); line.setAttribute('y2', String(lifeline.end.y));
+      line.setAttribute('stroke', this.theme.colors.edgeStroke); line.setAttribute('stroke-width', '1.25'); line.setAttribute('stroke-dasharray', '6 5');
+      group.appendChild(line);
+    }
+
+    for (const message of sequence.messages) {
+      const messageGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      messageGroup.classList.add('sequence-message');
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      line.classList.add('sequence-message-line');
+      const selfMessage = message.self_width !== undefined;
+      const selfWidth = message.self_width ?? 34;
+      line.setAttribute('d', selfMessage
+        ? `M ${message.from_x} ${message.y} h ${selfWidth} v 24 h -${selfWidth}`
+        : `M ${message.from_x} ${message.y} L ${message.to_x} ${message.y}`);
+      line.setAttribute('fill', 'none'); line.setAttribute('stroke', this.theme.colors.edgeStroke); line.setAttribute('stroke-width', '1.5');
+      if (message.dashed) line.setAttribute('stroke-dasharray', '5 4');
+      messageGroup.appendChild(line);
+      const direction = selfMessage ? 1 : Math.sign(message.to_x - message.from_x) || 1;
+      const tipX = selfMessage ? message.from_x : message.to_x;
+      if (message.end_marker === 'cross') {
+        const cross = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        cross.classList.add('sequence-message-cross');
+        cross.setAttribute('d', `M ${tipX - 4} ${message.y - 4} L ${tipX + 4} ${message.y + 4} M ${tipX - 4} ${message.y + 4} L ${tipX + 4} ${message.y - 4}`);
+        cross.setAttribute('fill', 'none'); cross.setAttribute('stroke', this.theme.colors.edgeStroke); cross.setAttribute('stroke-width', '1.5');
+        messageGroup.appendChild(cross);
+      } else {
+        const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+        arrow.classList.add('sequence-message-arrow');
+        arrow.setAttribute('points', `${tipX},${message.y} ${tipX - direction * 8},${message.y - 4} ${tipX - direction * 8},${message.y + 4}`);
+        arrow.setAttribute('fill', this.theme.colors.edgeStroke); messageGroup.appendChild(arrow);
+      }
+      if (message.number !== undefined) {
+        this.appendSequenceText(messageGroup, String(message.number), message.from_x + direction * 12, message.y - 9, 'middle', 'sequence-message-number', Math.max(9, this.theme.fontSize - 3));
+      }
+      this.appendSequenceText(messageGroup, message.label, message.label_position.x, message.label_position.y, 'middle', 'sequence-message-label', Math.max(10, this.theme.fontSize - 2));
+      group.appendChild(messageGroup);
+    }
+
+    for (const activation of sequence.activations) {
+      const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      rect.classList.add('sequence-activation'); rect.setAttribute('x', String(activation.bounds.x)); rect.setAttribute('y', String(activation.bounds.y));
+      rect.setAttribute('width', String(activation.bounds.width)); rect.setAttribute('height', String(activation.bounds.height));
+      rect.setAttribute('fill', this.theme.colors.nodeFill); rect.setAttribute('fill-opacity', '.72'); rect.setAttribute('stroke', this.theme.colors.nodeStroke); rect.setAttribute('stroke-width', '1');
+      group.appendChild(rect);
+    }
+
+    for (const note of sequence.notes) {
+      const noteGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g'); noteGroup.classList.add('sequence-note');
+      const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      rect.setAttribute('x', String(note.bounds.x)); rect.setAttribute('y', String(note.bounds.y)); rect.setAttribute('width', String(note.bounds.width)); rect.setAttribute('height', String(note.bounds.height));
+      rect.setAttribute('fill', this.theme.colors.subgraphFill); rect.setAttribute('stroke', this.theme.colors.subgraphStroke); rect.setAttribute('stroke-width', '1'); rect.setAttribute('rx', '4');
+      noteGroup.appendChild(rect);
+      this.appendSequenceLines(noteGroup, note.lines?.length ? note.lines : [note.text], note.bounds.x + note.bounds.width / 2, note.bounds.y + 15, 'sequence-note-label', Math.max(10, this.theme.fontSize - 3));
+      group.appendChild(noteGroup);
+    }
+
+    for (const participant of sequence.participants) {
+      const participantGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g'); participantGroup.classList.add('sequence-participant');
+      const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      rect.setAttribute('x', String(participant.header.x)); rect.setAttribute('y', String(participant.header.y)); rect.setAttribute('width', String(participant.header.width)); rect.setAttribute('height', String(participant.header.height));
+      rect.setAttribute('fill', this.theme.colors.nodeFill); rect.setAttribute('stroke', this.theme.colors.nodeStroke); rect.setAttribute('stroke-width', '1.5');
+      if (participant.kind === 'actor') rect.setAttribute('rx', String(participant.header.height / 2));
+      participantGroup.appendChild(rect);
+      this.appendSequenceText(participantGroup, participant.label, participant.header.x + participant.header.width / 2, participant.header.y + participant.header.height / 2 + 5, 'middle', 'sequence-participant-label', this.theme.fontSize);
+      group.appendChild(participantGroup);
+    }
+    svg.appendChild(group);
+  }
+
+  private appendSequenceText(group: SVGGElement, value: string, x: number, y: number, anchor: 'start' | 'middle', className: string, size: number): void {
+    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    text.classList.add(className); text.textContent = value; text.setAttribute('x', String(x)); text.setAttribute('y', String(y));
+    text.setAttribute('text-anchor', anchor); text.setAttribute('fill', this.theme.colors.nodeText); text.setAttribute('font-family', this.theme.fontFamily); text.setAttribute('font-size', String(size));
+    group.appendChild(text);
+  }
+
+  private appendSequenceLines(group: SVGGElement, lines: string[], x: number, y: number, className: string, size: number): void {
+    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    text.classList.add(className); text.setAttribute('x', String(x)); text.setAttribute('y', String(y));
+    text.setAttribute('text-anchor', 'middle'); text.setAttribute('fill', this.theme.colors.nodeText); text.setAttribute('font-family', this.theme.fontFamily); text.setAttribute('font-size', String(size));
+    lines.forEach((line, index) => {
+      const span = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+      span.setAttribute('x', String(x)); span.setAttribute('dy', index === 0 ? '0' : '16'); span.textContent = line; text.appendChild(span);
+    });
+    group.appendChild(text);
   }
 
   private appendKanbanText(group: SVGGElement, value: string, bounds: { x: number; y: number; width: number; height: number }, fill: string, size: number, className: string): void {
@@ -937,22 +1271,33 @@ export class SVGRenderer {
   private buildStepPath(points: Point[], finalAngle?: number): string {
     const [start, ...rest] = points;
     const parts = [`M ${start.x} ${start.y}`];
+    let previous = start;
 
     for (const [index, point] of rest.entries()) {
-      const prev = this.parsePathEnd(parts[parts.length - 1]) ?? start;
       const isFinal = index === rest.length - 1;
       const terminalVertical = finalAngle !== undefined && Math.abs(Math.sin(finalAngle)) >= Math.abs(Math.cos(finalAngle));
       if (isFinal && terminalVertical) {
-        parts.push(`H ${(prev.x + point.x) / 2}`);
-        parts.push(`V ${point.y}`);
+        if (sameCoordinate(previous.x, point.x)) parts.push(`V ${point.y}`);
+        else {
+          parts.push(`H ${(previous.x + point.x) / 2}`);
+          parts.push(`V ${point.y}`);
+        }
       } else if (isFinal && finalAngle !== undefined) {
-        parts.push(`V ${(prev.y + point.y) / 2}`);
+        if (sameCoordinate(previous.y, point.y)) parts.push(`H ${point.x}`);
+        else {
+          parts.push(`V ${(previous.y + point.y) / 2}`);
+          parts.push(`H ${point.x}`);
+        }
+      } else if (sameCoordinate(previous.y, point.y)) {
         parts.push(`H ${point.x}`);
-      } else {
-        parts.push(`H ${(prev.x + point.x) / 2}`);
+      } else if (sameCoordinate(previous.x, point.x)) {
         parts.push(`V ${point.y}`);
-        parts.push(`L ${point.x} ${point.y}`);
+      } else {
+        parts.push(`H ${(previous.x + point.x) / 2}`);
+        parts.push(`V ${point.y}`);
+        parts.push(`H ${point.x}`);
       }
+      previous = point;
     }
 
     return parts.join(' ');
@@ -980,21 +1325,34 @@ export class SVGRenderer {
     const beforeEnd = points.at(-2)!;
     const prefix = points.slice(0, -2);
     const commands = [`M ${points[0].x} ${points[0].y}`, ...prefix.slice(1).map(point => `L ${point.x} ${point.y}`)];
-    const distance = Math.hypot(end.x - beforeEnd.x, end.y - beforeEnd.y);
-    const control = Math.min(Math.max(distance * .45, 16), 48);
+    const curveStart = prefix.at(-1)!;
+    const routeDx = beforeEnd.x - curveStart.x;
+    const routeDy = beforeEnd.y - curveStart.y;
+    const routeDistance = Math.hypot(routeDx, routeDy);
+    const targetDistance = Math.hypot(end.x - beforeEnd.x, end.y - beforeEnd.y);
+    const routeControl = Math.min(Math.max(routeDistance * .45, 16), 48);
+    // Keep the terminal handle long enough that the final visible segment has
+    // the layout-owned entry direction, even after marker shortening.
+    const targetControl = Math.min(Math.max(targetDistance * .45, 32), 48);
     const angle = finalAngle ?? Math.atan2(end.y - beforeEnd.y, end.x - beforeEnd.x);
-    const cp2 = { x: end.x - Math.cos(angle) * control, y: end.y - Math.sin(angle) * control };
-    commands.push(`C ${beforeEnd.x} ${beforeEnd.y} ${cp2.x} ${cp2.y} ${end.x} ${end.y}`);
-    return commands.join(' ');
-  }
-
-  private parsePathEnd(pathPart: string): Point | undefined {
-    const nums = pathPart.match(/-?\d+(?:\.\d+)?/g)?.map(Number);
-    if (!nums || nums.length < 2) return undefined;
-    return {
-      x: nums[nums.length - 2],
-      y: nums[nums.length - 1],
+    const routeAngle = routeDistance > 0
+      ? Math.atan2(routeDy, routeDx)
+      : angle;
+    const cp1 = {
+      x: curveStart.x + Math.cos(routeAngle) * routeControl,
+      y: curveStart.y + Math.sin(routeAngle) * routeControl,
     };
+    const cp2 = {
+      x: end.x - Math.cos(angle) * targetControl,
+      y: end.y - Math.sin(angle) * targetControl,
+    };
+
+    // The final cubic starts at the current SVG pen position, not at the
+    // previous route waypoint. Its controls therefore preserve the route's
+    // outgoing direction and the layout-supplied target tangent without a
+    // reverse hook immediately before the marker.
+    commands.push(`C ${cp1.x} ${cp1.y} ${cp2.x} ${cp2.y} ${end.x} ${end.y}`);
+    return commands.join(' ');
   }
 
   private createArrowElements(style: ArrowStyle, edgeResult: EdgePathResult): SVGElement[] {

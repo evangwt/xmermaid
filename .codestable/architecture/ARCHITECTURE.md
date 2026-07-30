@@ -135,7 +135,7 @@ SVG renderer 的主题合同是 `RenderTheme`，当前内置兼容默认 `DEFAUL
 - 子图当前保留在 AST / visual model 合同中；布局能力以现有 tests 和 release gate 为准，不承诺完整 Mermaid subgraph layout 语义。
 
 **当前不做：**
-- 除 gantt / pie 外，不提供 sequence/class/state/mindmap/ZenUML 等专用 layout；这些 partial diagrams 以明确受限的关系图投影渲染。
+- `sequenceDiagram` 使用专用 timeline layout：它输出 participant header、lifeline、message、activation、note 和嵌套 control-block geometry，而不是合成 relationship-flowchart nodes/edges。除 sequence / gantt / pie 外，不提供 class/state/mindmap/ZenUML 等专用 layout；这些 partial diagrams 仍以明确受限的关系图投影渲染。
 - 不提供 constraint solver、obstacle avoidance、port routing 或 parallel edge bundling。
 - 不承诺 layout 性能 SLA 或增量布局。
 
@@ -231,7 +231,9 @@ Live editor 的 visual edit path 是异步编排：analysis 成功后应用 edit
 
 源码中当前已落地 `src/support.ts`，并通过 `src/index.ts` 公开导出 `getSupportMatrix()`、`getDiagramSupport(diagramType)` 和 `analyzeSupport(source)`。这组 API 是生产发布合同的机器可读入口：它描述当前支持范围，而不是增加新的 parser/render 能力。
 
-当前合同把 `flowchart` 标为 `partial`：基础 `graph` / `flowchart` 声明、基础节点和有向边、常见标签、核心 shape 和部分 subgraph parse 属于支持范围；`class`、`classDef`、`style`、`click`、`linkStyle`、HTML label、Markdown label、quoted label、entity-code label、FontAwesome label、expanded / stadium / cylinder shape syntax、thick / extended edge forms、bidirectional / circle / cross edge endings、inline edge labels、edge IDs、edges to subgraph ids、hyphenated node ids、inline class assignments 明确列为 unsupported 或 partial。`sequenceDiagram`、`classDiagram`、`stateDiagram`、`erDiagram`、`journey`、`gantt`、`pie`、`mindmap`、`timeline`、`requirementDiagram`、`gitGraph`、C4 系列和 `zenuml` 均为 partial diagram family，具体边界由 support matrix 声明；其余 catalog family 则在 WASM 前以 `unsupported_diagram_type` 拒绝。
+当前合同把 `flowchart` 标为 `partial`：基础 `graph` / `flowchart` 声明、基础节点和有向边、常见标签、核心 shape 和部分 subgraph parse 属于支持范围；`class`、`classDef`、`style`、`click`、`linkStyle`、HTML label、Markdown label、quoted label、entity-code label、FontAwesome label、expanded / stadium / cylinder shape syntax、thick / extended edge forms、bidirectional / circle / cross edge endings、inline edge labels、edge IDs、edges to subgraph ids、hyphenated node ids、inline class assignments 明确列为 unsupported 或 partial。`sequenceDiagram`、`classDiagram`、`stateDiagram`、`erDiagram`、`journey`、`gantt`、`pie`、`mindmap`、`timeline`、`requirementDiagram`、`gitGraph`、C4 系列和 `zenuml` 均为 partial diagram family，具体边界由 support matrix 声明；其中 `sequenceDiagram` 支持显式或从消息推断的 participant、actor 和 `as` 显示别名、带 label 的直接消息（含虚线 `--x` 交叉终止）、bare `autonumber`、activation/deactivation（含接收者 `+` 和发送者 `-` message suffix）、单行 left/right/over note、已校验的 `rect rgb(red, green, blue)` frame，以及嵌套 loop、alt/else、opt、par/and、critical/option 与 break 控制块。`create` / `destroy`、`box`、link、multi-line note 和高级 autonumber 或 rect 形式仍在 WASM 前拒绝。其余 catalog family 则在 WASM 前以 `unsupported_diagram_type` 拒绝。
+
+`cynefin-beta` 现为 partial family：原生链路保留五个固定域（complex、complicated、clear、chaotic、confusion）、每域的 quoted items、可选 title 与域间带标签的 `-->` transition；布局保留空域，并由 SVG renderer 输出可检索的域、条目和迁移元素。YAML/config、可访问性指令、自定义外观、decorator、class 与 style 仍由 support analyzer 以 `cynefin.advanced` 在 WASM 前明确阻断。
 
 `analyzeSupport(source)` 仍不替代 Rust parser，但现在会携带 `unsupportedFeatures`。`detectUnsupportedFeatures(source)` 是轻量 production support analyzer：unsupported diagram family 返回 `diagram.*` feature，flowchart 中的 `class`、`classDef`、`style`、`click`、`linkStyle`、HTML label、Markdown label、quoted label、entity-code label、FontAwesome label、invalid direction、expanded/stadium/cylinder shape、thick/extended edge forms、bidirectional/circle/cross edge endings、inline edge labels、edge IDs、edges to subgraph ids、hyphenated node ids 和 inline class assignments 返回对应 `flowchart.*` feature。`SupportSourceRange` 使用 JS string offset，line/column 为 1-based，endOffset/endColumn 为 exclusive。Analyzer 只读 source，不调用 WASM，不修改 render path；它的 feature id 必须映射到 support matrix 的 unsupported syntax id，后续 diagnostics/runtime 只能消费这些结构化输出，不能靠字符串猜。
 

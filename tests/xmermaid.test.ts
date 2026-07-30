@@ -149,6 +149,23 @@ describe('XMermaid', () => {
       .resolves.toMatchObject({ diagramType: 'sequence', diagnostics: [] });
   });
 
+  it('renders declared sequence participants and actor aliases through the WASM pipeline', async () => {
+    const container = document.createElement('div');
+    const xm = new XMermaid({ container });
+    const source = [
+      'sequenceDiagram',
+      '  participant Alice',
+      '  participant Payments as Payment service',
+      '  actor User',
+      '  User->>Payments: Sign in',
+      '  Payments-->>User: Signed in',
+    ].join('\n');
+
+    const result = await xm.renderToSVGElement(source);
+
+    expect(result).toMatchObject({ diagramType: 'sequence', diagnostics: [] });
+  });
+
   it('rejects unknown diagram sources before WASM render with structured diagnostics', async () => {
     const wasm = {
       render: vi.fn(() => mockLayoutResult),

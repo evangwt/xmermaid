@@ -13,9 +13,14 @@ pub mod quadrant;
 pub mod sankey;
 pub mod treemap;
 pub mod radar;
+pub mod sequence;
 pub mod packet;
 pub mod venn;
 pub mod swimlanes;
+pub mod ishikawa;
+pub mod event_modeling;
+pub mod wardley;
+pub mod cynefin;
 pub mod types;
 pub mod xychart;
 
@@ -23,5 +28,5 @@ pub use engine::compute_layout;
 pub use error::LayoutError;
 pub use types::{
     Bounds, Dimensions, FlowDirection, LayoutConfig, LayoutEdge, LayoutNode, LayoutResult,
-    BlockDiagramLayout, BlockLayout, KanbanBoardLayout, KanbanColumnLayout, KanbanTaskLayout, NodeShape, PacketFieldLayout, PacketLayout, Point, QuadrantChartLayout, QuadrantPointLayout, RadarAxisLayout, RadarCurveLayout, RadarLayout, SankeyLayout, SankeyLink, SankeyNode, SwimlaneLaneLayout, SwimlaneLayout, TreemapLayout, TreemapNodeLayout, VennLayout, VennSetLayout, VennUnionLayout, XyChartLayout, XyChartSeries, XySeriesKind,
+    BlockDiagramLayout, BlockLayout, CynefinDomainLayout, CynefinItemLayout, CynefinLayout, CynefinTransitionLayout, IshikawaCauseLayout, IshikawaLayout, KanbanBoardLayout, KanbanColumnLayout, KanbanTaskLayout, NodeShape, PacketFieldLayout, PacketLayout, Point, QuadrantChartLayout, QuadrantPointLayout, RadarAxisLayout, RadarCurveLayout, RadarLayout, SankeyLayout, SankeyLink, SankeyNode, SequenceActivationLayout, SequenceBlockDividerLayout, SequenceBlockLayout, SequenceLayout, SequenceLifelineLayout, SequenceMessageLayout, SequenceNoteLayout, SequenceNotePlacementLayout, SequenceParticipantLayout, SwimlaneLaneLayout, SwimlaneLayout, TreemapLayout, TreemapNodeLayout, VennLayout, VennSetLayout, VennUnionLayout, WardleyComponentLayout, WardleyDependencyLayout, WardleyLayout, XyChartLayout, XyChartSeries, XySeriesKind,
 };

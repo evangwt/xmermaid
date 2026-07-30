@@ -173,34 +173,99 @@ pub struct Dimensions {
     pub height: f64,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PieSlice { pub label: String, pub value: f64, pub start_angle: f64, pub end_angle: f64 }
+pub struct PieSlice {
+    pub label: String,
+    pub value: f64,
+    pub start_angle: f64,
+    pub end_angle: f64,
+}
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
-pub enum XySeriesKind { Bar, Line }
+pub enum XySeriesKind {
+    Bar,
+    Line,
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct XyChartSeries { pub kind: XySeriesKind, #[serde(default, skip_serializing_if = "Vec::is_empty")] pub bars: Vec<Bounds>, #[serde(default, skip_serializing_if = "Vec::is_empty")] pub points: Vec<Point> }
+pub struct XyChartSeries {
+    pub kind: XySeriesKind,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub bars: Vec<Bounds>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub points: Vec<Point>,
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct XyChartLayout { pub title: String, pub plot: Bounds, pub x_labels: Vec<String>, pub y_min: f64, pub y_max: f64, pub series: Vec<XyChartSeries> }
+pub struct XyChartLayout {
+    pub title: String,
+    pub plot: Bounds,
+    pub x_labels: Vec<String>,
+    pub y_min: f64,
+    pub y_max: f64,
+    pub series: Vec<XyChartSeries>,
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SankeyNode { pub id: String, pub bounds: Bounds, pub value: f64, pub column: usize }
+pub struct SankeyNode {
+    pub id: String,
+    pub bounds: Bounds,
+    pub value: f64,
+    pub column: usize,
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SankeyLink { pub source: String, pub target: String, pub value: f64, pub source_y: f64, pub target_y: f64, pub thickness: f64 }
+pub struct SankeyLink {
+    pub source: String,
+    pub target: String,
+    pub value: f64,
+    pub source_y: f64,
+    pub target_y: f64,
+    pub thickness: f64,
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SankeyLayout { pub nodes: Vec<SankeyNode>, pub links: Vec<SankeyLink> }
+pub struct SankeyLayout {
+    pub nodes: Vec<SankeyNode>,
+    pub links: Vec<SankeyLink>,
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct QuadrantPointLayout { pub label: String, pub center: Point }
+pub struct QuadrantPointLayout {
+    pub label: String,
+    pub center: Point,
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct QuadrantChartLayout { pub title: String, pub plot: Bounds, pub x_axis: Option<(String, String)>, pub y_axis: Option<(String, String)>, pub quadrants: [String; 4], pub points: Vec<QuadrantPointLayout> }
+pub struct QuadrantChartLayout {
+    pub title: String,
+    pub plot: Bounds,
+    pub x_axis: Option<(String, String)>,
+    pub y_axis: Option<(String, String)>,
+    pub quadrants: [String; 4],
+    pub points: Vec<QuadrantPointLayout>,
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BlockLayout { pub id: String, pub label: String, pub span: usize, pub bounds: Bounds }
+pub struct BlockLayout {
+    pub id: String,
+    pub label: String,
+    pub span: usize,
+    pub bounds: Bounds,
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BlockDiagramLayout { pub columns: usize, pub blocks: Vec<BlockLayout> }
+pub struct BlockDiagramLayout {
+    pub columns: usize,
+    pub blocks: Vec<BlockLayout>,
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct KanbanTaskLayout { pub id: String, pub label: String, pub bounds: Bounds }
+pub struct KanbanTaskLayout {
+    pub id: String,
+    pub label: String,
+    pub bounds: Bounds,
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct KanbanColumnLayout { pub id: String, pub label: String, pub header: Bounds, pub tasks: Vec<KanbanTaskLayout> }
+pub struct KanbanColumnLayout {
+    pub id: String,
+    pub label: String,
+    pub header: Bounds,
+    pub tasks: Vec<KanbanTaskLayout>,
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct KanbanBoardLayout { pub columns: Vec<KanbanColumnLayout> }
+pub struct KanbanBoardLayout {
+    pub columns: Vec<KanbanColumnLayout>,
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TreemapNodeLayout {
     pub label: String,
@@ -210,22 +275,203 @@ pub struct TreemapNodeLayout {
     pub is_leaf: bool,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TreemapLayout { pub nodes: Vec<TreemapNodeLayout> }
+pub struct TreemapLayout {
+    pub nodes: Vec<TreemapNodeLayout>,
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RadarAxisLayout { pub label: String, pub end: Point, pub label_position: Point }
+pub struct RadarAxisLayout {
+    pub label: String,
+    pub end: Point,
+    pub label_position: Point,
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RadarCurveLayout { pub label: String, pub points: Vec<Point> }
+pub struct RadarCurveLayout {
+    pub label: String,
+    pub points: Vec<Point>,
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RadarLayout { pub title: String, pub center: Point, pub radius: f64, pub axes: Vec<RadarAxisLayout>, pub curves: Vec<RadarCurveLayout>, pub min: f64, pub max: f64 }
+pub struct RadarLayout {
+    pub title: String,
+    pub center: Point,
+    pub radius: f64,
+    pub axes: Vec<RadarAxisLayout>,
+    pub curves: Vec<RadarCurveLayout>,
+    pub min: f64,
+    pub max: f64,
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PacketFieldLayout { pub start: u32, pub end: u32, pub label: String, pub segments: Vec<Bounds> }
+pub struct PacketFieldLayout {
+    pub start: u32,
+    pub end: u32,
+    pub label: String,
+    pub segments: Vec<Bounds>,
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PacketLayout { pub title: String, pub fields: Vec<PacketFieldLayout> }
-#[derive(Debug, Clone, Serialize, Deserialize)] pub struct VennSetLayout { pub id: String, pub label: String, pub center: Point, pub radius: f64 }
-#[derive(Debug, Clone, Serialize, Deserialize)] pub struct VennUnionLayout { pub label: String, pub position: Point }
-#[derive(Debug, Clone, Serialize, Deserialize)] pub struct VennLayout { pub title: String, pub sets: Vec<VennSetLayout>, pub unions: Vec<VennUnionLayout> }
-#[derive(Debug, Clone, Serialize, Deserialize)] pub struct SwimlaneLaneLayout { pub id: String, pub label: String, pub bounds: Bounds }
-#[derive(Debug, Clone, Serialize, Deserialize)] pub struct SwimlaneLayout { pub direction: FlowDirection, pub lanes: Vec<SwimlaneLaneLayout> }
+pub struct PacketLayout {
+    pub title: String,
+    pub fields: Vec<PacketFieldLayout>,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VennSetLayout {
+    pub id: String,
+    pub label: String,
+    pub center: Point,
+    pub radius: f64,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VennUnionLayout {
+    pub label: String,
+    pub position: Point,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VennLayout {
+    pub title: String,
+    pub sets: Vec<VennSetLayout>,
+    pub unions: Vec<VennUnionLayout>,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SwimlaneLaneLayout {
+    pub id: String,
+    pub label: String,
+    pub bounds: Bounds,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SwimlaneLayout {
+    pub direction: FlowDirection,
+    pub lanes: Vec<SwimlaneLaneLayout>,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SequenceParticipantLayout {
+    pub id: String,
+    pub label: String,
+    pub kind: String,
+    pub header: Bounds,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SequenceLifelineLayout {
+    pub participant: String,
+    pub start: Point,
+    pub end: Point,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SequenceMessageLayout {
+    pub from: String,
+    pub to: String,
+    pub from_x: f64,
+    pub to_x: f64,
+    pub y: f64,
+    pub label: String,
+    pub label_position: Point,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub self_width: Option<f64>,
+    pub dashed: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub number: Option<u32>,
+    #[serde(default)]
+    pub end_marker: String,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SequenceNotePlacementLayout {
+    LeftOf,
+    RightOf,
+    Over,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SequenceNoteLayout {
+    pub placement: SequenceNotePlacementLayout,
+    pub participants: Vec<String>,
+    pub bounds: Bounds,
+    pub text: String,
+    #[serde(default)]
+    pub lines: Vec<String>,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SequenceActivationLayout {
+    pub participant: String,
+    pub bounds: Bounds,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SequenceBlockDividerLayout {
+    pub label: String,
+    pub y: f64,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SequenceBlockLayout {
+    pub kind: String,
+    pub label: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color: Option<String>,
+    pub bounds: Bounds,
+    pub dividers: Vec<SequenceBlockDividerLayout>,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SequenceLayout {
+    pub participants: Vec<SequenceParticipantLayout>,
+    pub lifelines: Vec<SequenceLifelineLayout>,
+    pub messages: Vec<SequenceMessageLayout>,
+    pub activations: Vec<SequenceActivationLayout>,
+    pub notes: Vec<SequenceNoteLayout>,
+    pub blocks: Vec<SequenceBlockLayout>,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IshikawaCauseLayout {
+    pub label: String,
+    pub parent: Option<String>,
+    pub depth: usize,
+    pub branch_anchor: Point,
+    pub position: Point,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IshikawaLayout {
+    pub effect: String,
+    pub effect_bounds: Bounds,
+    pub spine_start: Point,
+    pub spine_end: Point,
+    pub causes: Vec<IshikawaCauseLayout>,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WardleyComponentLayout {
+    pub id: String,
+    pub label: String,
+    pub center: Point,
+    pub anchor: bool,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WardleyDependencyLayout {
+    pub from: String,
+    pub to: String,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WardleyLayout {
+    pub title: String,
+    pub plot: Bounds,
+    pub components: Vec<WardleyComponentLayout>,
+    pub dependencies: Vec<WardleyDependencyLayout>,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CynefinItemLayout {
+    pub label: String,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CynefinDomainLayout {
+    pub id: String,
+    pub label: String,
+    pub bounds: Bounds,
+    pub items: Vec<CynefinItemLayout>,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CynefinTransitionLayout {
+    pub from: String,
+    pub to: String,
+    pub label: String,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CynefinLayout {
+    pub title: String,
+    pub domains: Vec<CynefinDomainLayout>,
+    pub transitions: Vec<CynefinTransitionLayout>,
+}
 
 /// Complete layout result
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -233,15 +479,34 @@ pub struct LayoutResult {
     pub nodes: Vec<LayoutNode>,
     pub edges: Vec<LayoutEdge>,
     pub dimensions: Dimensions,
-    #[serde(default)] pub pie_slices: Vec<PieSlice>,
-    #[serde(default, skip_serializing_if = "Option::is_none")] pub xy_chart: Option<XyChartLayout>,
-    #[serde(default, skip_serializing_if = "Option::is_none")] pub sankey: Option<SankeyLayout>,
-    #[serde(default, skip_serializing_if = "Option::is_none")] pub quadrant_chart: Option<QuadrantChartLayout>,
-    #[serde(default, skip_serializing_if = "Option::is_none")] pub block_diagram: Option<BlockDiagramLayout>,
-    #[serde(default, skip_serializing_if = "Option::is_none")] pub kanban_board: Option<KanbanBoardLayout>,
-    #[serde(default, skip_serializing_if = "Option::is_none")] pub treemap: Option<TreemapLayout>,
-    #[serde(default, skip_serializing_if = "Option::is_none")] pub radar: Option<RadarLayout>,
-    #[serde(default, skip_serializing_if = "Option::is_none")] pub packet: Option<PacketLayout>,
-    #[serde(default, skip_serializing_if = "Option::is_none")] pub venn: Option<VennLayout>,
-    #[serde(default, skip_serializing_if = "Option::is_none")] pub swimlanes: Option<SwimlaneLayout>,
+    #[serde(default)]
+    pub pie_slices: Vec<PieSlice>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub xy_chart: Option<XyChartLayout>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sankey: Option<SankeyLayout>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub quadrant_chart: Option<QuadrantChartLayout>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub block_diagram: Option<BlockDiagramLayout>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kanban_board: Option<KanbanBoardLayout>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub treemap: Option<TreemapLayout>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub radar: Option<RadarLayout>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub packet: Option<PacketLayout>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub venn: Option<VennLayout>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub swimlanes: Option<SwimlaneLayout>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sequence: Option<SequenceLayout>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ishikawa: Option<IshikawaLayout>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wardley: Option<WardleyLayout>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cynefin: Option<CynefinLayout>,
 }
