@@ -5,7 +5,7 @@ Flowchart-focused Mermaid renderer with partial Mermaid support, powered by Rust
 ## Install
 
 ```bash
-npm install xmermaid
+npm install @evangwt/xmermaid
 ```
 
 xmermaid is a browser SDK. The root ESM bundle can be parsed by Node and SSR tooling, but DOM rendering requires a browser-like environment.
@@ -13,7 +13,7 @@ xmermaid is a browser SDK. The root ESM bundle can be parsed by Node and SSR too
 ## Browser Usage
 
 ```ts
-import { XMermaid, analyzeSupport } from 'xmermaid';
+import { XMermaid, analyzeSupport } from '@evangwt/xmermaid';
 
 const source = 'graph TD\n  A[Start] --> B[End]';
 const report = analyzeSupport(source);
@@ -27,10 +27,10 @@ await renderer.render(source);
 
 ## Live Editor Usage
 
-The static live editor API is available from the `xmermaid/editor` subpath.
+The static live editor API is available from the `@evangwt/xmermaid/editor` subpath.
 
 ```ts
-import { XMermaidLiveEditor } from 'xmermaid/editor';
+import { XMermaidLiveEditor } from '@evangwt/xmermaid/editor';
 
 const editor = new XMermaidLiveEditor({
   root: document.getElementById('editor')!,
@@ -45,7 +45,7 @@ await editor.mount();
 Use `renderToSVGElement()` when the host app owns mounting, serialization, storage, or post-processing.
 
 ```ts
-import { XMermaid } from 'xmermaid';
+import { XMermaid } from '@evangwt/xmermaid';
 
 const renderer = new XMermaid({ container: document.createElement('div') });
 
@@ -67,7 +67,7 @@ const svgText = await renderer.renderToSVGString('graph TD\n  A-->B');
 xmermaid publishes paired `LIGHT_THEME` and `DARK_THEME` presets while keeping `DEFAULT_THEME` as the compatibility default. Pass a preset or any partial `RenderTheme` per renderer or per render:
 
 ```ts
-import { DARK_THEME, XMermaid, type RenderTheme } from 'xmermaid';
+import { DARK_THEME, XMermaid, type RenderTheme } from '@evangwt/xmermaid';
 
 const customTheme: Partial<RenderTheme> = {
   ...DARK_THEME,
@@ -89,13 +89,13 @@ await renderer.renderToSVGElement(source, { theme: customTheme });
 
 ## Current Support
 
-xmermaid currently focuses on browser-side SVG rendering for Mermaid flowcharts. It supports basic `graph` / `flowchart` declarations, basic nodes and directed edges, common labels, core shapes, and partial subgraph parsing. It also renders deliberately small subsets of Sequence, Class, State, Entity Relationship, User Journey, Gantt, Pie, Mindmap, Timeline, Requirement, GitGraph, C4, ZenUML, XY Chart, Sankey, Quadrant, Architecture, Block, Kanban, Treemap, Radar, and Packet diagrams.
+xmermaid currently focuses on browser-side SVG rendering for Mermaid flowcharts. It supports basic `graph` / `flowchart` declarations, basic nodes and directed edges, common labels, core shapes, and partial subgraph parsing. It also renders deliberately small subsets of Sequence, Class, State, Entity Relationship, User Journey, Gantt, Pie, Mindmap, Timeline, Requirement, GitGraph, C4, ZenUML, XY Chart, Sankey, Quadrant, Architecture, Block, Kanban, Treemap, Radar, Packet, Venn, Swimlane, Ishikawa, Event Modeling, Wardley Map, and Cynefin diagrams.
 
 This is partial Mermaid support, not full Mermaid compatibility.
 
 All remaining Mermaid catalog families are explicitly marked `planned` in `getSupportMatrix()` and rejected before WASM rendering.
 
-`sequenceDiagram` is partial: activation bars, explicit participant aliases, notes, loops, and alternate branches remain unsupported. `getSupportMatrix()` or `analyzeSupport(source)` exposes that boundary programmatically.
+`sequenceDiagram` is partial: explicit `participant` / `actor` declarations (including `as` display aliases), labeled direct messages (including dashed `--x` cross endings), bare `autonumber`, `activate` / `deactivate` (and message `+` / `-` suffixes), single-line `Note left/right/over`, validated `rect rgb(red, green, blue)` frames, and nested `loop`, `alt` / `else`, `opt`, `par` / `and`, `critical` / `option`, and `break` blocks render through a native timeline layout. `create` / `destroy`, `box`, links, multi-line notes, and advanced autonumber or rect forms remain unsupported. `getSupportMatrix()` or `analyzeSupport(source)` exposes that boundary programmatically.
 
 `classDiagram` is partial: named classes plus inheritance (`<|--`) and directed relations (`-->`) render as a relationship layout; members, namespaces, composition, aggregation, and dependency relation styles remain unsupported.
 
@@ -138,7 +138,7 @@ Unsupported or partial flowchart syntax includes invalid `graph` / `flowchart` d
 ## Diagnostics
 
 ```ts
-import { XMermaidError, type XMermaidDiagnostic } from 'xmermaid';
+import { XMermaidError, type XMermaidDiagnostic } from '@evangwt/xmermaid';
 
 try {
   const result = await renderer.renderToSVGElement('graph TD\n  A-->B\n  classDef hot fill:#fff');
@@ -196,9 +196,9 @@ await renderer.renderToSVGElement(source, {
 
 WASM initialization is process-global. After the module is initialized, later renders reuse the same WASM instance; change `wasmUrl` / `fetch` before the first render, not between renders.
 
-The package also publishes the `xmermaid/editor` subpath for live editor imports. The packed tarball includes `README.md` and `LICENSE` alongside the runtime bundles.
+The package also publishes the `@evangwt/xmermaid/editor` subpath for live editor imports. The packed tarball includes `README.md` and `LICENSE` alongside the runtime bundles.
 
-Release verification uses a packed-package consumer smoke test. It runs `npm pack`, installs the tarball into a temporary project, typechecks the public API and `xmermaid/editor` subpath, imports the installed ESM entries, requires the installed CommonJS entries, and opens headless Chrome to render a minimal SVG through the default bundle-relative WASM asset resolution. The same Chrome smoke imports the live editor through `xmermaid/editor` and runs a live editor workflow: multi-diagram selection, visual rename, preview-only direction control, source direction edit, unsupported visual edit blocking, share hash generation, and SVG export readiness.
+Release verification uses a packed-package consumer smoke test. It runs `npm pack`, installs the tarball into a temporary project, typechecks the public API and `@evangwt/xmermaid/editor` subpath, imports the installed ESM entries, requires the installed CommonJS entries, and opens headless Chrome to render a minimal SVG through the default bundle-relative WASM asset resolution. The same Chrome smoke imports the live editor through `@evangwt/xmermaid/editor` and runs a live editor workflow: multi-diagram selection, visual rename, preview-only direction control, source direction edit, unsupported visual edit blocking, share hash generation, and SVG export readiness.
 
 The browser smoke requires Chrome or Chromium. Set `CHROME_BIN` when CI does not expose a default Chrome executable.
 
@@ -213,7 +213,7 @@ CHROME_BIN=/path/to/chrome npm run smoke:consumer -- --json
 - `unsupported_syntax`: the input uses Mermaid syntax that is known but not implemented in xmermaid yet.
 - `security_blocked_*`: strict security policy blocked a risky construct before rendering.
 - WASM asset load failures: confirm the package tarball includes `dist/xmermaid_wasm_bg.wasm` and the app serves it with the built JS bundle.
-- Missing package metadata: confirm the packed tarball includes `README.md`, `LICENSE`, and the `xmermaid/editor` export.
+- Missing package metadata: confirm the packed tarball includes `README.md`, `LICENSE`, and the `@evangwt/xmermaid/editor` export.
 
 ## Release Readiness
 

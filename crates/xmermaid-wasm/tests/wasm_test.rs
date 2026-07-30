@@ -46,6 +46,10 @@ fn test_get_diagram_type_flowchart() {
         DiagramAst::Packet(_) => "packet",
         DiagramAst::Venn(_) => "venn",
         DiagramAst::Swimlanes(_) => "swimlanes",
+        DiagramAst::Ishikawa(_) => "ishikawa",
+        DiagramAst::EventModeling(_) => "event-modeling",
+        DiagramAst::Wardley(_) => "wardley",
+        DiagramAst::Cynefin(_) => "cynefin",
     };
     assert_eq!(type_str, "flowchart");
 }
@@ -123,12 +127,18 @@ fn test_compute_layout() {
 #[test]
 fn test_compute_layout_sequence_participants() {
     let ast = DiagramAst::Sequence(xmermaid_parser::ast::SequenceAst {
-        participants: vec!["A".to_string()],
+        participants: vec![xmermaid_parser::ast::SequenceParticipant {
+            id: "A".to_string(),
+            label: "A".to_string(),
+            kind: xmermaid_parser::ast::SequenceParticipantKind::Participant,
+        }],
         messages: vec![],
+        events: vec![],
     });
     let config = LayoutConfig::default();
     let result = xmermaid_layout::compute_layout(&ast, &config);
-    assert_eq!(result.nodes.len(), 1);
+    assert!(result.nodes.is_empty());
+    assert_eq!(result.sequence.as_ref().map(|sequence| sequence.participants.len()), Some(1));
     assert_eq!(result.edges.len(), 0);
 }
 

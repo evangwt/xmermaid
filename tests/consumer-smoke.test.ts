@@ -21,6 +21,14 @@ type ChromeProcessStub = EventEmitter & {
 };
 
 describe('consumer smoke helpers', () => {
+  it('declares the scoped npm package identity used by published consumers', () => {
+    const packageJson = JSON.parse(readFileSync('package.json', 'utf8')) as {
+      name?: string;
+    };
+
+    expect(packageJson.name).toBe('@evangwt/xmermaid');
+  });
+
   it('requires the packed package to contain runtime bundles, declarations, wasm, README, and LICENSE', () => {
     const { validatePackFiles } = require('../scripts/consumer-smoke.cjs') as {
       validatePackFiles(files: string[]): void;
@@ -72,13 +80,13 @@ describe('consumer smoke helpers', () => {
     const esm = spawnSync(process.execPath, [
       '--input-type=module',
       '-e',
-      "import('xmermaid/editor').then(mod => { if (typeof mod.XMermaidLiveEditor !== 'function') process.exit(2); })",
+      "import('@evangwt/xmermaid/editor').then(mod => { if (typeof mod.XMermaidLiveEditor !== 'function') process.exit(2); })",
     ], { encoding: 'utf8' });
     expect(esm.status, `${esm.stderr}\n${esm.stdout}`).toBe(0);
 
     const cjs = spawnSync(process.execPath, [
       '-e',
-      "const mod = require('xmermaid/editor'); if (typeof mod.XMermaidLiveEditor !== 'function') process.exit(2);",
+      "const mod = require('@evangwt/xmermaid/editor'); if (typeof mod.XMermaidLiveEditor !== 'function') process.exit(2);",
     ], { encoding: 'utf8' });
     expect(cjs.status, `${cjs.stderr}\n${cjs.stdout}`).toBe(0);
   });
@@ -157,8 +165,8 @@ describe('consumer smoke helpers', () => {
       writeBrowserSmokePage(tempRoot);
       const page = readFileSync(join(tempRoot, 'smoke.html'), 'utf8');
 
-      expect(page).toContain('"xmermaid/editor"');
-      expect(page).toContain("import { XMermaidLiveEditor } from 'xmermaid/editor';");
+      expect(page).toContain('"@evangwt/xmermaid/editor"');
+      expect(page).toContain("import { XMermaidLiveEditor } from '@evangwt/xmermaid/editor';");
       expect(page).toContain('XMermaidLiveEditor');
       expect(page).toContain('liveEditorSvgCount');
     } finally {
@@ -185,7 +193,7 @@ describe('consumer smoke helpers', () => {
       expect(page).toContain('unsupportedVisualEditBlocked');
       expect(page).toContain('shareHashNamespaced');
       expect(page).toContain('svgExportReady');
-      expect(page).toContain("import { DARK_THEME, XMermaid } from 'xmermaid';");
+      expect(page).toContain("import { DARK_THEME, XMermaid } from '@evangwt/xmermaid';");
       expect(page).toContain('themeGeometryReady');
       expect(page).toContain('markerJoinDistance <= 1');
       expect(page).toContain("sequenceDiagram\\n  Alice-->>Bob: Async reply");
@@ -210,12 +218,12 @@ describe('consumer smoke helpers', () => {
 
     const tempRoot = mkdtempSync(join(tmpdir(), 'xmermaid-cjs-entry-'));
     try {
-      const packageRoot = join(tempRoot, 'node_modules', 'xmermaid');
+      const packageRoot = join(tempRoot, 'node_modules', '@evangwt', 'xmermaid');
       mkdirSync(join(packageRoot, dirname(requirePath!)), { recursive: true });
       copyFileSync('package.json', join(packageRoot, 'package.json'));
       copyFileSync(requirePath!.replace(/^\.\//, ''), join(packageRoot, requirePath!));
       writeFileSync(join(tempRoot, 'consumer.cjs'), [
-        "const xmermaid = require('xmermaid');",
+        "const xmermaid = require('@evangwt/xmermaid');",
         "if (typeof xmermaid.XMermaid !== 'function') {",
         "  throw new Error('XMermaid CommonJS export is unavailable');",
         '}',

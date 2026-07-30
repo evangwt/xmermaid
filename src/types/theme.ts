@@ -44,7 +44,7 @@ export const DEFAULT_THEME: RenderTheme = {
   arrowSize: 10,
   nodeBorderRadius: 4,
   fontFamily: 'sans-serif',
-  fontSize: 14,
+  fontSize: 12,
 };
 
 export const LIGHT_THEME: RenderTheme = {

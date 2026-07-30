@@ -2,7 +2,7 @@ mod common;
 
 use common::config_for_ast;
 use xmermaid_layout::{compute_layout, LayoutConfig};
-use xmermaid_parser::{parse, DiagramAst};
+use xmermaid_parser::parse;
 
 // ─── Basic layout ────────────────────────────────────────────────
 
@@ -276,21 +276,23 @@ fn test_layout_multiple_edges_same_pair() {
 // ─── Sequence diagrams ───────────────────────────────────────────
 
 #[test]
-fn test_sequence_layout_positions_participants_and_messages() {
-    let ast = DiagramAst::Sequence(xmermaid_parser::ast::SequenceAst {
-        participants: vec!["Alice".to_string(), "Bob".to_string()],
-        messages: vec![xmermaid_parser::ast::SequenceMessage {
-            from: "Alice".to_string(),
-            to: "Bob".to_string(),
-            label: "Hello".to_string(),
-        }],
-    });
+fn test_sequence_layout_emits_native_timeline_geometry() {
+    let ast = parse(
+        "sequenceDiagram\n  participant Alice\n  participant Bob\n  Alice->>+Bob: Request\n  Note right of Bob: Processing\n  opt Cache miss\n    Bob-->>-Alice: Response\n  end",
+    )
+    .unwrap();
     let config = config_for_ast(&ast);
     let result = compute_layout(&ast, &config);
-    assert_eq!(result.nodes.len(), 2);
-    assert_eq!(result.edges.len(), 1);
-    assert!(result.nodes[1].center.x > result.nodes[0].center.x);
-    assert_eq!(result.edges[0].label.as_deref(), Some("Hello"));
+    assert!(result.nodes.is_empty());
+    assert!(result.edges.is_empty());
+
+    let json = serde_json::to_value(result).unwrap();
+    assert_eq!(json["sequence"]["participants"].as_array().map(Vec::len), Some(2));
+    assert_eq!(json["sequence"]["lifelines"].as_array().map(Vec::len), Some(2));
+    assert_eq!(json["sequence"]["messages"].as_array().map(Vec::len), Some(2));
+    assert_eq!(json["sequence"]["activations"].as_array().map(Vec::len), Some(1));
+    assert_eq!(json["sequence"]["notes"].as_array().map(Vec::len), Some(1));
+    assert_eq!(json["sequence"]["blocks"].as_array().map(Vec::len), Some(1));
 }
 
 #[test]

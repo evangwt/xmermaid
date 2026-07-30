@@ -1,5 +1,9 @@
 import type { Point, Bounds, CurveStyle, ArrowStyle, NodeShape } from '../types';
 
+function sameCoordinate(a: number, b: number): boolean {
+  return Math.abs(a - b) < 1e-6;
+}
+
 export interface EdgePathResult {
   path: string; // SVG path d attribute — ends at arrow base (pathEnd)
   arrowTip: Point; // Forward-most point of the rendered marker
@@ -648,8 +652,12 @@ export function computeStepPath(
 
   if (waypoints.length === 2) {
     path = terminalIsVertical
-      ? `M ${start.x} ${start.y} H ${(start.x + placement.pathEnd.x) / 2} V ${placement.pathEnd.y}`
-      : `M ${start.x} ${start.y} V ${(start.y + placement.pathEnd.y) / 2} H ${placement.pathEnd.x}`;
+      ? sameCoordinate(start.x, placement.pathEnd.x)
+        ? `M ${start.x} ${start.y} V ${placement.pathEnd.y}`
+        : `M ${start.x} ${start.y} H ${(start.x + placement.pathEnd.x) / 2} V ${placement.pathEnd.y}`
+      : sameCoordinate(start.y, placement.pathEnd.y)
+        ? `M ${start.x} ${start.y} H ${placement.pathEnd.x}`
+        : `M ${start.x} ${start.y} V ${(start.y + placement.pathEnd.y) / 2} H ${placement.pathEnd.x}`;
   } else {
     // Between each pair of consecutive waypoints, use H-V-H stepping
     const points: Point[] = [start, ...waypoints.slice(1, -1), placement.pathEnd];

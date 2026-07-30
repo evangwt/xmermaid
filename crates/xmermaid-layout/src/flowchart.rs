@@ -396,7 +396,7 @@ pub fn layout(fc: &FlowchartAst, config: &LayoutConfig) -> LayoutResult {
             sankey: None,
             quadrant_chart: None,
             block_diagram: None,
-            kanban_board: None, treemap: None, radar: None, packet: None, venn: None, swimlanes: None,
+            kanban_board: None, treemap: None, radar: None, packet: None, venn: None, swimlanes: None, sequence: None, ishikawa: None, wardley: None, cynefin: None,
             dimensions: Dimensions {
                 width: padding * 2.0,
                 height: padding * 2.0,
@@ -834,19 +834,37 @@ pub fn layout(fc: &FlowchartAst, config: &LayoutConfig) -> LayoutResult {
                     if is_back {
                         // Back-edge: route around the side of the diagram
                         if is_horizontal {
-                            // LR/RL: route above the diagram
+                            // LR/RL: route above the diagram, then approach the target
+                            // on the horizontal flow axis. This keeps the terminal tangent
+                            // horizontal instead of making an arrow enter vertically.
+                            let target_width = node_sizes[to_idx].0;
+                            let approach_direction = if from.x >= to.x { 1.0 } else { -1.0 };
+                            let target_entry = Point {
+                                x: to.x + approach_direction * (target_width / 2.0 + h_spacing * 0.35),
+                                y: to.y,
+                            };
                             vec![
                                 from,
                                 Point { x: from.x, y: route_y },
-                                Point { x: to.x, y: route_y },
+                                Point { x: target_entry.x, y: route_y },
+                                target_entry,
                                 to,
                             ]
                         } else {
-                            // TB/BT: route to the right side
+                            // TB/BT: route to the right side, then approach the target
+                            // on the vertical flow axis. This keeps the terminal tangent
+                            // vertical instead of making an arrow lie sideways into a node.
+                            let target_height = node_sizes[to_idx].1;
+                            let approach_direction = if from.y >= to.y { 1.0 } else { -1.0 };
+                            let target_entry = Point {
+                                x: to.x,
+                                y: to.y + approach_direction * (target_height / 2.0 + v_spacing * 0.35),
+                            };
                             vec![
                                 from,
                                 Point { x: route_x, y: from.y },
-                                Point { x: route_x, y: to.y },
+                                Point { x: route_x, y: target_entry.y },
+                                target_entry,
                                 to,
                             ]
                         }
@@ -989,7 +1007,7 @@ pub fn layout(fc: &FlowchartAst, config: &LayoutConfig) -> LayoutResult {
         sankey: None,
         quadrant_chart: None,
         block_diagram: None,
-        kanban_board: None, treemap: None, radar: None, packet: None, venn: None, swimlanes: None,
+        kanban_board: None, treemap: None, radar: None, packet: None, venn: None, swimlanes: None, sequence: None, ishikawa: None, wardley: None, cynefin: None,
         dimensions: Dimensions {
             width: final_width,
             height: final_height,
@@ -1251,23 +1269,40 @@ mod tests {
         // A-->B-->C-->A creates a back-edge from C to A
         let result = layout_from_dsl("graph TD\n  A-->B\n  B-->C\n  C-->A");
         let back_edge = result.edges.iter().find(|e| e.from == "C" && e.to == "A").unwrap();
-        // Back-edge should have 4 waypoints: from, right-side point at from.y,
-        // right-side point at to.y, to
-        assert_eq!(back_edge.waypoints.len(), 4, "Back-edge should have 4 waypoints");
+        // Back-edge keeps its outer routing points and ends with a vertical target entry.
+        assert_eq!(back_edge.waypoints.len(), 5, "Back-edge should have an axis-aligned target entry");
 
         let from = back_edge.waypoints[0];
         let wp1 = back_edge.waypoints[1];
         let wp2 = back_edge.waypoints[2];
-        let to = back_edge.waypoints[3];
+        let entry = back_edge.waypoints[3];
+        let to = back_edge.waypoints[4];
 
         // The routing waypoints should be to the right of all nodes
         let max_node_x = result.nodes.iter().map(|n| n.center.x).fold(f64::MIN, f64::max);
         assert!(wp1.x > max_node_x, "Route waypoint x should be beyond rightmost node");
         assert!(wp2.x > max_node_x, "Route waypoint x should be beyond rightmost node");
 
-        // The routing waypoints should preserve from.y and to.y respectively
+        // The target entry keeps the final segment vertical.
         assert_eq!(wp1.y, from.y, "First route point should be at from.y");
-        assert_eq!(wp2.y, to.y, "Second route point should be at to.y");
+        assert_eq!(entry.x, to.x, "Target entry should share the target axis");
+        assert_ne!(entry.y, to.y, "Target entry should sit outside the target node");
+    }
+
+    #[test]
+    fn test_vertical_back_edge_enters_the_target_on_the_flow_axis() {
+        for (direction, approaches_from_below) in [("TD", true), ("BT", false)] {
+            let result = layout_from_dsl(&format!("graph {direction}\n  A-->B\n  B-->C\n  C-->A"));
+            let back_edge = result.edges.iter().find(|edge| edge.from == "C" && edge.to == "A").unwrap();
+            let target = result.nodes.iter().find(|node| node.id == "A").unwrap();
+            let approach = back_edge.waypoints[back_edge.waypoints.len() - 2];
+            let endpoint = back_edge.waypoints[back_edge.waypoints.len() - 1];
+
+            assert_eq!(endpoint, target.center);
+            assert_eq!(approach.x, target.center.x, "back-edge should enter a vertical chart on the target axis");
+            assert_eq!(approaches_from_below, approach.y > endpoint.y, "{direction} should enter from the side where the route arrives");
+            assert!(back_edge.final_tangent_angle.unwrap().cos().abs() < 1e-10, "terminal tangent should be vertical");
+        }
     }
 
     #[test]
@@ -1275,21 +1310,41 @@ mod tests {
         // A-->B-->C-->A creates a back-edge from C to A
         let result = layout_from_dsl("graph LR\n  A-->B\n  B-->C\n  C-->A");
         let back_edge = result.edges.iter().find(|e| e.from == "C" && e.to == "A").unwrap();
-        assert_eq!(back_edge.waypoints.len(), 4, "Back-edge should have 4 waypoints");
+        assert_eq!(back_edge.waypoints.len(), 5, "Back-edge should have an axis-aligned target entry");
 
         let from = back_edge.waypoints[0];
         let wp1 = back_edge.waypoints[1];
         let wp2 = back_edge.waypoints[2];
-        let to = back_edge.waypoints[3];
+        let entry = back_edge.waypoints[3];
+        let to = back_edge.waypoints[4];
 
         // The routing waypoints should be above all nodes
         let min_node_y = result.nodes.iter().map(|n| n.center.y).fold(f64::MAX, f64::min);
         assert!(wp1.y < min_node_y, "Route waypoint y should be above topmost node");
         assert!(wp2.y < min_node_y, "Route waypoint y should be above topmost node");
 
-        // The routing waypoints should preserve from.x and to.x respectively
+        // The outer routing waypoint preserves the source axis, while the final
+        // entry preserves the target axis for a horizontal terminal tangent.
         assert_eq!(wp1.x, from.x, "First route point should be at from.x");
-        assert_eq!(wp2.x, to.x, "Second route point should be at to.x");
+        assert_eq!(entry.y, to.y, "Target entry should share the target axis");
+        assert_ne!(entry.x, to.x, "Target entry should sit outside the target node");
+    }
+
+    #[test]
+    fn test_horizontal_back_edge_enters_the_target_on_the_flow_axis() {
+        for (direction, approaches_from_right) in [("LR", true), ("RL", false)] {
+            let result = layout_from_dsl(&format!("graph {direction}\n  A-->B\n  B-->C\n  C-->A"));
+            let back_edge = result.edges.iter().find(|edge| edge.from == "C" && edge.to == "A").unwrap();
+            let target = result.nodes.iter().find(|node| node.id == "A").unwrap();
+            let approach = back_edge.waypoints[back_edge.waypoints.len() - 2];
+            let endpoint = back_edge.waypoints[back_edge.waypoints.len() - 1];
+
+            assert_eq!(back_edge.waypoints.len(), 5, "back-edge should include an axis-aligned target entry");
+            assert_eq!(endpoint, target.center);
+            assert_eq!(approach.y, target.center.y, "back-edge should enter a horizontal chart on the target axis");
+            assert_eq!(approaches_from_right, approach.x > endpoint.x, "{direction} should enter from the side where the route arrives");
+            assert!(back_edge.final_tangent_angle.unwrap().sin().abs() < 1e-10, "terminal tangent should be horizontal");
+        }
     }
 
     #[test]

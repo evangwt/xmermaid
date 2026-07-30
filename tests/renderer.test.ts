@@ -418,4 +418,158 @@ describe('SVGRenderer', () => {
     expect(step.trim()).toMatch(/V\s+[^\s]+$/);
     expect(bezier).toContain('C');
   });
+
+  it('keeps an explicit bezier turn attached to the current routed segment', () => {
+    const layout = layoutWithGeometry(2);
+    layout.edges[0] = {
+      ...layout.edges[0],
+      waypoints: [
+        { x: 160, y: 260 },
+        { x: 205, y: 260 },
+        { x: 205, y: 201 },
+        { x: 100, y: 201 },
+        { x: 100, y: 180 },
+      ],
+      source_boundary: { x: 160, y: 260 },
+      target_boundary: { x: 100, y: 180 },
+      path_end: { x: 100, y: 180 },
+      final_tangent_angle: -Math.PI / 2,
+    };
+
+    const path = new SVGRenderer({ curveStyle: 'bezier', edgeGap: 2, arrowSize: 10 })
+      .render(layout)
+      .querySelector('g.edge path')
+      ?.getAttribute('d') ?? '';
+    const finalCurve = path.match(/C\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)$/);
+
+    expect(finalCurve).not.toBeNull();
+    const firstControlX = Number(finalCurve?.[1]);
+    const firstControlY = Number(finalCurve?.[2]);
+
+    // The route reaches (205, 201) before it bends toward the target. Starting
+    // the cubic control at (100, 201) skips that segment and creates a visible
+    // reverse hook before the arrow.
+    expect(firstControlX).toBeGreaterThan(152.5);
+    expect(firstControlX).toBeLessThan(205);
+    expect(firstControlY).toBe(201);
+  });
+
+  it('preserves axis-aligned explicit step routes without duplicate bends', () => {
+    const layout = layoutWithGeometry(2);
+    layout.edges[0] = {
+      ...layout.edges[0],
+      waypoints: [
+        { x: 160, y: 260 },
+        { x: 205, y: 260 },
+        { x: 205, y: 201 },
+        { x: 100, y: 201 },
+        { x: 100, y: 180 },
+      ],
+      source_boundary: { x: 160, y: 260 },
+      target_boundary: { x: 100, y: 180 },
+      path_end: { x: 100, y: 180 },
+      final_tangent_angle: -Math.PI / 2,
+    };
+
+    const path = new SVGRenderer({ curveStyle: 'step', edgeGap: 2, arrowSize: 10 })
+      .render(layout)
+      .querySelector('g.edge path')
+      ?.getAttribute('d');
+
+    expect(path).toBe('M 160 260 H 205 V 201 H 100 V 189.9102540378444');
+  });
+
+  it('renders native Ishikawa spine, effect, and indented causes', () => {
+    const layout = {
+      nodes: [],
+      edges: [],
+      dimensions: { width: 920, height: 520 },
+      ishikawa: {
+        effect: 'Blurry Photo',
+        spine_start: { x: 84, y: 260 },
+        spine_end: { x: 730, y: 260 },
+        effect_bounds: { x: 752, y: 229, width: 128, height: 62 },
+        causes: [
+          { label: 'Process', parent: null, depth: 0, branch_anchor: { x: 302, y: 260 }, position: { x: 210, y: 130 } },
+          { label: 'Out of focus', parent: 'Process', depth: 1, branch_anchor: { x: 210, y: 130 }, position: { x: 148, y: 172 } },
+        ],
+      },
+    } as LayoutResult & { ishikawa: unknown };
+
+    const svg = new SVGRenderer().render(layout);
+
+    expect(svg.querySelector('.ishikawa-spine')).not.toBeNull();
+    expect(svg.querySelector('.ishikawa-effect')?.textContent).toBe('Blurry Photo');
+    expect(svg.querySelectorAll('.ishikawa-cause')).toHaveLength(2);
+    expect(svg.textContent).toContain('Out of focus');
+  });
+
+  it('renders native Cynefin domains, quoted items, and transitions', () => {
+    const layout = {
+      nodes: [], edges: [], dimensions: { width: 980, height: 700 },
+      cynefin: {
+        title: 'Incident Response',
+        domains: [
+          { id: 'complex', label: 'Complex', bounds: { x: 60, y: 110, width: 400, height: 220 }, items: [{ label: 'Investigate root cause' }] },
+          { id: 'complicated', label: 'Complicated', bounds: { x: 520, y: 110, width: 400, height: 220 }, items: [] },
+          { id: 'chaotic', label: 'Chaotic', bounds: { x: 60, y: 390, width: 400, height: 220 }, items: [] },
+          { id: 'clear', label: 'Clear', bounds: { x: 520, y: 390, width: 400, height: 220 }, items: [{ label: 'Restart service' }] },
+          { id: 'confusion', label: 'Confusion', bounds: { x: 400, y: 310, width: 120, height: 80 }, items: [{ label: 'Unknown failure mode' }] },
+        ],
+        transitions: [{ from: 'complex', to: 'complicated', label: 'Pattern identified' }],
+      },
+    } as LayoutResult & { cynefin: unknown };
+
+    const svg = new SVGRenderer().render(layout);
+
+    expect(svg.querySelector('.cynefin')).not.toBeNull();
+    expect(svg.querySelectorAll('.cynefin-domain')).toHaveLength(5);
+    expect(svg.querySelector('.cynefin-confusion')).not.toBeNull();
+    expect(svg.querySelectorAll('.cynefin-item')).toHaveLength(3);
+    expect(svg.querySelectorAll('.cynefin-transition')).toHaveLength(1);
+    expect(svg.textContent).toContain('Incident Response');
+  });
+
+  it('renders native sequence lifelines, activation bars, notes, and control frames', () => {
+    const layout = {
+      nodes: [],
+      edges: [],
+      dimensions: { width: 560, height: 420 },
+      sequence: {
+        participants: [
+          { id: 'Client', label: 'Client', kind: 'participant', header: { x: 80, y: 40, width: 120, height: 44 } },
+          { id: 'API', label: 'API', kind: 'participant', header: { x: 320, y: 40, width: 120, height: 44 } },
+        ],
+        lifelines: [
+          { participant: 'Client', start: { x: 140, y: 84 }, end: { x: 140, y: 374 } },
+          { participant: 'API', start: { x: 380, y: 84 }, end: { x: 380, y: 374 } },
+        ],
+        messages: [
+          { from: 'Client', to: 'API', from_x: 140, to_x: 380, y: 134, label: 'Request', dashed: false, number: 1, end_marker: 'arrow', label_position: { x: 178, y: 125 }, self_width: null },
+          { from: 'API', to: 'Client', from_x: 380, to_x: 140, y: 264, label: 'Response', dashed: true, number: 2, end_marker: 'cross', label_position: { x: 342, y: 255 }, self_width: null },
+        ],
+        activations: [{ participant: 'API', bounds: { x: 374, y: 134, width: 12, height: 130 } }],
+        notes: [{ placement: 'right_of', participants: ['API'], bounds: { x: 404, y: 164, width: 128, height: 36 }, text: 'Validate request' }],
+        blocks: [
+          { kind: 'alt', label: 'Accepted', bounds: { x: 48, y: 206, width: 456, height: 120 }, dividers: [{ label: 'Rejected', y: 264 }] },
+          { kind: 'rect', label: '', color: 'rgb(255, 235, 235)', bounds: { x: 48, y: 326, width: 456, height: 64 }, dividers: [] },
+        ],
+      },
+    } as LayoutResult & { sequence: unknown };
+
+    const svg = new SVGRenderer(DARK_THEME).render(layout);
+
+    expect(svg.querySelector('.sequence')).not.toBeNull();
+    expect(svg.querySelectorAll('.sequence-lifeline')).toHaveLength(2);
+    expect(svg.querySelectorAll('.sequence-message')).toHaveLength(2);
+    expect(svg.querySelectorAll('.sequence-message-number')).toHaveLength(2);
+    expect(svg.querySelector('.sequence-message-number')?.textContent).toBe('1');
+    expect(svg.querySelectorAll('.sequence-message-cross')).toHaveLength(1);
+    expect(svg.querySelectorAll('.sequence-activation')).toHaveLength(1);
+    expect(svg.querySelector('.sequence-note')?.textContent).toContain('Validate request');
+    expect(svg.querySelector('.sequence-block')?.textContent).toContain('Accepted');
+    expect(svg.querySelector('.sequence-rect')?.getAttribute('fill')).toBe('rgb(255, 235, 235)');
+    expect(svg.querySelector('.sequence-participant-label')?.getAttribute('font-size')).toBe('12');
+    expect(svg.querySelector('.sequence-message-label')?.getAttribute('x')).toBe('178');
+  });
 });

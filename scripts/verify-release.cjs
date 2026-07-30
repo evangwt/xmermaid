@@ -233,7 +233,7 @@ function checkDocs() {
     },
     {
       label: 'README documents editor subpath and custom WASM fetch',
-      passed: /xmermaid\/editor/.test(readme)
+      passed: /@evangwt\/xmermaid\/editor/.test(readme)
         && /WasmInitOptions|wasm/i.test(readme)
         && /fetch/.test(readme)
         && /first initializes WASM|first render|initialized, later renders reuse/i.test(readme),
@@ -251,7 +251,7 @@ function checkDocs() {
         && /visual rename/i.test(readme)
         && /share hash/i.test(readme)
         && /SVG export/i.test(readme)
-        && /through `xmermaid\/editor`/.test(readme),
+        && /through `@evangwt\/xmermaid\/editor`/.test(readme),
     },
     {
       label: 'README documents live editor direction and safety smoke',
@@ -262,7 +262,7 @@ function checkDocs() {
     {
       label: 'release checklist documents package metadata and editor subpath',
       passed: /LICENSE/.test(checklist)
-        && /xmermaid\/editor/.test(checklist)
+        && /@evangwt\/xmermaid\/editor/.test(checklist)
         && /default bundle-relative WASM/.test(checklist),
     },
     ...matrixIds.map(id => ({

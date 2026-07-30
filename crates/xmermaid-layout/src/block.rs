@@ -32,6 +32,6 @@ pub fn layout(diagram: &BlockAst, config: &LayoutConfig) -> LayoutResult {
         dimensions: Dimensions { width: width + config.padding * 2.0, height: height + config.padding * 2.0 },
         pie_slices: vec![], xy_chart: None, sankey: None, quadrant_chart: None,
         block_diagram: Some(BlockDiagramLayout { columns: diagram.columns, blocks }),
-        kanban_board: None, treemap: None, radar: None, packet: None, venn: None, swimlanes: None,
+        kanban_board: None, treemap: None, radar: None, packet: None, venn: None, swimlanes: None, sequence: None, ishikawa: None, wardley: None, cynefin: None,
     }
 }

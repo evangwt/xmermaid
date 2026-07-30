@@ -87,6 +87,10 @@ impl<'a> Parser<'a> {
         if self.input.trim_start().starts_with("packet") { return self.parse_packet(); }
         if self.input.trim_start().starts_with("venn-beta") { return self.parse_venn(); }
         if self.input.trim_start().starts_with("swimlane-beta") { return self.parse_swimlanes(); }
+        if self.input.trim_start().starts_with("ishikawa-beta") { return self.parse_ishikawa(); }
+        if self.input.trim_start().lines().next().map(str::trim).is_some_and(|line| line.eq_ignore_ascii_case("eventmodeling")) { return self.parse_event_modeling(); }
+        if self.input.trim_start().starts_with("wardley-beta") { return self.parse_wardley(); }
+        if self.input.trim_start().starts_with("cynefin-beta") { return self.parse_cynefin(); }
         let keyword = self.expect(TokenType::Keyword)?;
 
         match keyword.as_str() {
@@ -98,52 +102,78 @@ impl<'a> Parser<'a> {
     fn parse_sequence(&self) -> Result<DiagramAst, ParseError> {
         let mut participants = Vec::new();
         let mut messages = Vec::new();
+        let mut events = Vec::new();
+        let mut blocks = Vec::new();
+        let mut open_activations = std::collections::HashMap::<String, usize>::new();
         for line in self.input.lines().skip(1) {
             let statement = line.trim();
             if statement.is_empty() || statement.starts_with("%%") {
                 continue;
             }
-            let (from, rest) = statement
-                .split_once("-->>")
-                .or_else(|| statement.split_once("->>"))
-                .or_else(|| statement.split_once("-->"))
-                .ok_or_else(|| {
-                    ParseError::UnexpectedToken(format!(
-                        "Invalid sequence statement: {}",
-                        statement
-                    ))
-                })?;
-            let (to, label) = rest.split_once(':').ok_or_else(|| {
-                ParseError::UnexpectedToken(format!(
-                    "Sequence messages require a label: {}",
-                    statement
-                ))
-            })?;
-            let (from, to, label) = (from.trim(), to.trim(), label.trim());
-            if from.is_empty() || to.is_empty() || label.is_empty() {
-                return Err(ParseError::UnexpectedToken(format!(
-                    "Invalid sequence statement: {}",
-                    statement
-                )));
+            if let Some(participant) = parse_sequence_participant(statement)? {
+                upsert_sequence_participant(&mut participants, participant);
+                continue;
             }
-            if !participants.iter().any(|participant| participant == from) {
-                participants.push(from.to_string());
+            if let Some(note) = parse_sequence_note(statement)? {
+                for participant in &note.participants {
+                    add_inferred_sequence_participant(&mut participants, participant);
+                }
+                events.push(note.into_event());
+                continue;
             }
-            if !participants.iter().any(|participant| participant == to) {
-                participants.push(to.to_string());
+            if let Some(activation) = parse_sequence_activation(statement)? {
+                add_inferred_sequence_participant(&mut participants, &activation.participant);
+                if activation.active {
+                    open_sequence_activation(&mut open_activations, &activation.participant);
+                } else {
+                    close_sequence_activation(&mut open_activations, &activation.participant, statement)?;
+                }
+                events.push(SequenceEvent::Activation {
+                    participant: activation.participant,
+                    active: activation.active,
+                });
+                continue;
             }
-            messages.push(SequenceMessage {
-                from: from.to_string(),
-                to: to.to_string(),
-                label: label.to_string(),
-            });
+            if statement.eq_ignore_ascii_case("autonumber") {
+                events.push(SequenceEvent::Autonumber);
+                continue;
+            }
+            if let Some(event) = parse_sequence_control(statement, &mut blocks)? {
+                events.push(event);
+                continue;
+            }
+            if let Some(message) = parse_sequence_message(statement)? {
+                add_inferred_sequence_participant(&mut participants, &message.from);
+                add_inferred_sequence_participant(&mut participants, &message.to);
+                if message.activate_target {
+                    open_sequence_activation(&mut open_activations, &message.to);
+                }
+                if message.deactivate_source {
+                    close_sequence_activation(&mut open_activations, &message.from, statement)?;
+                }
+                let message_index = messages.len();
+                messages.push(message);
+                events.push(SequenceEvent::Message { message_index });
+                continue;
+            }
+            return Err(ParseError::UnexpectedToken(format!(
+                "Invalid sequence statement: {}",
+                statement
+            )));
         }
         if participants.is_empty() {
             return Err(ParseError::EmptyInput);
         }
+        if let Some(block) = blocks.last() {
+            return Err(ParseError::UnexpectedToken(format!(
+                "Sequence control block {:?} is missing end",
+                block
+            )));
+        }
         Ok(DiagramAst::Sequence(SequenceAst {
             participants,
             messages,
+            events,
         }))
     }
 
@@ -942,6 +972,206 @@ impl<'a> Parser<'a> {
         Ok(DiagramAst::Swimlanes(SwimlaneAst { direction, lanes, nodes, edges }))
     }
 
+    fn parse_ishikawa(&self) -> Result<DiagramAst, ParseError> {
+        let mut lines = self.input.lines().filter(|line| !line.trim().is_empty() && !line.trim_start().starts_with("%%"));
+        if lines.next().map(str::trim) != Some("ishikawa-beta") {
+            return Err(ParseError::UnexpectedToken("Ishikawa diagrams must start with ishikawa-beta.".to_string()));
+        }
+        let effect_line = lines.next().ok_or(ParseError::EmptyInput)?;
+        if effect_line.contains('\t') {
+            return Err(ParseError::UnexpectedToken("Ishikawa indentation must use spaces.".to_string()));
+        }
+        let effect_indent = effect_line.len() - effect_line.trim_start().len();
+        let effect = effect_line.trim();
+        if effect.is_empty() {
+            return Err(ParseError::EmptyInput);
+        }
+
+        let mut causes = Vec::new();
+        let mut parents: Vec<String> = Vec::new();
+        let mut indent_unit = None;
+        for line in lines {
+            if line.contains('\t') {
+                return Err(ParseError::UnexpectedToken("Ishikawa indentation must use spaces.".to_string()));
+            }
+            let indent = line.len() - line.trim_start().len();
+            let label = line.trim();
+            if indent < effect_indent || label.is_empty() {
+                return Err(ParseError::UnexpectedToken(format!("Ishikawa causes must share or extend the effect indentation: {}", label)));
+            }
+            let relative_indent = indent - effect_indent;
+            let depth = if relative_indent == 0 {
+                0
+            } else {
+                let unit = *indent_unit.get_or_insert(relative_indent);
+                if relative_indent % unit != 0 {
+                    return Err(ParseError::UnexpectedToken(format!("Ishikawa causes must use consistent indentation: {}", label)));
+                }
+                relative_indent / unit
+            };
+            if depth > parents.len() {
+                return Err(ParseError::UnexpectedToken(format!("Ishikawa causes cannot skip hierarchy levels: {}", label)));
+            }
+            if causes.iter().any(|cause: &IshikawaCause| cause.label == label) {
+                return Err(ParseError::UnexpectedToken(format!("Ishikawa cause labels must be unique: {}", label)));
+            }
+            let parent = if depth == 0 { None } else { Some(parents[depth - 1].clone()) };
+            parents.truncate(depth);
+            parents.push(label.to_string());
+            causes.push(IshikawaCause { label: label.to_string(), parent, depth });
+        }
+        if causes.is_empty() {
+            return Err(ParseError::EmptyInput);
+        }
+        Ok(DiagramAst::Ishikawa(IshikawaAst { effect: effect.to_string(), causes }))
+    }
+
+    fn parse_event_modeling(&self) -> Result<DiagramAst, ParseError> {
+        let mut lines = self.input.lines().map(str::trim).filter(|line| !line.is_empty() && !line.starts_with("%%"));
+        let header = lines.next().ok_or(ParseError::EmptyInput)?;
+        if !header.eq_ignore_ascii_case("eventmodeling") {
+            return Err(ParseError::UnexpectedToken("Event Modeling diagrams must start with eventmodeling.".to_string()));
+        }
+
+        let mut frames = Vec::new();
+        for line in lines {
+            // Data blocks are intentionally outside this first native subset. Their frame
+            // references have already been consumed, so they do not affect the timeline layout.
+            if line.starts_with("data ") {
+                break;
+            }
+            let statement = line.split_once('{').map(|(prefix, _)| prefix).unwrap_or(line);
+            let statement = statement.split_once("[[").map(|(prefix, _)| prefix).unwrap_or(statement).trim();
+            let mut parts = statement.split_whitespace();
+            let keyword = parts.next().unwrap_or_default().to_ascii_lowercase();
+            let reset = match keyword.as_str() {
+                "tf" | "timeframe" => false,
+                "rf" | "resetframe" => true,
+                _ => return Err(ParseError::UnexpectedToken(format!("Event Modeling statements must start with tf, timeframe, rf, or resetframe: {}", line))),
+            };
+            let id = parts.next().ok_or_else(|| ParseError::UnexpectedToken(format!("Event Modeling time frames require an id, entity type, and entity: {}", line)))?;
+            let entity_type = match parts.next().unwrap_or_default().to_ascii_lowercase().as_str() {
+                "ui" => "ui",
+                "pcr" | "processor" => "pcr",
+                "cmd" | "command" => "cmd",
+                "rmo" | "readmodel" => "rmo",
+                "evt" | "event" => "evt",
+                _ => return Err(ParseError::UnexpectedToken(format!("Unsupported Event Modeling entity type: {}", line))),
+            };
+            let entity = parts.collect::<Vec<_>>().join(" ");
+            if entity.is_empty() || frames.iter().any(|frame: &EventFrame| frame.id == id) {
+                return Err(ParseError::UnexpectedToken(format!("Event Modeling time frames require unique ids and non-empty entities: {}", line)));
+            }
+            frames.push(EventFrame { id: id.to_string(), entity_type: entity_type.to_string(), entity, reset });
+        }
+
+        if frames.is_empty() {
+            return Err(ParseError::EmptyInput);
+        }
+        Ok(DiagramAst::EventModeling(EventModelingAst { frames }))
+    }
+
+    fn parse_wardley(&self) -> Result<DiagramAst, ParseError> {
+        let mut lines = self.input.lines().map(str::trim).filter(|line| !line.is_empty() && !line.starts_with("%%"));
+        if lines.next() != Some("wardley-beta") {
+            return Err(ParseError::UnexpectedToken("Wardley maps must start with wardley-beta.".to_string()));
+        }
+
+        let mut title = String::new();
+        let mut components = Vec::new();
+        let mut dependencies = Vec::new();
+        for line in lines {
+            if let Some(value) = line.strip_prefix("title ") {
+                title = value.trim().trim_matches('"').to_string();
+                continue;
+            }
+            let (kind, value) = if let Some(value) = line.strip_prefix("anchor ") {
+                (true, value)
+            } else if let Some(value) = line.strip_prefix("component ") {
+                (false, value)
+            } else if let Some((from, to)) = line.split_once("->") {
+                dependencies.push(WardleyDependency { from: wardley_name(from), to: wardley_name(to) });
+                continue;
+            } else {
+                return Err(ParseError::UnexpectedToken(format!("Unsupported Wardley statement: {}", line)));
+            };
+
+            let (name, coordinates) = value.rsplit_once('[')
+                .and_then(|(name, coordinates)| coordinates.strip_suffix(']').map(|coordinates| (name.trim(), coordinates)))
+                .ok_or_else(|| ParseError::UnexpectedToken(format!("Wardley components require [evolution, visibility] coordinates: {}", line)))?;
+            let coordinates = coordinates.split(',').map(str::trim).collect::<Vec<_>>();
+            if coordinates.len() != 2 {
+                return Err(ParseError::UnexpectedToken(format!("Wardley components require [evolution, visibility] coordinates: {}", line)));
+            }
+            let x = coordinates[0].parse::<f64>().ok().filter(|value| value.is_finite() && (0.0..=1.0).contains(value))
+                .ok_or_else(|| ParseError::UnexpectedToken(format!("Wardley evolution must be between 0 and 1: {}", line)))?;
+            let y = coordinates[1].parse::<f64>().ok().filter(|value| value.is_finite() && (0.0..=1.0).contains(value))
+                .ok_or_else(|| ParseError::UnexpectedToken(format!("Wardley visibility must be between 0 and 1: {}", line)))?;
+            let id = wardley_name(name);
+            if id.is_empty() || components.iter().any(|component: &WardleyComponent| component.id == id) {
+                return Err(ParseError::UnexpectedToken(format!("Wardley component names must be unique and non-empty: {}", line)));
+            }
+            components.push(WardleyComponent { id: id.clone(), label: id, x, y, anchor: kind });
+        }
+
+        if components.is_empty() || dependencies.iter().any(|dependency: &WardleyDependency| !components.iter().any(|component| component.id == dependency.from) || !components.iter().any(|component| component.id == dependency.to)) {
+            return Err(ParseError::EmptyInput);
+        }
+        Ok(DiagramAst::Wardley(WardleyAst { title, components, dependencies }))
+    }
+
+    fn parse_cynefin(&self) -> Result<DiagramAst, ParseError> {
+        const DOMAIN_IDS: [&str; 5] = ["complex", "complicated", "clear", "chaotic", "confusion"];
+        let mut lines = self.input.lines().map(str::trim).filter(|line| !line.is_empty() && !line.starts_with("%%"));
+        if lines.next() != Some("cynefin-beta") {
+            return Err(ParseError::UnexpectedToken("Cynefin diagrams must start with cynefin-beta.".to_string()));
+        }
+
+        let mut title = String::new();
+        let mut domains = DOMAIN_IDS
+            .iter()
+            .map(|id| CynefinDomain { id: (*id).to_string(), items: vec![] })
+            .collect::<Vec<_>>();
+        let mut transitions = Vec::new();
+        let mut active_domain = None;
+
+        for line in lines {
+            if let Some(value) = line.strip_prefix("title ") {
+                if !title.is_empty() {
+                    return Err(ParseError::UnexpectedToken("Cynefin diagrams can only declare one title.".to_string()));
+                }
+                title = value.trim().trim_matches('"').to_string();
+                if title.is_empty() {
+                    return Err(ParseError::UnexpectedToken("Cynefin titles cannot be empty.".to_string()));
+                }
+                continue;
+            }
+            if let Some((from, rest)) = line.split_once("-->") {
+                let (to, label) = rest.split_once(':').map(|(to, label)| (to.trim(), label.trim().trim_matches('"'))).unwrap_or((rest.trim(), ""));
+                let from = from.trim();
+                if !DOMAIN_IDS.contains(&from) || !DOMAIN_IDS.contains(&to) || from == to {
+                    return Err(ParseError::UnexpectedToken(format!("Cynefin transitions must connect distinct fixed domains: {}", line)));
+                }
+                transitions.push(CynefinTransition { from: from.to_string(), to: to.to_string(), label: label.to_string() });
+                active_domain = None;
+                continue;
+            }
+            if let Some(index) = DOMAIN_IDS.iter().position(|id| *id == line) {
+                active_domain = Some(index);
+                continue;
+            }
+            let item = line.strip_prefix('"').and_then(|value| value.strip_suffix('"'))
+                .ok_or_else(|| ParseError::UnexpectedToken(format!("Cynefin items must be quoted and appear within a fixed domain: {}", line)))?;
+            if item.is_empty() {
+                return Err(ParseError::UnexpectedToken("Cynefin items cannot be empty.".to_string()));
+            }
+            let index = active_domain.ok_or_else(|| ParseError::UnexpectedToken(format!("Cynefin items must appear within a fixed domain: {}", line)))?;
+            domains[index].items.push(item.to_string());
+        }
+
+        Ok(DiagramAst::Cynefin(CynefinAst { title, domains, transitions }))
+    }
+
     fn parse_kanban(&self) -> Result<DiagramAst, ParseError> {
         let mut lines = self.input.lines().filter(|line| !line.trim().is_empty() && !line.trim_start().starts_with("%%"));
         if lines.next().map(str::trim) != Some("kanban") {
@@ -1734,6 +1964,10 @@ fn parse_radar_bound(value: &str, name: &str) -> Result<f64, ParseError> {
         .ok_or_else(|| ParseError::UnexpectedToken(format!("Radar {} must be a finite number: {}", name, value)))
 }
 
+fn wardley_name(value: &str) -> String {
+    value.trim().trim_matches('"').to_string()
+}
+
 fn parse_packet_label(label: &str, statement: &str) -> Result<String, ParseError> {
     label.strip_prefix('"').and_then(|value| value.strip_suffix('"'))
         .filter(|value| !value.trim().is_empty())
@@ -1908,4 +2142,301 @@ mod tests {
             _ => panic!("Expected Flowchart"),
         }
     }
+}
+fn parse_sequence_participant(statement: &str) -> Result<Option<SequenceParticipant>, ParseError> {
+    let Some((kind, declaration)) = statement.split_once(char::is_whitespace) else {
+        return Ok(None);
+    };
+    let kind = match kind.to_ascii_lowercase().as_str() {
+        "participant" => SequenceParticipantKind::Participant,
+        "actor" => SequenceParticipantKind::Actor,
+        _ => return Ok(None),
+    };
+    let declaration = declaration.trim();
+    let (id, label) = split_sequence_participant_alias(declaration);
+    if id.is_empty() || label.is_empty() {
+        return Err(ParseError::UnexpectedToken(format!(
+            "Invalid sequence participant declaration: {}",
+            statement
+        )));
+    }
+    Ok(Some(SequenceParticipant {
+        id: id.to_string(),
+        label: label.to_string(),
+        kind,
+    }))
+}
+
+fn split_sequence_participant_alias(declaration: &str) -> (&str, &str) {
+    let lowercase = declaration.to_ascii_lowercase();
+    if let Some(alias_start) = lowercase.find(" as ") {
+        let id = declaration[..alias_start].trim();
+        let label = declaration[alias_start + 4..].trim();
+        return (id, label);
+    }
+    let declaration = declaration.trim();
+    (declaration, declaration)
+}
+
+fn upsert_sequence_participant(participants: &mut Vec<SequenceParticipant>, participant: SequenceParticipant) {
+    if let Some(existing) = participants.iter_mut().find(|existing| existing.id == participant.id) {
+        *existing = participant;
+    } else {
+        participants.push(participant);
+    }
+}
+
+fn add_inferred_sequence_participant(participants: &mut Vec<SequenceParticipant>, id: &str) {
+    if participants.iter().all(|participant| participant.id != id) {
+        participants.push(SequenceParticipant {
+            id: id.to_string(),
+            label: id.to_string(),
+            kind: SequenceParticipantKind::Participant,
+        });
+    }
+}
+
+fn open_sequence_activation(activations: &mut std::collections::HashMap<String, usize>, participant: &str) {
+    *activations.entry(participant.to_string()).or_default() += 1;
+}
+
+fn close_sequence_activation(
+    activations: &mut std::collections::HashMap<String, usize>,
+    participant: &str,
+    statement: &str,
+) -> Result<(), ParseError> {
+    let Some(depth) = activations.get_mut(participant) else {
+        return Err(ParseError::UnexpectedToken(format!(
+            "Sequence deactivation has no open activation: {}",
+            statement
+        )));
+    };
+    *depth -= 1;
+    if *depth == 0 {
+        activations.remove(participant);
+    }
+    Ok(())
+}
+
+struct SequenceNote {
+    placement: SequenceNotePlacement,
+    participants: Vec<String>,
+    text: String,
+}
+
+impl SequenceNote {
+    fn into_event(self) -> SequenceEvent {
+        SequenceEvent::Note {
+            placement: self.placement,
+            participants: self.participants,
+            text: self.text,
+        }
+    }
+}
+
+struct SequenceActivation {
+    participant: String,
+    active: bool,
+}
+
+fn parse_sequence_note(statement: &str) -> Result<Option<SequenceNote>, ParseError> {
+    let Some((prefix, text)) = statement.split_once(':') else {
+        return if statement.to_ascii_lowercase().starts_with("note ") {
+            Err(ParseError::UnexpectedToken(format!(
+                "Sequence notes require text: {}",
+                statement
+            )))
+        } else {
+            Ok(None)
+        };
+    };
+    let Some(rest) = prefix.trim().strip_prefix("Note ").or_else(|| prefix.trim().strip_prefix("note ")) else {
+        return Ok(None);
+    };
+    let text = text.trim();
+    if text.is_empty() {
+        return Err(ParseError::UnexpectedToken(format!(
+            "Sequence notes require text: {}",
+            statement
+        )));
+    }
+    let lower = rest.to_ascii_lowercase();
+    let (placement, participant_text) = if lower.starts_with("left of ") {
+        (SequenceNotePlacement::LeftOf, &rest[8..])
+    } else if lower.starts_with("right of ") {
+        (SequenceNotePlacement::RightOf, &rest[9..])
+    } else if lower.starts_with("over ") {
+        (SequenceNotePlacement::Over, &rest[5..])
+    } else {
+        return Err(ParseError::UnexpectedToken(format!(
+            "Invalid sequence note: {}",
+            statement
+        )));
+    };
+    let participants = participant_text
+        .split(',')
+        .map(str::trim)
+        .filter(|participant| !participant.is_empty())
+        .map(ToOwned::to_owned)
+        .collect::<Vec<_>>();
+    let expected_count = match placement {
+        SequenceNotePlacement::Over => 1..=2,
+        SequenceNotePlacement::LeftOf | SequenceNotePlacement::RightOf => 1..=1,
+    };
+    if !expected_count.contains(&participants.len()) {
+        return Err(ParseError::UnexpectedToken(format!(
+            "Invalid sequence note target: {}",
+            statement
+        )));
+    }
+    Ok(Some(SequenceNote { placement, participants, text: text.to_string() }))
+}
+
+fn parse_sequence_activation(statement: &str) -> Result<Option<SequenceActivation>, ParseError> {
+    let Some((keyword, participant)) = statement.split_once(char::is_whitespace) else {
+        return Ok(None);
+    };
+    let active = match keyword.to_ascii_lowercase().as_str() {
+        "activate" => true,
+        "deactivate" => false,
+        _ => return Ok(None),
+    };
+    let participant = participant.trim();
+    if participant.is_empty() || participant.contains(char::is_whitespace) {
+        return Err(ParseError::UnexpectedToken(format!(
+            "Invalid sequence activation statement: {}",
+            statement
+        )));
+    }
+    Ok(Some(SequenceActivation { participant: participant.to_string(), active }))
+}
+
+fn parse_sequence_control(
+    statement: &str,
+    blocks: &mut Vec<SequenceBlockKind>,
+) -> Result<Option<SequenceEvent>, ParseError> {
+    if statement.eq_ignore_ascii_case("end") {
+        if blocks.pop().is_none() {
+            return Err(ParseError::UnexpectedToken("Sequence end has no open control block".to_string()));
+        }
+        return Ok(Some(SequenceEvent::BlockEnd));
+    }
+    if let Some(color) = parse_sequence_rect_color(statement)? {
+        blocks.push(SequenceBlockKind::Rect);
+        return Ok(Some(SequenceEvent::BlockStart {
+            block: SequenceBlockKind::Rect,
+            label: String::new(),
+            color: Some(color),
+        }));
+    }
+    let Some((keyword, label)) = statement.split_once(char::is_whitespace) else {
+        return Ok(None);
+    };
+    let keyword = keyword.to_ascii_lowercase();
+    let label = label.trim().to_string();
+    let block = match keyword.as_str() {
+        "loop" => Some(SequenceBlockKind::Loop),
+        "alt" => Some(SequenceBlockKind::Alt),
+        "opt" => Some(SequenceBlockKind::Opt),
+        "par" => Some(SequenceBlockKind::Par),
+        "critical" => Some(SequenceBlockKind::Critical),
+        "break" => Some(SequenceBlockKind::Break),
+        _ => None,
+    };
+    if let Some(block) = block {
+        blocks.push(block);
+        return Ok(Some(SequenceEvent::BlockStart {
+            block,
+            label,
+            color: None,
+        }));
+    }
+    let divider = match keyword.as_str() {
+        "else" if matches!(blocks.last(), Some(SequenceBlockKind::Alt)) => Some(SequenceBlockDividerKind::Else),
+        "and" if matches!(blocks.last(), Some(SequenceBlockKind::Par)) => Some(SequenceBlockDividerKind::And),
+        "option" if matches!(blocks.last(), Some(SequenceBlockKind::Critical)) => Some(SequenceBlockDividerKind::Option),
+        "else" | "and" | "option" => {
+            return Err(ParseError::UnexpectedToken(format!(
+                "Sequence {} is not valid in the current control block",
+                keyword
+            )));
+        }
+        _ => None,
+    };
+    Ok(divider.map(|divider| SequenceEvent::BlockDivider { divider, label }))
+}
+
+fn parse_sequence_rect_color(statement: &str) -> Result<Option<String>, ParseError> {
+    let lowercase = statement.to_ascii_lowercase();
+    if !lowercase.starts_with("rect") {
+        return Ok(None);
+    }
+    let remainder = statement[4..].trim();
+    if remainder.is_empty() || !remainder.to_ascii_lowercase().starts_with("rgb(") || !remainder.ends_with(')') {
+        return Err(ParseError::UnexpectedToken(format!(
+            "Sequence rect requires an rgb(red, green, blue) color: {}",
+            statement
+        )));
+    }
+    let channels = remainder[4..remainder.len() - 1]
+        .split(',')
+        .map(str::trim)
+        .map(|channel| channel.parse::<u8>())
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|_| ParseError::UnexpectedToken(format!(
+            "Sequence rect requires RGB values from 0 to 255: {}",
+            statement
+        )))?;
+    let [red, green, blue] = channels.as_slice() else {
+        return Err(ParseError::UnexpectedToken(format!(
+            "Sequence rect requires exactly three RGB values: {}",
+            statement
+        )));
+    };
+    Ok(Some(format!("rgb({}, {}, {})", red, green, blue)))
+}
+
+fn parse_sequence_message(statement: &str) -> Result<Option<SequenceMessage>, ParseError> {
+    let arrows = [
+        ("-->>", SequenceMessageLineStyle::Dashed, SequenceMessageEnd::Arrow),
+        ("->>", SequenceMessageLineStyle::Solid, SequenceMessageEnd::Arrow),
+        ("-->", SequenceMessageLineStyle::Dashed, SequenceMessageEnd::Arrow),
+        ("--x", SequenceMessageLineStyle::Dashed, SequenceMessageEnd::Cross),
+    ];
+    let Some((from, rest, line_style, end_marker)) = arrows.iter().find_map(|(arrow, style, end_marker)| {
+        statement.split_once(arrow).map(|(from, rest)| (from, rest, *style, *end_marker))
+    }) else {
+        return Ok(None);
+    };
+    let (target, label) = rest.split_once(':').ok_or_else(|| {
+        ParseError::UnexpectedToken(format!(
+            "Sequence messages require a label: {}",
+            statement
+        ))
+    })?;
+    let from = from.trim();
+    let target = target.trim();
+    let label = label.trim();
+    let (to, activate_target, deactivate_source) = if let Some(to) = target.strip_prefix('+') {
+        (to.trim(), true, false)
+    } else if let Some(to) = target.strip_prefix('-') {
+        (to.trim(), false, true)
+    } else {
+        (target, false, false)
+    };
+    if from.is_empty() || to.is_empty() || label.is_empty() {
+        return Err(ParseError::UnexpectedToken(format!(
+            "Invalid sequence statement: {}",
+            statement
+        )));
+    }
+    Ok(Some(SequenceMessage {
+        from: from.to_string(),
+        to: to.to_string(),
+        label: label.to_string(),
+        line_style,
+        end_marker,
+        activate_target,
+        deactivate_source,
+    }))
 }
