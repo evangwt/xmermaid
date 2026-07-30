@@ -1,8 +1,29 @@
 # xmermaid
 
-Flowchart-focused Mermaid renderer with partial Mermaid support, powered by Rust WASM.
+[![npm version](https://img.shields.io/npm/v/%40evangwt%2Fxmermaid?label=npm&logo=npm)](https://www.npmjs.com/package/@evangwt/xmermaid)
+[![npm downloads](https://img.shields.io/npm/dm/%40evangwt%2Fxmermaid?label=downloads&logo=npm)](https://www.npmjs.com/package/@evangwt/xmermaid)
+[![Publish to npm](https://img.shields.io/github/actions/workflow/status/evangwt/xmermaid/publish-npm.yml?label=release&logo=github)](https://github.com/evangwt/xmermaid/actions/workflows/publish-npm.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-0b7a53.svg)](LICENSE)
+[![Live editor](https://img.shields.io/badge/try-live%20editor-0b7a53?logo=githubpages)](https://evangwt.github.io/xmermaid-live/)
 
-## Install
+**A Rust/WASM-powered browser renderer for native Mermaid SVG diagrams.** xmermaid focuses on flowcharts while exposing explicit, programmatic support boundaries for partial Mermaid families - so browser applications can render what is supported and explain what is not.
+
+**基于 Rust/WASM 的浏览器 Mermaid SVG 渲染器。** xmermaid 以流程图为核心，并为部分支持的 Mermaid 图表提供明确、可编程查询的兼容性边界：能渲染的稳定渲染，暂不支持的给出清晰诊断。
+
+<p>
+  <a href="https://evangwt.github.io/xmermaid-live/"><strong>Try the live editor / 在线体验</strong></a>
+  &nbsp;|&nbsp;
+  <a href="https://www.npmjs.com/package/@evangwt/xmermaid"><strong>View on npm / npm 包页面</strong></a>
+</p>
+
+## Highlights / 特性
+
+- **Native browser SVG / 浏览器原生 SVG：** Rust/WASM parsing, layout, and rendering without a rendering service.
+- **Truthful compatibility / 明确兼容性：** `getSupportMatrix()` and `analyzeSupport()` distinguish supported, partial, planned, and blocked input.
+- **Safe by default / 默认安全：** strict handling for untrusted Mermaid input and sanitized SVG output.
+- **Composable API / 易于集成：** use `XMermaid` directly or import the static editor from `@evangwt/xmermaid/editor`.
+
+## Quick Start / 快速开始
 
 ```bash
 npm install @evangwt/xmermaid
@@ -10,7 +31,9 @@ npm install @evangwt/xmermaid
 
 xmermaid is a browser SDK. The root ESM bundle can be parsed by Node and SSR tooling, but DOM rendering requires a browser-like environment.
 
-## Browser Usage
+xmermaid 是面向浏览器的 SDK。根 ESM 包可被 Node 或 SSR 工具解析，但实际 DOM 渲染需要浏览器或类浏览器环境。
+
+## Browser Usage / 浏览器使用
 
 ```ts
 import { XMermaid, analyzeSupport } from '@evangwt/xmermaid';
@@ -25,7 +48,7 @@ const renderer = new XMermaid({ container });
 await renderer.render(source);
 ```
 
-## Live Editor Usage
+## Live Editor Usage / 在线编辑器 API
 
 The static live editor API is available from the `@evangwt/xmermaid/editor` subpath.
 
@@ -40,7 +63,7 @@ const editor = new XMermaidLiveEditor({
 await editor.mount();
 ```
 
-## SVG API
+## SVG API / SVG API
 
 Use `renderToSVGElement()` when the host app owns mounting, serialization, storage, or post-processing.
 
@@ -62,7 +85,7 @@ const svgText = await renderer.renderToSVGString('graph TD\n  A-->B');
 - `dimensions`
 - `svg`
 
-## Diagram Themes
+## Diagram Themes / 图表主题
 
 xmermaid publishes paired `LIGHT_THEME` and `DARK_THEME` presets while keeping `DEFAULT_THEME` as the compatibility default. Pass a preset or any partial `RenderTheme` per renderer or per render:
 
@@ -87,7 +110,7 @@ await renderer.renderToSVGElement(source, { theme: customTheme });
 
 `edgeGap` is the clearance between the marker and target node. The renderer derives the visible line endpoint from the active marker style, size, and stroke width so the line joins the marker without a visible gap.
 
-## Current Support
+## Current Support / 当前支持范围
 
 xmermaid currently focuses on browser-side SVG rendering for Mermaid flowcharts. It supports basic `graph` / `flowchart` declarations, basic nodes and directed edges, common labels, core shapes, and partial subgraph parsing. It also renders deliberately small subsets of Sequence, Class, State, Entity Relationship, User Journey, Gantt, Pie, Mindmap, Timeline, Requirement, GitGraph, C4, ZenUML, XY Chart, Sankey, Quadrant, Architecture, Block, Kanban, Treemap, Radar, Packet, Venn, Swimlane, Ishikawa, Event Modeling, Wardley Map, and Cynefin diagrams.
 
@@ -135,7 +158,7 @@ All remaining Mermaid catalog families are explicitly marked `planned` in `getSu
 
 Unsupported or partial flowchart syntax includes invalid `graph` / `flowchart` directions, `class`, `classDef`, `style`, `click`, `linkStyle`, HTML labels, Markdown labels, quoted labels, entity-code labels, FontAwesome icon labels, expanded/stadium/cylinder shape syntax, thick/extended edge forms, bidirectional/circle/cross edge endings, inline edge labels, edge IDs, edges to subgraph ids, hyphenated node ids, and inline class assignments. Use `getSupportMatrix()` or `analyzeSupport(source)` to inspect the current production support contract from code.
 
-## Diagnostics
+## Diagnostics / 诊断
 
 ```ts
 import { XMermaidError, type XMermaidDiagnostic } from '@evangwt/xmermaid';
@@ -157,7 +180,7 @@ WASM parse/layout/render failures are normalized into `XMermaidError` with struc
 
 The DOM scan helper `XMermaid.run()` keeps its compatibility behavior of writing an error message into failed `.mermaid` elements, and also exposes `data-xmermaid-error-code` plus JSON `data-xmermaid-diagnostics` on that element.
 
-## Security Policy
+## Security Policy / 安全策略
 
 The default security policy is `strict` for untrusted Mermaid input embedded in a same-origin app.
 
@@ -179,7 +202,7 @@ await renderer.renderToSVGElement(source, {
 
 The default policy also sets `sanitizeSvg: true`. Generated SVG output is walked before return/mount; `script` and `foreignObject` elements, inline event handler attributes, and dangerous `href` values are removed. xmermaid does not execute click callbacks, does not render HTML labels as HTML, and does not provide CSP or a sandbox.
 
-## WASM And Packaging
+## WASM And Packaging / WASM 与打包
 
 The published package includes the JS bundles, TypeScript declarations, and `dist/xmermaid_wasm_bg.wasm`.
 
@@ -206,7 +229,7 @@ The browser smoke requires Chrome or Chromium. Set `CHROME_BIN` when CI does not
 CHROME_BIN=/path/to/chrome npm run smoke:consumer -- --json
 ```
 
-## Troubleshooting
+## Troubleshooting / 常见问题
 
 - `Chrome executable not found`: install Chrome/Chromium or set `CHROME_BIN`.
 - `unsupported_diagram_type`: the diagram family is outside the current production support contract.
@@ -215,6 +238,6 @@ CHROME_BIN=/path/to/chrome npm run smoke:consumer -- --json
 - WASM asset load failures: confirm the package tarball includes `dist/xmermaid_wasm_bg.wasm` and the app serves it with the built JS bundle.
 - Missing package metadata: confirm the packed tarball includes `README.md`, `LICENSE`, and the `@evangwt/xmermaid/editor` export.
 
-## Release Readiness
+## Release Readiness / 发布准备
 
 Maintainers should run the production release checklist in `docs/production-release-checklist.md`. The default release matrix includes build, packed consumer smoke, docs support matrix sync, JS tests, TypeScript, Rust tests, and whitespace checks.
