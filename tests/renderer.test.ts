@@ -402,7 +402,7 @@ describe('SVGRenderer', () => {
     expect(renderedArrowTip(small)).toBe(renderedArrowTip(large));
   });
 
-  it('aligns explicit step and bezier path endings with the supplied target tangent', () => {
+  it('uses the target boundary side for explicit step endings while preserving bezier tangents', () => {
     const layout = layoutWithGeometry(2);
     layout.edges[0] = {
       ...layout.edges[0],
@@ -415,7 +415,7 @@ describe('SVGRenderer', () => {
     const step = new SVGRenderer({ curveStyle: 'step' }).render(layout).querySelector('g.edge path')?.getAttribute('d') ?? '';
     const bezier = new SVGRenderer({ curveStyle: 'bezier' }).render(layout).querySelector('g.edge path')?.getAttribute('d') ?? '';
 
-    expect(step.trim()).toMatch(/V\s+[^\s]+$/);
+    expect(step.trim()).toMatch(/H\s+[^\s]+$/);
     expect(bezier).toContain('C');
   });
 
@@ -476,7 +476,7 @@ describe('SVGRenderer', () => {
       .querySelector('g.edge path')
       ?.getAttribute('d');
 
-    expect(path).toBe('M 160 260 H 205 V 201 H 100 V 189.9102540378444');
+    expect(path).toBe('M 160 260 H 205 V 201 H 100 V 180 H 90.08974596215562');
   });
 
   it('renders native Ishikawa spine, effect, and indented causes', () => {
