@@ -57,7 +57,9 @@ export type UnsupportedFeatureId =
   | 'packet.advanced'
   | 'venn.advanced'
   | 'swimlanes.advanced'
-  | 'treeview.advanced';
+  | 'treeview.advanced'
+  | 'wardley.advanced'
+  | 'cynefin.advanced';
 
 export interface SupportSourceRange {
   startOffset: number;
@@ -103,7 +105,7 @@ export interface SupportReport {
 }
 
 const SUPPORT_MATRIX: SupportMatrix = {
-  version: '0.1.0',
+  version: '0.1.3',
   mermaidVersion: MERMAID_COMPATIBILITY_VERSION,
   entries: [
     {
@@ -196,6 +198,14 @@ const SUPPORT_MATRIX: SupportMatrix = {
                                         ? partialSwimlanes()
                                       : diagramType === 'treeview'
                                         ? partialTreeview()
+                                        : diagramType === 'ishikawa'
+                                          ? partialIshikawa()
+                                          : diagramType === 'event-modeling'
+                                            ? partialEventModeling()
+                                            : diagramType === 'wardley'
+                                              ? partialWardley()
+                                              : diagramType === 'cynefin'
+                                                ? partialCynefin()
                             : planned(diagramType)),
   ],
 };
@@ -277,6 +287,10 @@ export function detectUnsupportedFeatures(source: string): UnsupportedFeature[] 
   if (diagramType === 'venn') return detectUnsupportedVennFeatures(source);
   if (diagramType === 'swimlanes') return detectUnsupportedSwimlaneFeatures(source);
   if (diagramType === 'treeview') return [];
+  if (diagramType === 'ishikawa') return [];
+  if (diagramType === 'event-modeling') return [];
+  if (diagramType === 'wardley') return detectUnsupportedWardleyFeatures(source);
+  if (diagramType === 'cynefin') return detectUnsupportedCynefinFeatures(source);
   if (diagramType === 'state') return [];
   if (diagramType === 'er') return [];
   if (diagramType === 'gantt') return [];
@@ -463,16 +477,23 @@ export function detectUnsupportedFeatures(source: string): UnsupportedFeature[] 
 function detectUnsupportedSequenceFeatures(source: string): UnsupportedFeature[] {
   const features: UnsupportedFeature[] = [];
   for (const line of linesWithRanges(source)) {
-    if (/^\s*(?:participant|actor|create|destroy|activate|deactivate|note|rect|loop|alt|else|opt|par|and|critical|option|break|end)\b/i.test(line.text)) {
+    if (/^\s*(?:create|destroy|box|link)\b/i.test(line.text)
+      || /^\s*autonumber\s+\S/i.test(line.text)
+      || (/^\s*rect\b/i.test(line.text) && !isSupportedSequenceRect(line.text))) {
       features.push(unsupportedSyntax(
         'sequence.advanced',
         line,
-        'Sequence activation, participant declarations, notes, and control blocks are not supported yet.',
+        'Sequence create/destroy, box, links, and advanced autonumber or rect syntax are not supported yet.',
         'error',
       ));
     }
   }
   return features;
+}
+
+function isSupportedSequenceRect(source: string): boolean {
+  const match = /^\s*rect\s+rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)\s*$/i.exec(source);
+  return match !== null && match.slice(1).every(channel => Number(channel) <= 255);
 }
 
 function detectUnsupportedClassFeatures(source: string): UnsupportedFeature[] {
@@ -775,11 +796,17 @@ function partialSequence(): DiagramSupportEntry {
     diagramType: 'sequence',
     status: 'partial',
     supportedSyntax: [
-      { id: 'sequence.participants', label: 'participants inferred from messages', status: 'supported' },
+      { id: 'sequence.participants', label: 'explicit or inferred participants and actors', status: 'supported' },
       { id: 'sequence.message', label: 'direct messages with labels', status: 'supported' },
+      { id: 'sequence.activation', label: 'activation and deactivation bars', status: 'supported' },
+      { id: 'sequence.note', label: 'left, right, and over notes', status: 'supported' },
+      { id: 'sequence.control', label: 'loop, alternative, option, parallel, critical, and break blocks', status: 'supported' },
+      { id: 'sequence.autonumber', label: 'basic autonumber message labels', status: 'supported' },
+      { id: 'sequence.rect', label: 'rgb-framed sequence regions', status: 'supported' },
+      { id: 'sequence.cross-ending', label: 'dashed cross-ended messages', status: 'supported' },
     ],
     unsupportedSyntax: [
-      { id: 'sequence.advanced', label: 'activation, notes, loops, and alternate branches', status: 'unsupported' },
+      { id: 'sequence.advanced', label: 'create/destroy lifecycle, box framing, links, and advanced autonumber or rect forms', status: 'unsupported' },
     ],
   };
 }
@@ -855,12 +882,38 @@ function partialPacket(): DiagramSupportEntry { return { diagramType: 'packet', 
 function partialVenn(): DiagramSupportEntry { return { diagramType: 'venn', status: 'partial', supportedSyntax: [{ id: 'venn.set', label: 'two or more named sets with optional display labels', status: 'supported' }, { id: 'venn.union', label: 'labeled unions of declared sets', status: 'supported' }, { id: 'venn.title', label: 'optional title', status: 'supported' }], unsupportedSyntax: [{ id: 'venn.advanced', label: 'sizes, text annotations, configuration, classes, styles, and accessibility directives', status: 'unsupported' }] }; }
 function partialSwimlanes(): DiagramSupportEntry { return { diagramType: 'swimlanes', status: 'partial', supportedSyntax: [{ id: 'swimlanes.basic-lanes', label: 'top-level subgraph lanes with optional labels', status: 'supported' }, { id: 'swimlanes.nodes', label: 'square-bracket lane nodes', status: 'supported' }, { id: 'swimlanes.edges', label: 'directed edges with optional pipe labels', status: 'supported' }], unsupportedSyntax: [{ id: 'swimlanes.advanced', label: 'configuration, nested lanes, classes, styles, advanced shapes, and accessibility directives', status: 'unsupported' }] }; }
 function partialTreeview(): DiagramSupportEntry { return { diagramType: 'treeview', status: 'partial', supportedSyntax: [{ id: 'treeview.indent', label: 'space-indented hierarchy beneath tree', status: 'supported' }], unsupportedSyntax: [{ id: 'treeview.advanced', label: 'configuration, styles, icons, and custom shapes', status: 'unsupported' }] }; }
+function partialIshikawa(): DiagramSupportEntry { return { diagramType: 'ishikawa', status: 'partial', supportedSyntax: [{ id: 'ishikawa.indent', label: 'indented effect, categories, and nested causes', status: 'supported' }], unsupportedSyntax: [{ id: 'ishikawa.advanced', label: 'configuration, custom styling, and accessibility directives', status: 'unsupported' }] }; }
+function partialEventModeling(): DiagramSupportEntry { return { diagramType: 'event-modeling', status: 'partial', supportedSyntax: [{ id: 'event-modeling.timeframe', label: 'ordered tf/timeframe and rf/resetframe entity frames', status: 'supported' }, { id: 'event-modeling.entities', label: 'ui, processor, command, readmodel, and event entity types', status: 'supported' }], unsupportedSyntax: [{ id: 'event-modeling.advanced', label: 'data-block rendering, configuration, classes, styles, and accessibility directives', status: 'unsupported' }] }; }
+function partialWardley(): DiagramSupportEntry { return { diagramType: 'wardley', status: 'partial', supportedSyntax: [{ id: 'wardley.components', label: 'coordinate-based anchor and component declarations', status: 'supported' }, { id: 'wardley.dependencies', label: 'direct dependencies between declared components', status: 'supported' }, { id: 'wardley.title', label: 'optional map title', status: 'supported' }], unsupportedSyntax: [{ id: 'wardley.advanced', label: 'evolution, pipelines, notes, annotations, strategies, decorators, custom stages, configuration, classes, styles, and accessibility directives', status: 'unsupported' }] }; }
+function partialCynefin(): DiagramSupportEntry { return { diagramType: 'cynefin', status: 'partial', supportedSyntax: [{ id: 'cynefin.domains', label: 'the five fixed domains with quoted items', status: 'supported' }, { id: 'cynefin.transitions', label: 'directed transitions with optional quoted labels', status: 'supported' }, { id: 'cynefin.title', label: 'optional framework title', status: 'supported' }], unsupportedSyntax: [{ id: 'cynefin.advanced', label: 'configuration, accessibility directives, custom appearance, classes, and styles', status: 'unsupported' }] }; }
 
 function detectUnsupportedSwimlaneFeatures(source: string): UnsupportedFeature[] {
   const features: UnsupportedFeature[] = [];
   for (const line of linesWithRanges(source)) {
     if (/^\s*(?:%%\{init|classDef|class|style|linkStyle|click|accTitle|accDescr|---|config:)\b/i.test(line.text) || /@\{\s*shape\s*:|:::/i.test(line.text)) {
       features.push(unsupportedSyntax('swimlanes.advanced', line, 'Swimlane configuration, styles, classes, and advanced shapes are not supported yet.', 'error'));
+    }
+  }
+  return features;
+}
+
+function detectUnsupportedWardleyFeatures(source: string): UnsupportedFeature[] {
+  const features: UnsupportedFeature[] = [];
+  for (const line of linesWithRanges(source)) {
+    if (/^\s*(?:evolve|pipeline|note|annotation|strategy|classDef|class|style|accTitle|accDescr|---|config:)\b/i.test(line.text) || /@\{|:::/i.test(line.text)) {
+      features.push(unsupportedSyntax('wardley.advanced', line, 'Wardley evolution, pipelines, annotations, strategies, styles, and configuration are not supported yet.', 'error'));
+    }
+  }
+  return features;
+}
+
+function detectUnsupportedCynefinFeatures(source: string): UnsupportedFeature[] {
+  const features: UnsupportedFeature[] = [];
+  let configurationBlock = false;
+  for (const line of linesWithRanges(source)) {
+    if (/^\s*---(?:\s|$)/.test(line.text)) configurationBlock = true;
+    if (configurationBlock || /^\s*(?:config:|accTitle\b|accDescr\b|classDef\b|class\b|style\b)/i.test(line.text) || /(?:@\{|:::)/i.test(line.text)) {
+      features.push(unsupportedSyntax('cynefin.advanced', line, 'Cynefin configuration, accessibility directives, classes, styles, and custom appearance are not supported yet.', 'error'));
     }
   }
   return features;

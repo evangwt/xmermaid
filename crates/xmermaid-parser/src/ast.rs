@@ -70,8 +70,24 @@ pub struct FlowchartAst {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SequenceAst {
-    pub participants: Vec<String>,
+    pub participants: Vec<SequenceParticipant>,
     pub messages: Vec<SequenceMessage>,
+    #[serde(default)]
+    pub events: Vec<SequenceEvent>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SequenceParticipantKind {
+    Participant,
+    Actor,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SequenceParticipant {
+    pub id: String,
+    pub label: String,
+    pub kind: SequenceParticipantKind,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -79,6 +95,89 @@ pub struct SequenceMessage {
     pub from: String,
     pub to: String,
     pub label: String,
+    #[serde(default)]
+    pub line_style: SequenceMessageLineStyle,
+    #[serde(default)]
+    pub end_marker: SequenceMessageEnd,
+    #[serde(default)]
+    pub activate_target: bool,
+    #[serde(default)]
+    pub deactivate_source: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SequenceMessageLineStyle {
+    Solid,
+    Dashed,
+}
+
+impl Default for SequenceMessageLineStyle {
+    fn default() -> Self {
+        Self::Solid
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SequenceMessageEnd {
+    Arrow,
+    Cross,
+}
+
+impl Default for SequenceMessageEnd {
+    fn default() -> Self {
+        Self::Arrow
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SequenceNotePlacement {
+    LeftOf,
+    RightOf,
+    Over,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SequenceBlockKind {
+    Rect,
+    Loop,
+    Alt,
+    Opt,
+    Par,
+    Critical,
+    Break,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SequenceBlockDividerKind {
+    Else,
+    And,
+    Option,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum SequenceEvent {
+    Autonumber,
+    Message { message_index: usize },
+    Activation { participant: String, active: bool },
+    Note {
+        placement: SequenceNotePlacement,
+        participants: Vec<String>,
+        text: String,
+    },
+    BlockStart {
+        block: SequenceBlockKind,
+        label: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        color: Option<String>,
+    },
+    BlockDivider { divider: SequenceBlockDividerKind, label: String },
+    BlockEnd,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -320,6 +419,26 @@ pub struct VennUnion { pub sets: Vec<String>, pub label: String }
 pub struct SwimlaneAst { pub direction: FlowDirection, pub lanes: Vec<Swimlane>, pub nodes: Vec<Node>, pub edges: Vec<Edge> }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Swimlane { pub id: String, pub label: String, pub nodes: Vec<String> }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IshikawaAst { pub effect: String, pub causes: Vec<IshikawaCause> }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IshikawaCause { pub label: String, pub parent: Option<String>, pub depth: usize }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EventModelingAst { pub frames: Vec<EventFrame> }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EventFrame { pub id: String, pub entity_type: String, pub entity: String, pub reset: bool }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WardleyAst { pub title: String, pub components: Vec<WardleyComponent>, pub dependencies: Vec<WardleyDependency> }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WardleyComponent { pub id: String, pub label: String, pub x: f64, pub y: f64, pub anchor: bool }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WardleyDependency { pub from: String, pub to: String }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CynefinAst { pub title: String, pub domains: Vec<CynefinDomain>, pub transitions: Vec<CynefinTransition> }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CynefinDomain { pub id: String, pub items: Vec<String> }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CynefinTransition { pub from: String, pub to: String, pub label: String }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
@@ -350,4 +469,8 @@ pub enum DiagramAst {
     Packet(PacketAst),
     Venn(VennAst),
     Swimlanes(SwimlaneAst),
+    Ishikawa(IshikawaAst),
+    EventModeling(EventModelingAst),
+    Wardley(WardleyAst),
+    Cynefin(CynefinAst),
 }

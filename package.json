@@ -1,7 +1,15 @@
 {
-  "name": "xmermaid",
-  "version": "0.1.0",
+  "name": "@evangwt/xmermaid",
+  "version": "0.1.4",
   "description": "Flowchart-focused Mermaid renderer with partial Mermaid support powered by Rust WASM",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/evangwt/xmermaid.git"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
   "type": "module",
   "main": "dist/xmermaid.cjs",
   "module": "dist/xmermaid.esm.js",

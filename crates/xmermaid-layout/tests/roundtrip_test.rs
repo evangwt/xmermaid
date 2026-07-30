@@ -297,11 +297,15 @@ fn test_error_propagation_invalid_dsl() {
 #[test]
 fn test_sequence_without_messages_positions_participants() {
     let ast = DiagramAst::Sequence(xmermaid_parser::ast::SequenceAst {
-        participants: vec!["A".to_string()],
+        participants: vec![xmermaid_parser::ast::SequenceParticipant {
+            id: "A".to_string(), label: "A".to_string(), kind: xmermaid_parser::ast::SequenceParticipantKind::Participant,
+        }],
         messages: vec![],
+        events: vec![],
     });
     let config = config_for_ast(&ast);
     let result = compute_layout(&ast, &config);
-    assert_eq!(result.nodes.len(), 1);
+    assert!(result.nodes.is_empty());
+    assert_eq!(result.sequence.as_ref().map(|sequence| sequence.participants.len()), Some(1));
     assert_eq!(result.edges.len(), 0);
 }
