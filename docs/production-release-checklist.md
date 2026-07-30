@@ -30,6 +30,12 @@ This checklist is the release-facing contract for xmermaid 0.1.x. It covers the 
 | `rust-workspace` | `cargo test` | code |
 | `diff-whitespace` | `git diff --check -- HEAD` | code |
 
+## CI Publishing
+
+- Publish an unpublished package version only. npm does not allow a published version to be replaced.
+- Push an annotated `v<package.json version>` tag after the release matrix passes. The `Publish xmermaid to npm` workflow validates the tag/version match, reruns the matrix, and publishes the public package.
+- npm publishing uses the repository's configured npm trusted publisher with GitHub Actions OIDC (`id-token: write`) and emits provenance. It does not require a long-lived npm token in the workflow.
+
 ## Package Requirements
 
 The packed tarball must contain:
