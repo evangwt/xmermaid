@@ -12,7 +12,7 @@ This checklist is the release-facing contract for xmermaid 0.1.x. It covers the 
 ## Environment
 
 - Install npm dependencies before running release gates.
-- Rust and Cargo must be available for the workspace tests.
+- Rust, Cargo, `wasm-pack` 0.14.0, and the `wasm32-unknown-unknown` target must be available for the WASM build and workspace tests.
 - Chrome or Chromium must be available for packed consumer smoke.
 - Set `CHROME_BIN` when CI cannot discover Chrome automatically.
 
