@@ -33,8 +33,9 @@ This checklist is the release-facing contract for xmermaid 0.1.x. It covers the 
 ## CI Publishing
 
 - Publish an unpublished package version only. npm does not allow a published version to be replaced.
-- Push an annotated `v<package.json version>` tag after the release matrix passes. The `Publish xmermaid to npm` workflow validates the tag/version match, reruns the matrix, and publishes the public package.
-- npm publishing uses the repository's configured npm trusted publisher with GitHub Actions OIDC (`id-token: write`) and emits provenance. It does not require a long-lived npm token in the workflow.
+- Push an annotated `v<package.json version>` tag after the release matrix passes. The `Publish xmermaid to npm` workflow validates the tag/version match, reruns the matrix, and stages the public package for approval.
+- npm staging uses the repository's configured npm trusted publisher with GitHub Actions OIDC (`id-token: write`) and emits provenance. It does not require a long-lived npm token in the workflow.
+- Staged publishing requires npm CLI 11.15.0 or later. The workflow pins npm 11.17.0; a package maintainer must review and approve the staged package with npm 2FA before the version becomes publicly available.
 
 ## Package Requirements
 
