@@ -60,6 +60,25 @@ export function computeArrowPlacement(
   };
 }
 
+export function terminalAngleAtTargetBoundary(
+  targetBoundary: Point,
+  targetBounds: Bounds,
+  fallbackAngle: number,
+): number {
+  const candidates = [
+    { angle: 0, distance: Math.abs(targetBoundary.x - targetBounds.x) },
+    { angle: Math.PI, distance: Math.abs(targetBoundary.x - (targetBounds.x + targetBounds.width)) },
+    { angle: Math.PI / 2, distance: Math.abs(targetBoundary.y - targetBounds.y) },
+    { angle: -Math.PI / 2, distance: Math.abs(targetBoundary.y - (targetBounds.y + targetBounds.height)) },
+  ];
+  const closestDistance = Math.min(...candidates.map(candidate => candidate.distance));
+  const closestSides = candidates.filter(candidate => Math.abs(candidate.distance - closestDistance) < 1e-6);
+
+  return closestSides.map(candidate => candidate.angle).reduce((best, angle) =>
+    Math.cos(angle - fallbackAngle) > Math.cos(best - fallbackAngle) ? angle : best,
+  );
+}
+
 /**
  * Given a line from `from` to `to`, find the point on the boundary of `bounds`
  * offset outward by `gap`. This is where the edge should start/end
@@ -637,12 +656,12 @@ export function computeStepPath(
   const start = truncateAtBounds(sourceApproach, first, fromBounds, gap, fromShape);
   const targetBoundary = truncateAtBounds(targetApproach, last, toBounds, 0, toShape);
 
-  // Arrow angle from last segment direction (from secondLast toward last)
-  const arrowAngle = Math.atan2(
+  const finalRouteAngle = Math.atan2(
     last.y - targetApproach.y,
     last.x - targetApproach.x,
   );
-  const terminalIsVertical = Math.abs(last.y - targetApproach.y) >= Math.abs(last.x - targetApproach.x);
+  const arrowAngle = terminalAngleAtTargetBoundary(targetBoundary, toBounds, finalRouteAngle);
+  const terminalIsVertical = Math.abs(Math.sin(arrowAngle)) >= Math.abs(Math.cos(arrowAngle));
 
   const placement = arrowStyle
     ? computeArrowPlacement(targetBoundary, arrowAngle, arrowSize, gap, arrowStyle, strokeWidth)
@@ -654,10 +673,10 @@ export function computeStepPath(
     path = terminalIsVertical
       ? sameCoordinate(start.x, placement.pathEnd.x)
         ? `M ${start.x} ${start.y} V ${placement.pathEnd.y}`
-        : `M ${start.x} ${start.y} H ${(start.x + placement.pathEnd.x) / 2} V ${placement.pathEnd.y}`
+        : `M ${start.x} ${start.y} H ${placement.pathEnd.x} V ${placement.pathEnd.y}`
       : sameCoordinate(start.y, placement.pathEnd.y)
         ? `M ${start.x} ${start.y} H ${placement.pathEnd.x}`
-        : `M ${start.x} ${start.y} V ${(start.y + placement.pathEnd.y) / 2} H ${placement.pathEnd.x}`;
+        : `M ${start.x} ${start.y} V ${placement.pathEnd.y} H ${placement.pathEnd.x}`;
   } else {
     // Between each pair of consecutive waypoints, use H-V-H stepping
     const points: Point[] = [start, ...waypoints.slice(1, -1), placement.pathEnd];
@@ -667,10 +686,10 @@ export function computeStepPath(
       const prev = points[i - 1];
       const curr = points[i];
       if (i === points.length - 1 && terminalIsVertical) {
-        parts.push(`H ${(prev.x + curr.x) / 2}`);
+        parts.push(`H ${curr.x}`);
         parts.push(`V ${curr.y}`);
       } else if (i === points.length - 1) {
-        parts.push(`V ${(prev.y + curr.y) / 2}`);
+        parts.push(`V ${curr.y}`);
         parts.push(`H ${curr.x}`);
       } else {
         parts.push(`H ${(prev.x + curr.x) / 2}`);

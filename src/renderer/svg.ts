@@ -1,10 +1,33 @@
 import type { LayoutResult, LayoutNode, LayoutEdge, Point } from '../types/layout';
 import type { ArrowStyle, RenderTheme } from '../types/theme';
 import { DEFAULT_THEME } from '../types/theme';
-import { computeArrowPlacement, computeEdgePath, computeArrowPoints, type EdgePathResult } from './edge';
+import {
+  computeArrowPlacement,
+  computeEdgePath,
+  computeArrowPoints,
+  terminalAngleAtTargetBoundary,
+  type EdgePathResult,
+} from './edge';
 
 function sameCoordinate(a: number, b: number): boolean {
   return Math.abs(a - b) < 1e-6;
+}
+
+function flowAxisBoundary(bounds: LayoutNode['bounds'], angle: number, end: 'source' | 'target'): Point {
+  const vertical = Math.abs(Math.sin(angle)) >= Math.abs(Math.cos(angle));
+  const forward = vertical ? Math.sin(angle) >= 0 : Math.cos(angle) >= 0;
+  const centerX = bounds.x + bounds.width / 2;
+  const centerY = bounds.y + bounds.height / 2;
+
+  if (vertical) {
+    const sourceY = forward ? bounds.y + bounds.height : bounds.y;
+    const targetY = forward ? bounds.y : bounds.y + bounds.height;
+    return { x: centerX, y: end === 'source' ? sourceY : targetY };
+  }
+
+  const sourceX = forward ? bounds.x + bounds.width : bounds.x;
+  const targetX = forward ? bounds.x : bounds.x + bounds.width;
+  return { x: end === 'source' ? sourceX : targetX, y: centerY };
 }
 
 export class SVGRenderer {
@@ -1189,7 +1212,7 @@ export class SVGRenderer {
   }
 
   private resolveEdgePath(edge: LayoutEdge, sourceNode: LayoutNode, targetNode: LayoutNode): EdgePathResult {
-    const explicit = this.computeExplicitEdgePath(edge);
+    const explicit = this.computeExplicitEdgePath(edge, sourceNode, targetNode);
     if (explicit) return explicit;
 
     return computeEdgePath(
@@ -1206,7 +1229,11 @@ export class SVGRenderer {
     );
   }
 
-  private computeExplicitEdgePath(edge: LayoutEdge): EdgePathResult | undefined {
+  private computeExplicitEdgePath(
+    edge: LayoutEdge,
+    sourceNode: LayoutNode,
+    targetNode: LayoutNode,
+  ): EdgePathResult | undefined {
     if (
       (edge.geometry_version !== 1 && edge.geometry_version !== 2) ||
       !edge.source_boundary ||
@@ -1218,43 +1245,67 @@ export class SVGRenderer {
       return undefined;
     }
 
+    const directFlowEdge = edge.geometry_version === 2 && edge.waypoints.length === 2;
+    const arrowAngle = directFlowEdge || this.theme.curveStyle === 'step'
+      ? terminalAngleAtTargetBoundary(edge.target_boundary, targetNode.bounds, edge.final_tangent_angle)
+      : edge.final_tangent_angle;
+    const sourceBoundary = directFlowEdge
+      ? flowAxisBoundary(sourceNode.bounds, arrowAngle, 'source')
+      : edge.source_boundary;
+    const targetBoundary = directFlowEdge
+      ? flowAxisBoundary(targetNode.bounds, arrowAngle, 'target')
+      : edge.target_boundary;
     const placement = this.edgeHasArrow(edge)
       ? computeArrowPlacement(
-        edge.target_boundary,
-        edge.final_tangent_angle,
+        targetBoundary,
+        arrowAngle,
         this.theme.arrowSize,
         this.theme.edgeGap,
         this.theme.arrowStyle,
         this.edgeStrokeWidth(edge),
       )
       : {
-        arrowTip: edge.target_boundary,
-        arrowAnchor: edge.target_boundary,
-        pathEnd: edge.target_boundary,
+        arrowTip: targetBoundary,
+        arrowAnchor: targetBoundary,
+        pathEnd: targetBoundary,
       };
 
     return {
-      path: this.buildExplicitPath(edge, placement.pathEnd),
+      path: this.buildExplicitPath(edge, sourceBoundary, placement.pathEnd, arrowAngle, directFlowEdge),
       arrowTip: placement.arrowTip,
       arrowAnchor: placement.arrowAnchor,
-      arrowAngle: edge.final_tangent_angle,
+      arrowAngle,
       pathEnd: placement.pathEnd,
     };
   }
 
-  private buildExplicitPath(edge: LayoutEdge, pathEnd: Point): string {
+  private buildExplicitPath(
+    edge: LayoutEdge,
+    sourceBoundary: Point,
+    pathEnd: Point,
+    arrowAngle: number,
+    directFlowEdge: boolean,
+  ): string {
     const points = [
-      edge.source_boundary!,
+      sourceBoundary,
       ...edge.waypoints.slice(1, -1),
       pathEnd,
     ];
+    const flowAxisElbow = directFlowEdge && this.theme.curveStyle === 'step'
+      ? {
+        x: (edge.waypoints[0]!.x + edge.waypoints[1]!.x) / 2,
+        y: (edge.waypoints[0]!.y + edge.waypoints[1]!.y) / 2,
+      }
+      : undefined;
 
     if (this.theme.curveStyle === 'step') {
-      return this.buildStepPath(points, edge.final_tangent_angle);
+      return this.buildStepPath(points, arrowAngle, flowAxisElbow);
     }
 
     if (this.theme.curveStyle === 'bezier') {
-      return this.buildExplicitBezierPath(points, edge.final_tangent_angle);
+      return directFlowEdge
+        ? this.buildFlowAxisBezierPath(points[0]!, points.at(-1)!, arrowAngle)
+        : this.buildExplicitBezierPath(points, edge.final_tangent_angle);
     }
 
     return this.buildStraightPath(points);
@@ -1268,8 +1319,20 @@ export class SVGRenderer {
     ].join(' ');
   }
 
-  private buildStepPath(points: Point[], finalAngle?: number): string {
+  private buildStepPath(points: Point[], finalAngle?: number, flowAxisElbow?: Point): string {
     const [start, ...rest] = points;
+
+    if (flowAxisElbow && rest.length === 1 && finalAngle !== undefined) {
+      const end = rest[0]!;
+      const terminalVertical = Math.abs(Math.sin(finalAngle)) >= Math.abs(Math.cos(finalAngle));
+      if (terminalVertical) {
+        if (sameCoordinate(start.x, end.x)) return `M ${start.x} ${start.y} V ${end.y}`;
+        return `M ${start.x} ${start.y} V ${flowAxisElbow.y} H ${end.x} V ${end.y}`;
+      }
+      if (sameCoordinate(start.y, end.y)) return `M ${start.x} ${start.y} H ${end.x}`;
+      return `M ${start.x} ${start.y} H ${flowAxisElbow.x} V ${end.y} H ${end.x}`;
+    }
+
     const parts = [`M ${start.x} ${start.y}`];
     let previous = start;
 
@@ -1279,13 +1342,13 @@ export class SVGRenderer {
       if (isFinal && terminalVertical) {
         if (sameCoordinate(previous.x, point.x)) parts.push(`V ${point.y}`);
         else {
-          parts.push(`H ${(previous.x + point.x) / 2}`);
+          parts.push(`H ${point.x}`);
           parts.push(`V ${point.y}`);
         }
       } else if (isFinal && finalAngle !== undefined) {
         if (sameCoordinate(previous.y, point.y)) parts.push(`H ${point.x}`);
         else {
-          parts.push(`V ${(previous.y + point.y) / 2}`);
+          parts.push(`V ${point.y}`);
           parts.push(`H ${point.x}`);
         }
       } else if (sameCoordinate(previous.y, point.y)) {
@@ -1317,6 +1380,21 @@ export class SVGRenderer {
 
     const sign = dx >= 0 ? 1 : -1;
     return `M ${start.x} ${start.y} C ${start.x + tension * sign} ${start.y} ${end.x - tension * sign} ${end.y} ${end.x} ${end.y}`;
+  }
+
+  private buildFlowAxisBezierPath(start: Point, end: Point, angle: number): string {
+    const vertical = Math.abs(Math.sin(angle)) >= Math.abs(Math.cos(angle));
+    const forward = vertical ? Math.sign(Math.sin(angle)) || 1 : Math.sign(Math.cos(angle)) || 1;
+    const distance = vertical ? Math.abs(end.y - start.y) : Math.abs(end.x - start.x);
+    const control = Math.min(Math.max(distance * .45, 16), 48);
+    const firstControl = vertical
+      ? { x: start.x, y: start.y + forward * control }
+      : { x: start.x + forward * control, y: start.y };
+    const terminalControl = vertical
+      ? { x: end.x, y: end.y - forward * control }
+      : { x: end.x - forward * control, y: end.y };
+
+    return `M ${start.x} ${start.y} C ${firstControl.x} ${firstControl.y} ${terminalControl.x} ${terminalControl.y} ${end.x} ${end.y}`;
   }
 
   private buildExplicitBezierPath(points: Point[], finalAngle?: number): string {

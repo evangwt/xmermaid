@@ -265,6 +265,19 @@ describe('computeStepPath', () => {
     expect(result.path.trim()).toMatch(/V\s+[^\s]+$/);
   });
 
+  it('uses the target boundary side for a diagonal multi-branch terminal arrow', () => {
+    const result = computeStepPath(
+      [{ x: 50, y: 25 }, { x: 180, y: 120 }, { x: 50, y: 225 }],
+      fromBounds,
+      toBounds,
+      gap,
+      arrowSize,
+    );
+
+    expect(result.arrowAngle).toBeCloseTo(Math.PI / 2, 1);
+    expect(result.path.trim()).toMatch(new RegExp(`V\\s+${result.pathEnd!.y}$`));
+  });
+
   it('joins the filled arrow base in the SVG command output', () => {
     const result = computeStepPath(
       [{ x: 50, y: 25 }, { x: 50, y: 225 }],
