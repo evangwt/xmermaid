@@ -216,10 +216,10 @@ describe('support matrix production contract', () => {
       'flowchart.htmlLabel',
       'flowchart.quotedLabel',
       'flowchart.entityCodeLabel',
-      'flowchart.fontAwesomeLabel',
       'flowchart.edgeToSubgraph',
       'flowchart.hyphenatedNodeId',
     ]));
+    expect(flowchart?.supportedSyntax.map(item => item.id)).toContain('flowchart.fontAwesomeLabel');
     expect(matrix.entries).toHaveLength(30);
     expect(matrix.entries.find(item => item.diagramType === 'sequence')?.status).toBe('partial');
     expect(matrix.entries.filter(item => !['flowchart', 'swimlanes', 'treeview', 'ishikawa', 'event-modeling', 'wardley', 'cynefin', 'sequence', 'class', 'state', 'er', 'user-journey', 'gantt', 'pie', 'quadrant', 'mindmap', 'timeline', 'requirement', 'gitgraph', 'c4', 'zenuml', 'sankey', 'xychart', 'architecture', 'block', 'packet', 'kanban', 'treemap', 'radar', 'venn'].includes(item.diagramType)).every(item => item.status === 'planned')).toBe(true);
@@ -691,7 +691,7 @@ describe('support matrix production contract', () => {
     })));
   });
 
-  it('detects unsupported special label syntaxes that the Rust parser preserves literally', () => {
+  it('detects unsupported special label syntaxes while allowing FontAwesome labels', () => {
     const features = detectUnsupportedFeatures([
       'flowchart TD',
       '  A["Quoted"]',
@@ -702,7 +702,6 @@ describe('support matrix production contract', () => {
     expect(features.map(feature => feature.id)).toEqual([
       'flowchart.quotedLabel',
       'flowchart.entityCodeLabel',
-      'flowchart.fontAwesomeLabel',
     ]);
     expect(features).toEqual(features.map((feature, index) => expect.objectContaining({
       severity: 'warning',

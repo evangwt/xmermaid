@@ -8,6 +8,7 @@ import {
   terminalAngleAtTargetBoundary,
   type EdgePathResult,
 } from './edge';
+import { parseFontAwesomeLabel, type FontAwesomeLabel } from './fontawesome';
 
 function sameCoordinate(a: number, b: number): boolean {
   return Math.abs(a - b) < 1e-6;
@@ -838,8 +839,10 @@ export class SVGRenderer {
     for (const dependency of chart.dependencies) {
       const from = componentMap.get(dependency.from); const to = componentMap.get(dependency.to);
       if (!from || !to) continue;
+      const source = this.wardleyBoundary(from, to.center);
+      const target = this.wardleyBoundary(to, from.center);
       const line = document.createElementNS('http://www.w3.org/2000/svg', 'line'); line.classList.add('wardley-dependency');
-      line.setAttribute('x1', String(from.center.x)); line.setAttribute('y1', String(from.center.y)); line.setAttribute('x2', String(to.center.x)); line.setAttribute('y2', String(to.center.y));
+      line.setAttribute('x1', String(source.x)); line.setAttribute('y1', String(source.y)); line.setAttribute('x2', String(target.x)); line.setAttribute('y2', String(target.y));
       line.setAttribute('stroke', this.theme.colors.edgeStroke); line.setAttribute('stroke-width', '1.5'); line.setAttribute('marker-end', 'url(#wardley-arrow)'); group.appendChild(line);
     }
     for (const component of chart.components) {
@@ -858,6 +861,19 @@ export class SVGRenderer {
       title.setAttribute('x', String(chart.plot.x)); title.setAttribute('y', String(chart.plot.y - 20)); title.setAttribute('fill', this.theme.colors.nodeText); title.setAttribute('font-family', this.theme.fontFamily); title.setAttribute('font-size', String(this.theme.fontSize + 4)); title.setAttribute('font-weight', '700'); group.appendChild(title);
     }
     svg.appendChild(group);
+  }
+
+  private wardleyBoundary(component: { center: Point; anchor: boolean }, toward: Point): Point {
+    const dx = toward.x - component.center.x;
+    const dy = toward.y - component.center.y;
+    const distance = Math.hypot(dx, dy);
+    if (!distance) return component.center;
+    if (component.anchor) {
+      return { x: component.center.x + dx / distance * 8, y: component.center.y + dy / distance * 8 };
+    }
+
+    const scale = 1 / Math.max(Math.abs(dx) / 48, Math.abs(dy) / 16);
+    return { x: component.center.x + dx * scale, y: component.center.y + dy * scale };
   }
 
   private renderSwimlanes(svg: SVGSVGElement, layout: LayoutResult): void {
@@ -1037,16 +1053,55 @@ export class SVGRenderer {
     shape.setAttribute('stroke-width', '1.5');
     g.appendChild(shape);
 
-    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-    text.setAttribute('x', String(node.center.x));
-    text.setAttribute('text-anchor', 'middle');
-    text.setAttribute('fill', isHexColor(node.style?.color) ? node.style.color : this.theme.colors.nodeText);
-    text.setAttribute('font-family', this.theme.fontFamily);
-    text.setAttribute('font-size', String(this.theme.fontSize));
-    this.setTextLines(text, node.label_lines?.length ? node.label_lines : [node.label], node.center, this.theme.fontSize);
-    g.appendChild(text);
+    const labelLines = node.label_lines?.length ? node.label_lines : [node.label];
+    const fill = isHexColor(node.style?.color) ? node.style.color : this.theme.colors.nodeText;
+    const fontAwesomeLabel = labelLines.length === 1 ? parseFontAwesomeLabel(labelLines[0]!) : undefined;
+    if (fontAwesomeLabel) {
+      this.appendFontAwesomeLabel(g, fontAwesomeLabel, node.center, fill);
+    } else {
+      const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      text.setAttribute('x', String(node.center.x));
+      text.setAttribute('text-anchor', 'middle');
+      text.setAttribute('fill', fill);
+      text.setAttribute('font-family', this.theme.fontFamily);
+      text.setAttribute('font-size', String(this.theme.fontSize));
+      this.setTextLines(text, labelLines, node.center, this.theme.fontSize);
+      g.appendChild(text);
+    }
 
     return g;
+  }
+
+  private appendFontAwesomeLabel(group: SVGGElement, label: FontAwesomeLabel, center: Point, fill: string): void {
+    const iconSize = this.theme.fontSize;
+    const gap = label.text ? 4 : 0;
+    const textWidth = label.text ? this.measureText(label.text, this.theme.fontSize) : 0;
+    const totalWidth = iconSize + gap + textWidth;
+    const startX = center.x - totalWidth / 2;
+    const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    icon.setAttribute('data-icon', `fa:${label.name}`);
+    icon.setAttribute('role', 'img');
+    icon.setAttribute('aria-label', label.name);
+    icon.setAttribute('x', String(startX));
+    icon.setAttribute('y', String(center.y - iconSize / 2));
+    icon.setAttribute('width', String(iconSize));
+    icon.setAttribute('height', String(iconSize));
+    icon.setAttribute('viewBox', `0 0 ${label.icon.width ?? 16} ${label.icon.height ?? 16}`);
+    icon.setAttribute('fill', fill);
+    icon.setAttribute('color', fill);
+    icon.innerHTML = label.icon.body;
+    group.appendChild(icon);
+
+    if (!label.text) return;
+
+    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    text.setAttribute('x', String(startX + iconSize + gap + textWidth / 2));
+    text.setAttribute('text-anchor', 'middle');
+    text.setAttribute('fill', fill);
+    text.setAttribute('font-family', this.theme.fontFamily);
+    text.setAttribute('font-size', String(this.theme.fontSize));
+    this.setTextLines(text, [label.text], { x: startX + iconSize + gap + textWidth / 2, y: center.y }, this.theme.fontSize);
+    group.appendChild(text);
   }
 
   private createNodeShape(node: LayoutNode): SVGElement {
@@ -1390,13 +1445,15 @@ export class SVGRenderer {
     const vertical = Math.abs(Math.sin(angle)) >= Math.abs(Math.cos(angle));
     const forward = vertical ? Math.sign(Math.sin(angle)) || 1 : Math.sign(Math.cos(angle)) || 1;
     const distance = vertical ? Math.abs(end.y - start.y) : Math.abs(end.x - start.x);
+    const routeDistance = Math.hypot(end.x - start.x, end.y - start.y);
     const control = Math.min(Math.max(distance * .45, 16), 48);
+    const terminalControlDistance = Math.min(Math.max(routeDistance * .25, 32), 48);
     const firstControl = vertical
       ? { x: start.x, y: start.y + forward * control }
       : { x: start.x + forward * control, y: start.y };
     const terminalControl = vertical
-      ? { x: end.x, y: end.y - forward * control }
-      : { x: end.x - forward * control, y: end.y };
+      ? { x: end.x, y: end.y - forward * terminalControlDistance }
+      : { x: end.x - forward * terminalControlDistance, y: end.y };
 
     return `M ${start.x} ${start.y} C ${firstControl.x} ${firstControl.y} ${terminalControl.x} ${terminalControl.y} ${end.x} ${end.y}`;
   }

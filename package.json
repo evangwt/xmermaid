@@ -1,6 +1,6 @@
 {
   "name": "@evangwt/xmermaid",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "description": "Flowchart-focused Mermaid renderer with partial Mermaid support powered by Rust WASM",
   "repository": {
     "type": "git",
@@ -43,6 +43,8 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@rollup/plugin-json": "6.1.0",
+    "@rollup/plugin-node-resolve": "16.0.3",
     "@rollup/plugin-typescript": "^11.1.6",
     "jsdom": "^29.1.0",
     "rollup": "^4.18.0",
@@ -60,6 +62,7 @@
   ],
   "license": "MIT",
   "dependencies": {
+    "@iconify-json/fa": "1.2.2",
     "tslib": "^2.8.1"
   }
 }
