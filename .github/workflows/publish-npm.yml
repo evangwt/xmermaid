@@ -27,7 +27,7 @@ jobs:
           registry-url: "https://registry.npmjs.org"
           package-manager-cache: false
 
-      - name: Install npm publishing CLI
+      - name: Install npm staged publishing CLI
         run: npm install --global npm@11.17.0
 
       - name: Verify tag matches package version
@@ -38,4 +38,4 @@ jobs:
       - run: npm ci
       - run: npm audit --audit-level=high --registry=https://registry.npmjs.org
       - run: npm run verify:release
-      - run: npm publish --access public --provenance
+      - run: npm stage publish
