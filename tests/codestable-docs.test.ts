@@ -43,7 +43,7 @@ describe('CodeStable current evidence docs', () => {
     const wasmManifest = readFileSync('crates/xmermaid-wasm/Cargo.toml', 'utf8');
     const lockfile = readFileSync('Cargo.lock', 'utf8');
 
-    expect(packageVersion).toBe('0.1.9');
+    expect(packageVersion).toBe('0.1.10');
     expect(workspaceManifest).toMatch(new RegExp(`\\[workspace\\.package\\]\\s*version = "${packageVersion}"`));
     expect(layoutManifest).toMatch(/version\.workspace = true/);
     expect(wasmManifest).toMatch(/version\.workspace = true/);

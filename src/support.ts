@@ -5,6 +5,7 @@ import {
   type DetectedDiagramType,
   type DiagramType,
 } from './diagram-catalog';
+import { getFontAwesomeIcon } from './renderer/fontawesome';
 
 declare const __XMERMAID_VERSION__: string;
 
@@ -122,6 +123,7 @@ const SUPPORT_MATRIX: SupportMatrix = {
         { id: 'flowchart.subgraph-parse', label: 'subgraph parsing', status: 'partial' },
         { id: 'flowchart.classDef', label: 'safe hexadecimal fill, stroke, and color class definitions', status: 'supported' },
         { id: 'flowchart.class', label: 'class assignments to declared nodes', status: 'supported' },
+        { id: 'flowchart.fontAwesomeLabel', label: 'FontAwesome 4 icon labels embedded as SVG', status: 'supported' },
       ],
       unsupportedSyntax: [
         { id: 'flowchart.style', label: 'inline style statements', status: 'unsupported' },
@@ -130,7 +132,6 @@ const SUPPORT_MATRIX: SupportMatrix = {
         { id: 'flowchart.markdownLabel', label: 'Markdown labels', status: 'unsupported' },
         { id: 'flowchart.quotedLabel', label: 'quoted labels', status: 'unsupported' },
         { id: 'flowchart.entityCodeLabel', label: 'HTML entity code labels', status: 'unsupported' },
-        { id: 'flowchart.fontAwesomeLabel', label: 'FontAwesome icon labels', status: 'unsupported' },
         { id: 'flowchart.invalidDirection', label: 'invalid graph/flowchart directions', status: 'unsupported' },
         { id: 'flowchart.unterminatedLabel', label: 'unterminated node or edge labels', status: 'unsupported' },
         { id: 'flowchart.expandedShape', label: 'expanded shape syntax', status: 'unsupported' },
@@ -469,7 +470,8 @@ export function detectUnsupportedFeatures(source: string): UnsupportedFeature[] 
     if (/\[[^\]\r\n]*#\d+;[^\]\r\n]*\]/.test(line.text)) {
       features.push(unsupportedSyntax('flowchart.entityCodeLabel', line, 'Flowchart entity-code labels are not supported yet.'));
     }
-    if (/\[[^\]\r\n]*\bfa:fa-[A-Za-z0-9-]+[^\]\r\n]*\]/.test(line.text)) {
+    const fontAwesomeMatch = /\[[^\]\r\n]*\bfa:fa-([A-Za-z0-9-]+)[^\]\r\n]*\]/.exec(line.text);
+    if (fontAwesomeMatch && !getFontAwesomeIcon(fontAwesomeMatch[1]!)) {
       features.push(unsupportedSyntax('flowchart.fontAwesomeLabel', line, 'Flowchart FontAwesome icon labels are not supported yet.'));
     }
 

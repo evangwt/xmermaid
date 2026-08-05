@@ -1,4 +1,4 @@
-use crate::types::{Bounds, Dimensions, LayoutConfig, LayoutNode, LayoutResult, NodeShape, Point};
+use crate::{flowchart::label_size, types::{Bounds, Dimensions, LayoutConfig, LayoutNode, LayoutResult, NodeShape, Point}};
 use xmermaid_parser::ast::GanttAst;
 
 const DAY_WIDTH: f64 = 40.0;
@@ -10,11 +10,12 @@ pub fn layout(gantt: &GanttAst, config: &LayoutConfig) -> LayoutResult {
     let first_day = *starts.iter().min().unwrap_or(&0);
     let mut width: f64 = config.padding * 2.0;
     let nodes = gantt.tasks.iter().enumerate().map(|(index, task)| {
-        let task_width = (f64::from(task.duration_days) * DAY_WIDTH).max(80.0);
+        let label = if task.section.is_empty() { task.label.clone() } else { format!("{} · {}", task.section, task.label) };
+        let (label_width, _) = label_size(&[label.clone()], 14.0, 18.0, 28.0, 20.0);
+        let task_width = (f64::from(task.duration_days) * DAY_WIDTH).max(80.0).max(label_width);
         let x = config.padding + f64::from(date_key(&task.start) - first_day) * DAY_WIDTH + task_width / 2.0;
         let y = config.padding + index as f64 * ROW_HEIGHT + TASK_HEIGHT / 2.0;
         width = width.max(x + task_width / 2.0 + config.padding);
-        let label = if task.section.is_empty() { task.label.clone() } else { format!("{} · {}", task.section, task.label) };
         LayoutNode {
             id: format!("gantt-{}", index),
             center: Point { x, y },

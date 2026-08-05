@@ -1,4 +1,6 @@
 import typescript from '@rollup/plugin-typescript';
+import { nodeResolve } from '@rollup/plugin-node-resolve';
+import json from '@rollup/plugin-json';
 import { readFileSync } from 'node:fs';
 
 const packageVersion = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version;
@@ -22,7 +24,7 @@ export default [
       sourcemap: true,
       inlineDynamicImports: true,
     },
-    plugins: [typescript(), replacePackageVersion],
+    plugins: [nodeResolve(), json(), typescript(), replacePackageVersion],
   },
   {
     input: 'src/index.ts',
@@ -32,6 +34,6 @@ export default [
       sourcemap: true,
       inlineDynamicImports: true,
     },
-    plugins: [typescript(), replacePackageVersion],
+    plugins: [nodeResolve(), json(), typescript(), replacePackageVersion],
   },
 ];

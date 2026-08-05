@@ -553,6 +553,30 @@ describe('SVGRenderer', () => {
     expect(svg.textContent).toContain('Incident Response');
   });
 
+  it('anchors Wardley dependencies at component boundaries so their markers remain visible', () => {
+    const layout = {
+      nodes: [],
+      edges: [],
+      dimensions: { width: 500, height: 300 },
+      wardley: {
+        title: 'Value chain',
+        plot: { x: 30, y: 50, width: 440, height: 200 },
+        components: [
+          { id: 'source', label: 'Source', center: { x: 120, y: 150 }, anchor: false },
+          { id: 'target', label: 'Target', center: { x: 340, y: 150 }, anchor: false },
+        ],
+        dependencies: [{ from: 'source', to: 'target' }],
+      },
+    } as LayoutResult & { wardley: unknown };
+
+    const svg = new SVGRenderer().render(layout);
+    const dependency = svg.querySelector<SVGLineElement>('.wardley-dependency');
+
+    expect(Number(dependency?.getAttribute('x1'))).toBeGreaterThan(120);
+    expect(Number(dependency?.getAttribute('x2'))).toBeLessThan(340);
+    expect(dependency?.getAttribute('marker-end')).toContain('wardley-arrow');
+  });
+
   it('renders native sequence lifelines, activation bars, notes, and control frames', () => {
     const layout = {
       nodes: [],

@@ -264,40 +264,141 @@ fn wrap_label(label: &str) -> Vec<String> {
         return vec![String::new()];
     }
 
-    let mut chars = label.chars();
+    let normalized = label.replace("\r\n", "\n").replace('\r', "\n");
     let mut lines = Vec::new();
-    for line_index in 0..MAX_LABEL_LINES {
-        let line: String = chars.by_ref().take(MAX_LABEL_CHARS_PER_LINE).collect();
-        if line.is_empty() {
-            break;
+    for explicit_line in normalized.split('\n') {
+        let mut chars = explicit_line.chars();
+        let mut emitted = false;
+        loop {
+            let line: String = chars.by_ref().take(MAX_LABEL_CHARS_PER_LINE).collect();
+            if line.is_empty() {
+                if !emitted {
+                    lines.push(String::new());
+                }
+                break;
+            }
+            emitted = true;
+            lines.push(line);
         }
-
-        if line_index == MAX_LABEL_LINES - 1 && chars.next().is_some() {
-            let mut truncated: String = line.chars().take(MAX_LABEL_CHARS_PER_LINE - 1).collect();
-            truncated.push('…');
-            lines.push(truncated);
-            break;
-        }
-        lines.push(line);
     }
+
+    if lines.len() <= MAX_LABEL_LINES {
+        return lines;
+    }
+
+    lines.truncate(MAX_LABEL_LINES);
+    let last = lines.last_mut().expect("non-empty labels always produce a line");
+    let mut truncated: String = last.chars().take(MAX_LABEL_CHARS_PER_LINE - 1).collect();
+    truncated.push('…');
+    *last = truncated;
     lines
 }
 
-fn label_size(
+fn is_combining_mark(character: char) -> bool {
+    matches!(character as u32,
+        0x0300..=0x036F | 0x1AB0..=0x1AFF | 0x1DC0..=0x1DFF | 0x20D0..=0x20FF | 0xFE20..=0xFE2F
+    )
+}
+
+fn is_cjk(character: char) -> bool {
+    matches!(character as u32,
+        0x2E80..=0xA4CF | 0xAC00..=0xD7AF | 0xF900..=0xFAFF | 0xFE30..=0xFE6F | 0xFF00..=0xFFEF
+    )
+}
+
+fn is_emoji(character: char) -> bool {
+    matches!(character as u32, 0x1F000..=0x1FAFF | 0x2600..=0x27BF)
+}
+
+fn glyph_width(character: char) -> f64 {
+    if character.is_whitespace() {
+        0.33
+    } else if is_emoji(character) {
+        1.1
+    } else if is_cjk(character) {
+        0.86
+    } else if matches!(character, 'M' | 'W' | 'm' | 'w' | '@' | '#') {
+        0.82
+    } else if matches!(character, 'i' | 'l' | 'I' | 'j' | 't' | 'f' | 'r' | '1' | '.' | ',' | ':' | ';' | '!' | '|') {
+        0.32
+    } else if character.is_ascii_uppercase() {
+        0.62
+    } else if character.is_ascii_alphanumeric() {
+        0.55
+    } else {
+        0.6
+    }
+}
+
+fn visible_glyph_width(line: &str) -> f64 {
+    let mut width = 0.0;
+    let mut joins_previous = false;
+    let mut pending_regional_indicator = false;
+    let characters: Vec<char> = line.chars().collect();
+    let mut index = 0;
+
+    while index < characters.len() {
+        if characters[index..].starts_with(&['f', 'a', ':', 'f', 'a', '-']) {
+            let mut end = index + 6;
+            while end < characters.len()
+                && (characters[end].is_ascii_alphanumeric() || characters[end] == '-')
+            {
+                end += 1;
+            }
+            if end > index + 6 {
+                width += 1.1;
+                pending_regional_indicator = false;
+                index = end;
+                continue;
+            }
+        }
+
+        let character = characters[index];
+        let codepoint = character as u32;
+        if is_combining_mark(character) || matches!(codepoint, 0xFE00..=0xFE0F | 0x1F3FB..=0x1F3FF) {
+            index += 1;
+            continue;
+        }
+        if character == '\u{200D}' {
+            joins_previous = true;
+            index += 1;
+            continue;
+        }
+
+        let is_regional_indicator = matches!(codepoint, 0x1F1E6..=0x1F1FF);
+        if joins_previous || (is_regional_indicator && pending_regional_indicator) {
+            joins_previous = false;
+            pending_regional_indicator = false;
+            index += 1;
+            continue;
+        }
+
+        width += glyph_width(character);
+        pending_regional_indicator = is_regional_indicator;
+        index += 1;
+    }
+
+    width
+}
+
+pub(crate) fn label_size(
     lines: &[String],
     font_size: f64,
     line_height: f64,
     horizontal_padding: f64,
     vertical_padding: f64,
 ) -> (f64, f64) {
-    let max_line_length = lines.iter().map(|line| line.chars().count()).max().unwrap_or(0);
+    let max_line_width = lines
+        .iter()
+        .map(|line| visible_glyph_width(line))
+        .fold(0.0_f64, f64::max);
     let content_height = if lines.is_empty() {
         0.0
     } else {
         font_size + (lines.len().saturating_sub(1) as f64 * line_height)
     };
     (
-        max_line_length as f64 * font_size + horizontal_padding,
+        max_line_width * font_size + horizontal_padding,
         content_height + vertical_padding,
     )
 }
@@ -1076,6 +1177,23 @@ mod tests {
     }
 
     #[test]
+    fn test_explicit_label_line_breaks_are_preserved() {
+        let result = layout_from_dsl("graph TD\n  A[First\r\nSecond]");
+        let node = result.nodes.first().unwrap();
+
+        assert_eq!(node.label_lines, vec!["First", "Second"]);
+        assert!(node.bounds.height > LayoutConfig::default().node_height);
+    }
+
+    #[test]
+    fn test_zwj_emoji_label_uses_one_visible_glyph_width_per_emoji() {
+        let result = layout_from_dsl("graph TD\n  A[👩‍💻👩‍💻👩‍💻👩‍💻]");
+        let node = result.nodes.first().unwrap();
+
+        assert_eq!(node.bounds.width, LayoutConfig::default().node_width);
+    }
+
+    #[test]
     fn test_extreme_node_labels_have_bounded_layout_dimensions() {
         let label = "W".repeat(50_000);
         let result = layout_from_dsl(&format!("graph TD\n  A[{label}]"));
@@ -1093,7 +1211,8 @@ mod tests {
         let result = layout_from_dsl(&format!("graph TD\n  A -->|{label}| B"));
         let edge = result.edges.first().unwrap();
         let anchor = edge.label_anchor.unwrap();
-        let estimated_width = 48.0 * 12.0 + 8.0;
+        let rendered_line = &edge.label_lines.as_ref().unwrap()[0];
+        let estimated_width = visible_glyph_width(rendered_line) * 12.0 + 8.0;
 
         assert!(anchor.x - estimated_width / 2.0 >= LayoutConfig::default().padding);
         assert!(anchor.x + estimated_width / 2.0 <= result.dimensions.width - LayoutConfig::default().padding);

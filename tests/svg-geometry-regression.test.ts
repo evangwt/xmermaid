@@ -88,6 +88,23 @@ function filledArrow(path: SVGGElement): { base: { x: number; y: number }; tip: 
 }
 
 describe('SVG geometry regression suite', () => {
+  it('renders FontAwesome flowchart labels as inline SVG icons', () => {
+    const iconNode: LayoutNode = {
+      ...node('Icon', { x: 100, y: 60 }),
+      label: 'fa:fa-car Delivery',
+    };
+    const svg = new SVGRenderer().render({
+      nodes: [iconNode],
+      edges: [],
+      dimensions: { width: 200, height: 120 },
+    });
+
+    const icon = svg.querySelector('#node-Icon svg[data-icon="fa:car"]');
+    expect(icon).not.toBeNull();
+    expect(icon?.getAttribute('aria-label')).toBe('car');
+    expect(icon?.getAttribute('color')).toBe(DEFAULT_THEME.colors.nodeText);
+  });
+
   it('routes direct TD fan-out edges from the flow-axis ports in step mode', () => {
     // Captured from the user's Mermaid source after the layout pass. The raw
     // geometry deliberately hits the diamond's side and the target's top
@@ -172,6 +189,28 @@ describe('SVG geometry regression suite', () => {
       expect(arrow.tip.x).toBe(target.center.x);
       expect(arrow.tip.y).toBeGreaterThan(arrow.base.y);
     }
+  });
+
+  it('reserves a terminal bezier handle for an axis-aligned C4-style relationship', () => {
+    const source: LayoutNode = {
+      id: 'Banking', center: { x: 286.5, y: 150 },
+      bounds: { x: 226.5, y: 130, width: 120, height: 40 }, shape: 'Rectangle', label: 'Internet Banking',
+    };
+    const target: LayoutNode = {
+      id: 'Identity', center: { x: 479.64, y: 110 },
+      bounds: { x: 419.64, y: 90, width: 120, height: 40 }, shape: 'Rectangle', label: 'Identity provider',
+    };
+    const edge: LayoutEdge = {
+      from: source.id, to: target.id, waypoints: [source.center, target.center], style: 'arrow',
+      source_boundary: { x: 286.5, y: 130 }, target_boundary: { x: 479.64, y: 130 }, path_end: { x: 479.64, y: 130 },
+      final_tangent_angle: -Math.PI / 2, geometry_version: 2,
+    };
+    const path = new SVGRenderer({ curveStyle: 'bezier', edgeGap: 2, arrowSize: 10, arrowStyle: 'filled' })
+      .render(layoutFor(edge, [source, target]))
+      .querySelector('g.edge path')?.getAttribute('d') ?? '';
+    const [, , , , , terminalControlY, , endY] = pathNumbers(path);
+
+    expect(Math.abs(endY! - terminalControlY!)).toBeGreaterThanOrEqual(32);
   });
 
   it('keeps explicit multi-branch step paths attached to and tangent with their arrowheads', () => {

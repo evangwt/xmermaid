@@ -47,6 +47,18 @@ fn sankey_layout_stacks_weighted_bands_between_columns() {
 }
 
 #[test]
+fn gantt_task_bounds_include_the_visible_task_label() {
+    let ast = parse("gantt\n  section Discovery\n  Research : 2026-07-28, 2d").unwrap();
+    let layout = compute_layout(&ast, &LayoutConfig::default());
+    let task = layout.nodes.first().expect("gantt task");
+
+    // The renderer uses a 14px node font. A task bar must make room for its
+    // visible label plus the same horizontal inset used by normal nodes.
+    let required_width = 14.0 * "Discovery · Research".chars().count() as f64 * 0.48 + 28.0;
+    assert!(task.bounds.width >= required_width, "task bar must contain its label");
+}
+
+#[test]
 fn quadrant_layout_maps_unit_points_into_the_correct_plot_quadrants() {
     let ast = parse("quadrantChart\n A: [0.25, 0.75]\n B: [0.75, 0.25]").unwrap();
     let layout = compute_layout(&ast, &LayoutConfig::default());
