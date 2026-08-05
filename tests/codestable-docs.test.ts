@@ -69,8 +69,8 @@ describe('CodeStable current evidence docs', () => {
     expect(workflow).toMatch(/cargo install wasm-pack --version 0\.14\.0 --locked/);
     expect(workflow).not.toMatch(/rustup toolchain install|rustup target add|cargo \+1\.97\.1/);
     expect(workflow).toMatch(/npm audit --audit-level=high --registry=https:\/\/registry\.npmjs\.org\n\s+- run: npm run verify:release/);
-    expect(workflow).toMatch(/npm publish --access public --provenance/);
-    expect(workflow).not.toMatch(/npm stage publish/);
+    expect(workflow).toMatch(/npm stage publish/);
+    expect(workflow).not.toMatch(/npm publish --access public --provenance/);
   });
 
   it('describes the current live editor browser gate as packed Chrome/CDP smoke', () => {
