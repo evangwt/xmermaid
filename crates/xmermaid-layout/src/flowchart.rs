@@ -791,6 +791,7 @@ pub fn layout(fc: &FlowchartAst, config: &LayoutConfig) -> LayoutResult {
             shape: node_shapes[i],
             label: node_labels[i].clone(),
             label_lines: node_label_lines[i].clone(),
+            style: node.style.clone(),
         })
         .collect();
 

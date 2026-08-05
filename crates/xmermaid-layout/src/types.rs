@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use xmermaid_parser::ast::NodeStyle;
 
 /// Direction of flowchart layout
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -103,6 +104,8 @@ pub struct LayoutNode {
     pub label: String,
     #[serde(default)]
     pub label_lines: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub style: Option<NodeStyle>,
 }
 
 /// Style of an edge, forwarded from AST

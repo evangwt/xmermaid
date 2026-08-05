@@ -101,9 +101,12 @@ describe('verify-release script', () => {
   it('fails the docs support matrix sync check when critical production claims are missing', () => {
     const tempRoot = mkdtempSync(join(tmpdir(), 'xmermaid-docs-check-'));
     mkdirSync(join(tempRoot, 'docs'));
-    copyFileSync('package.json', join(tempRoot, 'package.json'));
+    const packageJson = JSON.parse(readFileSync('package.json', 'utf8'));
+    packageJson.files = packageJson.files.filter((file: string) => file !== 'README.zh-CN.md');
+    writeFileSync(join(tempRoot, 'package.json'), `${JSON.stringify(packageJson, null, 2)}\n`);
     copyFileSync('scripts/verify-release.cjs', join(tempRoot, 'verify-release.cjs'));
     writeFileSync(join(tempRoot, 'README.md'), '# xmermaid\n\nFull Mermaid compatibility.\n');
+    writeFileSync(join(tempRoot, 'README.zh-CN.md'), '# xmermaid\n\n完整 Mermaid 兼容。\n');
     writeFileSync(join(tempRoot, 'docs', 'production-release-checklist.md'), '# Release\n\nnpm test\n');
 
     const result = spawnSync(
@@ -119,8 +122,11 @@ describe('verify-release script', () => {
     const record = JSON.parse(result.stdout);
     expect(record.passed).toBe(false);
     expect(record.missing).toContain('README mentions partial Mermaid support');
+    expect(record.missing).toContain('package files explicitly include English, Chinese, and license docs');
     expect(record.missing).toContain('README documents special label limitations');
     expect(record.missing).toContain('README documents quoted label limitation');
+    expect(record.missing).toContain('README documents safe Flowchart class style boundary');
+    expect(record.missing).toContain('Chinese README documents safe Flowchart class style boundary');
     expect(record.missing).toContain('README documents subgraph edge limitation');
     expect(record.missing).toContain('README documents hyphenated node id limitation');
     expect(record.missing).toContain('README documents live editor workflow smoke');

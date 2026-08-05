@@ -57,6 +57,20 @@ impl<'a> Parser<'a> {
         Ok(value)
     }
 
+    fn expect_flowchart_class_identifier(&mut self) -> Result<String, ParseError> {
+        if !matches!(self.current().ty, TokenType::NodeId | TokenType::Direction) {
+            return Err(ParseError::UnexpectedToken(format!(
+                "Expected flowchart class identifier, got {:?} ('{}') at line {}",
+                self.current().ty,
+                self.current().value,
+                self.current().line,
+            )));
+        }
+        let value = self.current().value.clone();
+        self.advance();
+        Ok(value)
+    }
+
     pub fn parse(&mut self) -> Result<DiagramAst, ParseError> {
         if self.input.trim_start().starts_with("sequenceDiagram") {
             return self.parse_sequence();
@@ -962,7 +976,7 @@ impl<'a> Parser<'a> {
             if let Some(index) = active_lane {
                 let (id, label) = parse_swimlane_node(statement)?;
                 if nodes.iter().any(|node: &Node| node.id == id) { return Err(ParseError::UnexpectedToken(format!("Duplicate swimlane node: {}", id))); }
-                lanes[index].nodes.push(id.clone()); nodes.push(Node { id, label: Some(label), shape: NodeShape::Rounded, classes: vec![], styles: vec![] }); continue;
+                lanes[index].nodes.push(id.clone()); nodes.push(Node { id, label: Some(label), shape: NodeShape::Rounded, classes: vec![], styles: vec![], style: None }); continue;
             }
             edges.push(parse_swimlane_edge(statement)?);
         }
@@ -1224,6 +1238,16 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_flowchart(&mut self) -> Result<DiagramAst, ParseError> {
+        if let Some(token) = self.tokens[self.pos..]
+            .iter()
+            .find(|token| token.ty == TokenType::UnterminatedLabel)
+        {
+            return Err(ParseError::UnexpectedToken(format!(
+                "Unterminated flowchart label; expected '{}' before end of input at line {}",
+                token.value, token.line
+            )));
+        }
+
         let dir_value = self.expect(TokenType::Direction)?;
         let direction = match dir_value.as_str() {
             "TD" | "TB" => FlowDirection::TD,
@@ -1237,11 +1261,29 @@ impl<'a> Parser<'a> {
         let mut edges: Vec<Edge> = Vec::new();
         let mut subgraphs: Vec<Subgraph> = Vec::new();
         let mut seen_nodes: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut class_definitions = std::collections::HashMap::<String, NodeStyle>::new();
+        let mut class_assignments = Vec::<(Vec<String>, String)>::new();
+        let mut previous_was_class_definition = false;
 
         while self.current().ty != TokenType::Eof {
-            self.skip_newlines_and_semicolons();
+            let has_statement_boundary = self.skip_newlines_and_semicolons();
             if self.current().ty == TokenType::Eof {
                 break;
+            }
+            if previous_was_class_definition && self.starts_flowchart_class_property() {
+                return Err(ParseError::UnexpectedToken(format!(
+                    "Flowchart class definitions require comma-separated properties: {}",
+                    self.current().value
+                )));
+            }
+            let current_is_class_definition = self.current().ty == TokenType::Keyword
+                && self.current().value == "classDef";
+            let current_is_class_assignment = self.current().ty == TokenType::Keyword
+                && self.current().value == "class";
+            if !has_statement_boundary && (current_is_class_definition || current_is_class_assignment) {
+                return Err(ParseError::UnexpectedToken(
+                    "Flowchart class statements require a newline or semicolon boundary".to_string(),
+                ));
             }
 
             match self.current().ty {
@@ -1249,11 +1291,16 @@ impl<'a> Parser<'a> {
                     match self.current().value.as_str() {
                         "subgraph" => {
                             let sg =
-                                self.parse_subgraph(&mut nodes, &mut edges, &mut seen_nodes)?;
+                                self.parse_subgraph(&mut nodes, &mut edges, &mut seen_nodes, &mut class_definitions, &mut class_assignments)?;
                             subgraphs.push(sg);
                         }
-                        "classDef" | "class" | "style" | "click" => {
-                            // Skip style-related statements (not yet fully supported)
+                        "classDef" => {
+                            self.parse_flowchart_class_definition(&mut class_definitions)?;
+                        }
+                        "class" => {
+                            self.parse_flowchart_class_assignment(&mut class_assignments)?;
+                        }
+                        "style" | "click" => {
                             self.skip_statement();
                         }
                         "end" => {
@@ -1276,14 +1323,99 @@ impl<'a> Parser<'a> {
                     self.advance();
                 }
             }
+            previous_was_class_definition = current_is_class_definition;
         }
 
-        Ok(DiagramAst::Flowchart(FlowchartAst {
+        let mut flowchart = FlowchartAst {
             direction,
             nodes,
             edges,
             subgraphs,
-        }))
+        };
+        apply_flowchart_class_styles(&mut flowchart.nodes, &class_definitions, &class_assignments)?;
+        Ok(DiagramAst::Flowchart(flowchart))
+    }
+
+    fn parse_flowchart_class_definition(
+        &mut self,
+        definitions: &mut std::collections::HashMap<String, NodeStyle>,
+    ) -> Result<(), ParseError> {
+        self.advance();
+        let name = self.expect_flowchart_class_identifier()?;
+        let mut style = NodeStyle { fill: None, stroke: None, color: None };
+
+        loop {
+            let property = self.expect(TokenType::NodeId)?;
+            self.expect(TokenType::Colon)?;
+            self.expect(TokenType::Hash)?;
+            let value = format!("#{}", self.expect(TokenType::NodeId)?);
+            if !is_hex_color(&value) {
+                return Err(ParseError::UnexpectedToken(format!(
+                    "Flowchart class colors must be three- or six-digit hexadecimal values: {}", value
+                )));
+            }
+            let slot = match property.as_str() {
+                "fill" => &mut style.fill,
+                "stroke" => &mut style.stroke,
+                "color" => &mut style.color,
+                unsupported => {
+                    return Err(ParseError::UnexpectedToken(format!(
+                        "Unsupported flowchart class property: {}", unsupported
+                    )));
+                }
+            };
+            if slot.replace(value).is_some() {
+                return Err(ParseError::UnexpectedToken(format!(
+                    "Duplicate flowchart class property: {}", property
+                )));
+            }
+
+            if self.current().ty == TokenType::Comma {
+                self.advance();
+                continue;
+            }
+            if matches!(self.current().ty, TokenType::Newline | TokenType::Semicolon | TokenType::Eof) {
+                break;
+            }
+            return Err(ParseError::UnexpectedToken(format!(
+                "Invalid flowchart class definition: {}", self.current().value
+            )));
+        }
+
+        if definitions.insert(name.clone(), style).is_some() {
+            return Err(ParseError::UnexpectedToken(format!(
+                "Duplicate flowchart class definition: {}", name
+            )));
+        }
+        Ok(())
+    }
+
+    fn parse_flowchart_class_assignment(
+        &mut self,
+        assignments: &mut Vec<(Vec<String>, String)>,
+    ) -> Result<(), ParseError> {
+        self.advance();
+        let mut nodes = vec![self.expect_flowchart_class_identifier()?];
+        while self.current().ty == TokenType::Comma {
+            self.advance();
+            nodes.push(self.expect_flowchart_class_identifier()?);
+        }
+        let class_name = self.expect_flowchart_class_identifier()?;
+        if !matches!(self.current().ty, TokenType::Newline | TokenType::Semicolon | TokenType::Eof) {
+            return Err(ParseError::UnexpectedToken(format!(
+                "Invalid flowchart class assignment: {}", self.current().value
+            )));
+        }
+        assignments.push((nodes, class_name));
+        Ok(())
+    }
+
+    fn starts_flowchart_class_property(&self) -> bool {
+        matches!(self.current().value.as_str(), "fill" | "stroke" | "color")
+            && self
+                .tokens
+                .get(self.pos + 1)
+                .is_some_and(|token| token.ty == TokenType::Colon)
     }
 
     fn skip_statement(&mut self) {
@@ -1301,6 +1433,8 @@ impl<'a> Parser<'a> {
         nodes: &mut Vec<Node>,
         edges: &mut Vec<Edge>,
         seen_nodes: &mut std::collections::HashSet<String>,
+        class_definitions: &mut std::collections::HashMap<String, NodeStyle>,
+        class_assignments: &mut Vec<(Vec<String>, String)>,
     ) -> Result<Subgraph, ParseError> {
         self.expect(TokenType::Keyword)?; // consume "subgraph"
 
@@ -1352,15 +1486,29 @@ impl<'a> Parser<'a> {
             self.advance();
         }
 
-        self.skip_newlines_and_semicolons();
-
         let mut sg_nodes: Vec<String> = Vec::new();
         let mut sg_subgraphs: Vec<Subgraph> = Vec::new();
+        let mut previous_was_class_definition = false;
 
         while self.current().ty != TokenType::Eof {
-            self.skip_newlines_and_semicolons();
+            let has_statement_boundary = self.skip_newlines_and_semicolons();
             if self.current().ty == TokenType::Eof {
                 break;
+            }
+            if previous_was_class_definition && self.starts_flowchart_class_property() {
+                return Err(ParseError::UnexpectedToken(format!(
+                    "Flowchart class definitions require comma-separated properties: {}",
+                    self.current().value
+                )));
+            }
+            let current_is_class_definition = self.current().ty == TokenType::Keyword
+                && self.current().value == "classDef";
+            let current_is_class_assignment = self.current().ty == TokenType::Keyword
+                && self.current().value == "class";
+            if !has_statement_boundary && (current_is_class_definition || current_is_class_assignment) {
+                return Err(ParseError::UnexpectedToken(
+                    "Flowchart class statements require a newline or semicolon boundary".to_string(),
+                ));
             }
             if self.current().ty == TokenType::Keyword && self.current().value == "end" {
                 self.advance();
@@ -1370,8 +1518,12 @@ impl<'a> Parser<'a> {
             match self.current().ty {
                 TokenType::Keyword => {
                     if self.current().value == "subgraph" {
-                        let nested = self.parse_subgraph(nodes, edges, seen_nodes)?;
+                        let nested = self.parse_subgraph(nodes, edges, seen_nodes, class_definitions, class_assignments)?;
                         sg_subgraphs.push(nested);
+                    } else if self.current().value == "classDef" {
+                        self.parse_flowchart_class_definition(class_definitions)?;
+                    } else if self.current().value == "class" {
+                        self.parse_flowchart_class_assignment(class_assignments)?;
                     } else if self.current().value == "direction" {
                         // direction LR inside subgraph — consume and skip
                         self.advance(); // consume "direction"
@@ -1397,6 +1549,7 @@ impl<'a> Parser<'a> {
                     self.advance();
                 }
             }
+            previous_was_class_definition = current_is_class_definition;
         }
 
         Ok(Subgraph {
@@ -1406,10 +1559,13 @@ impl<'a> Parser<'a> {
         })
     }
 
-    fn skip_newlines_and_semicolons(&mut self) {
+    fn skip_newlines_and_semicolons(&mut self) -> bool {
+        let mut skipped = false;
         while self.current().ty == TokenType::Newline || self.current().ty == TokenType::Semicolon {
+            skipped = true;
             self.advance();
         }
+        skipped
     }
 
     fn add_node_if_new(
@@ -1426,6 +1582,7 @@ impl<'a> Parser<'a> {
                 shape,
                 classes: Vec::new(),
                 styles: Vec::new(),
+                style: None,
             });
             seen.insert(id);
         }
@@ -1713,6 +1870,36 @@ impl<'a> Parser<'a> {
 
         Ok(())
     }
+}
+
+fn apply_flowchart_class_styles(
+    nodes: &mut [Node],
+    definitions: &std::collections::HashMap<String, NodeStyle>,
+    assignments: &[(Vec<String>, String)],
+) -> Result<(), ParseError> {
+    for (node_ids, class_name) in assignments {
+        let style = definitions.get(class_name).ok_or_else(|| {
+            ParseError::UnexpectedToken(format!("Unknown flowchart class definition: {}", class_name))
+        })?.clone();
+
+        for node_id in node_ids {
+            let node = nodes.iter_mut().find(|node| node.id == *node_id).ok_or_else(|| {
+                ParseError::UnexpectedToken(format!("Unknown flowchart class node: {}", node_id))
+            })?;
+            node.classes.push(class_name.to_string());
+            let node_style = node.style.get_or_insert(NodeStyle { fill: None, stroke: None, color: None });
+            if style.fill.is_some() { node_style.fill = style.fill.clone(); }
+            if style.stroke.is_some() { node_style.stroke = style.stroke.clone(); }
+            if style.color.is_some() { node_style.color = style.color.clone(); }
+        }
+    }
+
+    Ok(())
+}
+
+fn is_hex_color(value: &str) -> bool {
+    let hex = value.strip_prefix('#').unwrap_or("");
+    matches!(hex.len(), 3 | 6) && hex.bytes().all(|character| character.is_ascii_hexdigit())
 }
 
 fn parse_gitgraph_attributes(input: &str) -> Result<std::collections::HashMap<String, String>, ParseError> {

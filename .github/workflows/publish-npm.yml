@@ -11,23 +11,23 @@ permissions:
 
 jobs:
   publish:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Install WASM build toolchain
         run: |
-          rustup target add wasm32-unknown-unknown
+          rustup show active-toolchain
           cargo install wasm-pack --version 0.14.0 --locked
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
-          node-version: "24"
+          node-version: "24.19.0"
           registry-url: "https://registry.npmjs.org"
           package-manager-cache: false
 
-      - name: Install npm staged publishing CLI
+      - name: Install npm publishing CLI
         run: npm install --global npm@11.17.0
 
       - name: Verify tag matches package version
@@ -36,5 +36,6 @@ jobs:
           test "v${package_version}" = "$GITHUB_REF_NAME"
 
       - run: npm ci
+      - run: npm audit --audit-level=high --registry=https://registry.npmjs.org
       - run: npm run verify:release
-      - run: npm stage publish
+      - run: npm publish --access public --provenance

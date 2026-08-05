@@ -90,6 +90,10 @@ xmermaid 专注于 Mermaid 流程图的浏览器端 SVG 渲染，支持基础 `g
 
 这不是完整的 Mermaid 兼容实现。其余 Mermaid 图表族会在 `getSupportMatrix()` 中明确标记为 `planned`，并在 WASM 渲染前拒绝。请使用 `getSupportMatrix()` 或 `analyzeSupport(source)` 查询当前生产支持边界。
 
+流程图支持 `classDef <名称>` 和 `class <节点 ID>[,<节点 ID>...] <名称>`。定义仅可包含 `fill`、`stroke` 和 `color`，且颜色必须是三位或六位十六进制颜色。一个节点分配多个类时按字段级联，后分配的值优先。在序列化能够无损保留这些声明之前，包含 `classDef` 或 `class` 的源码在可视化编辑中保持只读。
+
+当前不支持或仅部分支持的流程图语法包括无效方向、`style`、`click`、`linkStyle`、HTML 或 Markdown 标签、引号标签、实体编码标签、FontAwesome 图标标签、扩展形状、粗线或延长边、双向/圆形/交叉边端点、内联边标签、边 ID、连接到子图 ID 的边、带连字符的节点 ID 和内联类分配。
+
 ## 诊断
 
 不支持但可继续渲染的流程图语法会以 `unsupported_syntax` 警告报告；如无效流程图方向等错误级不支持语法会在 WASM 渲染前阻止。未支持的图表族会报 `unsupported_diagram_type`。

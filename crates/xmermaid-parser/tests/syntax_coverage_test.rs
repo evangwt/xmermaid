@@ -736,16 +736,15 @@ fn test_falsify_edge_to_subgraph_unsupported() {
 }
 
 // ============================================================
-//  9. STYLE AND CLASSDEF SYNTAX (parsed but skipped)
+//  9. STYLE AND CLASSDEF SYNTAX
 // ============================================================
 
 #[test]
-fn test_classdef_is_parsed_but_skipped() {
-    // classDef should not cause an error, but the diagram should
-    // still have correct nodes and edges.
-    let fc = fc("graph TD\n  A-->B\n  classDef myClass fill:#f9f");
+fn test_classdef_is_applied_after_class_assignment() {
+    let fc = fc("graph TD\n  A-->B\n  classDef myClass fill:#f9f\n  class A myClass");
     assert_eq!(fc.nodes.len(), 2);
     assert_eq!(fc.edges.len(), 1);
+    assert_eq!(find_node(&fc, "A").unwrap().style.as_ref().unwrap().fill.as_deref(), Some("#f9f"));
 }
 
 #[test]
@@ -759,7 +758,7 @@ fn test_style_statement_is_parsed_but_skipped() {
 }
 
 #[test]
-fn test_class_assignment_is_parsed_but_skipped() {
+fn test_inline_class_assignment_remains_outside_the_supported_subset() {
     // A:::myClass creates a spurious "myClass" node due to ::: tokenization,
     // but the diagram should still parse without error.
     let result = parse("graph TD\n  A:::myClass-->B");

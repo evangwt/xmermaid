@@ -159,6 +159,7 @@ function parseJsonSummary(stdout) {
 function checkDocs() {
   const packageJson = JSON.parse(readFileSync('package.json', 'utf8'));
   const readme = readFileSync('README.md', 'utf8');
+  const chineseReadme = readFileSync('README.zh-CN.md', 'utf8');
   const checklist = readFileSync('docs/production-release-checklist.md', 'utf8');
   const matrixIds = DEFAULT_MATRIX.map(entry => entry.id);
   const editorExport = packageJson.exports?.['./editor'];
@@ -178,9 +179,10 @@ function checkDocs() {
         && editorExport?.types === './dist/editor/index.d.ts',
     },
     {
-      label: 'package files explicitly include README and LICENSE',
+      label: 'package files explicitly include English, Chinese, and license docs',
       passed: Array.isArray(packageJson.files)
         && packageJson.files.includes('README.md')
+        && packageJson.files.includes('README.zh-CN.md')
         && packageJson.files.includes('LICENSE'),
     },
     {
@@ -213,6 +215,18 @@ function checkDocs() {
     {
       label: 'README documents quoted label limitation',
       passed: /quoted labels/i.test(readme),
+    },
+    {
+      label: 'README documents safe Flowchart class style boundary',
+      passed: /classDef <name>/i.test(readme)
+        && /three- or six-digit hexadecimal values/i.test(readme)
+        && /Visual editing is read-only/i.test(readme),
+    },
+    {
+      label: 'Chinese README documents safe Flowchart class style boundary',
+      passed: /classDef <名称>/.test(chineseReadme)
+        && /三位或六位十六进制颜色/.test(chineseReadme)
+        && /可视化编辑.*只读/.test(chineseReadme),
     },
     {
       label: 'README documents subgraph edge limitation',

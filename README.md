@@ -154,7 +154,7 @@ All remaining Mermaid catalog families are explicitly marked `planned` in `getSu
 
 `sankey` and `sankey-beta` are partial: acyclic three-column CSV `source,target,value` records (including quoted commas and blank lines) render as native weighted SVG bands. Cycles, non-positive values, YAML/config directives, and custom Sankey configuration remain unsupported.
 
-Unsupported or partial flowchart syntax includes invalid `graph` / `flowchart` directions, `class`, `classDef`, `style`, `click`, `linkStyle`, HTML labels, Markdown labels, quoted labels, entity-code labels, FontAwesome icon labels, expanded/stadium/cylinder shape syntax, thick/extended edge forms, bidirectional/circle/cross edge endings, inline edge labels, edge IDs, edges to subgraph ids, hyphenated node ids, and inline class assignments. Use `getSupportMatrix()` or `analyzeSupport(source)` to inspect the current production support contract from code.
+Flowcharts support `classDef <name>` and `class <node-id>[,<node-id>...] <name>` when definitions contain only `fill`, `stroke`, and `color` with three- or six-digit hexadecimal values. Multiple class assignments cascade by field, with later values winning. Visual editing is read-only for sources with either statement until it can preserve those declarations. Unsupported or partial flowchart syntax includes invalid `graph` / `flowchart` directions, `style`, `click`, `linkStyle`, HTML labels, Markdown labels, quoted labels, entity-code labels, FontAwesome icon labels, expanded/stadium/cylinder shape syntax, thick/extended edge forms, bidirectional/circle/cross edge endings, inline edge labels, edge IDs, edges to subgraph ids, hyphenated node ids, and inline class assignments. Use `getSupportMatrix()` or `analyzeSupport(source)` to inspect the current production support contract from code.
 
 ## Diagnostics
 
@@ -162,7 +162,7 @@ Unsupported or partial flowchart syntax includes invalid `graph` / `flowchart` d
 import { XMermaidError, type XMermaidDiagnostic } from '@evangwt/xmermaid';
 
 try {
-  const result = await renderer.renderToSVGElement('graph TD\n  A-->B\n  classDef hot fill:#fff');
+  const result = await renderer.renderToSVGElement('graph TD\n  A-->B\n  style A fill:#fff');
   const diagnostics: XMermaidDiagnostic[] = result.diagnostics;
   console.log(diagnostics);
 } catch (error) {

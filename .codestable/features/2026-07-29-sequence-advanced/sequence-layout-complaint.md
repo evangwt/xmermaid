@@ -66,8 +66,6 @@ The parser correctly produces ordered sequence events. The layout discards conte
 - Live 已使用 `xmermaid@0.1.4` 包重新构建；浏览器回归覆盖内容适配、多图表诊断身份、底栏可见性、拖拽期间禁选文本、复制反馈与恢复控件的统一样式。
 - 全量浏览器运行曾暴露恢复控件测试在 CSS 应用完成前读取计算样式的竞争。控件 CSS 本身和单测均已正确；回归改为等待实际 `border-radius: 6px` 后读取其余样式，避免把加载时序误报为产品故障。
 
-Companion implementation plan: `../../../../xmermaid-live/docs/superpowers/plans/2026-07-29-sequence-layout-and-live-regression.md`.
-
 ## 验证
 
 - `xmermaid`: `cargo test -p xmermaid-layout --test layout_comprehensive_test`、`cargo test -p xmermaid-layout --test roundtrip_test`、`npm run build:wasm`、`npm test -- tests/sequence-real-wasm.test.ts tests/renderer.test.ts` 通过；`npm run verify:release` 通过（WASM/consumer package/docs/JS/TypeScript/Rust/diff whitespace）。

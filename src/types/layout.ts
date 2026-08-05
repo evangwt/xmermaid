@@ -39,6 +39,14 @@ export interface LayoutNode {
   label: string;
   /** Pre-wrapped display lines emitted by layout; absent in legacy payloads. */
   label_lines?: string[];
+  /** Safe Flowchart class colors emitted by the Rust parser and layout pipeline. */
+  style?: NodeStyle;
+}
+
+export interface NodeStyle {
+  fill?: string;
+  stroke?: string;
+  color?: string;
 }
 
 export type EdgeStyle = 'arrow' | 'line' | 'dotted' | 'thick' | 'invisible';

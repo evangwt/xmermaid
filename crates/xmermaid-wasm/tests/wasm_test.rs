@@ -125,6 +125,18 @@ fn test_compute_layout() {
 }
 
 #[test]
+fn test_render_pipeline_preserves_safe_flowchart_class_styles() {
+    let ast = xmermaid_parser::parse("graph TD\n  A[Start] --> B[Finish]\n  classDef hot fill:#ff0000,stroke:#990000,color:#ffffff\n  class A,B hot").unwrap();
+    let layout = xmermaid_layout::compute_layout(&ast, &LayoutConfig::default());
+
+    let a = layout.nodes.iter().find(|node| node.id == "A").unwrap();
+    let b = layout.nodes.iter().find(|node| node.id == "B").unwrap();
+    assert_eq!(a.style.as_ref().unwrap().fill.as_deref(), Some("#ff0000"));
+    assert_eq!(b.style.as_ref().unwrap().stroke.as_deref(), Some("#990000"));
+    assert_eq!(b.style.as_ref().unwrap().color.as_deref(), Some("#ffffff"));
+}
+
+#[test]
 fn test_compute_layout_sequence_participants() {
     let ast = DiagramAst::Sequence(xmermaid_parser::ast::SequenceAst {
         participants: vec![xmermaid_parser::ast::SequenceParticipant {

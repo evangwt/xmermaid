@@ -22,6 +22,13 @@ export interface FlowchartNode {
   shape: NodeShape;
   classes: string[];
   styles: string[];
+  style?: NodeStyle;
+}
+
+export interface NodeStyle {
+  fill?: string;
+  stroke?: string;
+  color?: string;
 }
 
 export interface FlowchartEdge {

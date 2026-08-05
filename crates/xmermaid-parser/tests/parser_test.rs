@@ -1,6 +1,99 @@
 use xmermaid_parser::{parse, DiagramAst, EdgeStyle, FlowDirection, NodeShape};
 
 #[test]
+fn parses_safe_flowchart_class_styles_and_rejects_unsafe_references() {
+    let ast = parse("graph TD\n  A[Start] --> B[Finish]\n  classDef hot fill:#ff0000,stroke:#990000,color:#ffffff\n  class A,B hot").unwrap();
+    match ast {
+        DiagramAst::Flowchart(flowchart) => {
+            assert_eq!(flowchart.nodes[0].style.as_ref().unwrap().fill.as_deref(), Some("#ff0000"));
+            assert_eq!(flowchart.nodes[1].style.as_ref().unwrap().stroke.as_deref(), Some("#990000"));
+            assert_eq!(flowchart.nodes[1].style.as_ref().unwrap().color.as_deref(), Some("#ffffff"));
+        }
+        _ => panic!("expected flowchart"),
+    }
+
+    assert!(parse("graph TD\n  A[Start]\n  classDef hot fill:url(javascript:alert(1))\n  class A hot").is_err());
+    assert!(parse("graph TD\n  A[Start]\n  classDef hot fill:#ff0000\n  class Missing hot").is_err());
+    assert!(parse("graph TD\n  A[Start]\n  class A missing").is_err());
+}
+
+#[test]
+fn parses_semicolon_and_tab_separated_class_styles_with_field_cascade() {
+    let ast = parse("graph TD; A-->B; classDef\thot\tfill:#ff0000; classDef border stroke:#990000,color:#ffffff; class\tA\thot; class A border").unwrap();
+    let DiagramAst::Flowchart(flowchart) = ast else { panic!("expected flowchart") };
+    let style = flowchart.nodes.iter().find(|node| node.id == "A").unwrap().style.as_ref().unwrap();
+    assert_eq!(style.fill.as_deref(), Some("#ff0000"));
+    assert_eq!(style.stroke.as_deref(), Some("#990000"));
+    assert_eq!(style.color.as_deref(), Some("#ffffff"));
+}
+
+#[test]
+fn parses_class_styles_with_spaced_node_lists_and_direction_named_classes() {
+    let ast = parse("graph TD\n  A --> B\n  classDef TD fill:#ff0000\n  class A , B TD").unwrap();
+    let DiagramAst::Flowchart(flowchart) = ast else { panic!("expected flowchart") };
+    assert_eq!(flowchart.nodes.iter().find(|node| node.id == "A").unwrap().style.as_ref().unwrap().fill.as_deref(), Some("#ff0000"));
+    assert_eq!(flowchart.nodes.iter().find(|node| node.id == "B").unwrap().style.as_ref().unwrap().fill.as_deref(), Some("#ff0000"));
+}
+
+#[test]
+fn accepts_ascii_whitespace_between_hash_and_class_color() {
+    let ast = parse("graph TD\n  A\n  classDef hot fill:# fff\n  class A hot").unwrap();
+    let DiagramAst::Flowchart(flowchart) = ast else { panic!("expected flowchart") };
+
+    assert_eq!(flowchart.nodes[0].style.as_ref().unwrap().fill.as_deref(), Some("#fff"));
+}
+
+#[test]
+fn parses_numeric_class_names_and_rejects_reserved_class_keywords() {
+    assert!(parse("graph TD\n  A\n  classDef 1hot fill:#ff0000\n  class A 1hot").is_ok());
+    assert!(parse("graph TD\n  A\n  classDef class fill:#ff0000\n  class A class").is_err());
+}
+
+#[test]
+fn keeps_class_keywords_inside_labels_and_comments_out_of_class_style_parsing() {
+    let ast = parse("graph TD\n  A[hello; classDef hot fill:#f00]\n  B[world; class A hot]\n  %% classDef ignored fill:#f00; class A ignored\n  A --> B").unwrap();
+    let DiagramAst::Flowchart(flowchart) = ast else { panic!("expected flowchart") };
+
+    assert_eq!(flowchart.nodes.iter().find(|node| node.id == "A").unwrap().label.as_deref(), Some("hello; classDef hot fill:#f00"));
+    assert!(flowchart.nodes.iter().all(|node| node.style.is_none()));
+}
+
+#[test]
+fn applies_class_styles_after_labels_with_unmatched_literal_openers() {
+    let ast = parse("graph TD\n  A[Review (draft] --> B\n  classDef hot fill:#f00\n  class A hot").unwrap();
+    let DiagramAst::Flowchart(flowchart) = ast else { panic!("expected flowchart") };
+
+    assert_eq!(flowchart.nodes.iter().find(|node| node.id == "A").unwrap().style.as_ref().unwrap().fill.as_deref(), Some("#f00"));
+}
+
+#[test]
+fn applies_class_styles_when_flowchart_statements_use_carriage_returns() {
+    let ast = parse("graph TD\rA[Start]\rclassDef hot fill:#f00\rclass A hot").unwrap();
+    let DiagramAst::Flowchart(flowchart) = ast else { panic!("expected flowchart") };
+
+    assert_eq!(flowchart.nodes.iter().find(|node| node.id == "A").unwrap().style.as_ref().unwrap().fill.as_deref(), Some("#f00"));
+}
+
+#[test]
+fn rejects_malformed_reserved_class_statement_prefixes() {
+    assert!(parse("graph TD\n  A[Start]\n  classDef: hot fill:#f00\n  class A hot").is_err());
+    assert!(parse("graph TD\n  A[Start]\n  class: A hot").is_err());
+}
+
+#[test]
+fn rejects_css_properties_after_a_class_definition_separator() {
+    assert!(parse("graph TD; A[Start]; classDef hot fill:#fff; stroke:#000; class A hot").is_err());
+    assert!(parse("graph TD\n  subgraph Group\n    A[Start]\n    classDef hot fill:#fff\n    stroke:#000\n    class A hot\n  end").is_err());
+}
+
+#[test]
+fn rejects_class_styles_without_a_statement_boundary() {
+    assert!(parse("graph TD\n  A[Styled] classDef hot fill:#f00\n  B\n  class A hot").is_err());
+    assert!(parse("graph TD\n  A\n  classDef hot fill:#f00\n  B class A hot").is_err());
+    assert!(parse("graph TD\n  subgraph Group\n    A classDef hot fill:#f00\n  end").is_err());
+}
+
+#[test]
 fn parses_block_grid_spans_spaces_labels_and_relationships() {
     let ast = parse("block-beta\n  columns 3\n  A[\"Alpha lane\"] space C\n  Wide:2 D\n  A --> D\n  C -- D").unwrap();
 

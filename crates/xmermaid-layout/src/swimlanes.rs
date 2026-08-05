@@ -16,7 +16,7 @@ pub fn layout(diagram: &SwimlaneAst, config: &LayoutConfig) -> LayoutResult {
         for (node_index, id) in lane.nodes.iter().enumerate() {
             let ast_node = diagram.nodes.iter().find(|node| node.id == *id).expect("lane node exists");
             let center = Point { x: config.padding * 2.0 + config.node_width / 2.0 + node_index as f64 * (config.node_width + config.h_spacing), y: y + HEADER_HEIGHT + (LANE_HEIGHT - HEADER_HEIGHT) / 2.0 };
-            nodes.push(LayoutNode { id: id.clone(), center, bounds: Bounds::from_center(center, config.node_width, config.node_height), shape: NodeShape::RoundedRect, label: ast_node.label.clone().unwrap_or_else(|| id.clone()), label_lines: vec![] });
+            nodes.push(LayoutNode { id: id.clone(), center, bounds: Bounds::from_center(center, config.node_width, config.node_height), shape: NodeShape::RoundedRect, label: ast_node.label.clone().unwrap_or_else(|| id.clone()), label_lines: vec![], style: None });
         }
     }
     let edges = diagram.edges.iter().filter_map(|edge| {

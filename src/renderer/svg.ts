@@ -13,6 +13,10 @@ function sameCoordinate(a: number, b: number): boolean {
   return Math.abs(a - b) < 1e-6;
 }
 
+function isHexColor(value: string | undefined): value is string {
+  return typeof value === 'string' && /^#[0-9a-f]{3}(?:[0-9a-f]{3})?$/i.test(value);
+}
+
 function flowAxisBoundary(bounds: LayoutNode['bounds'], angle: number, end: 'source' | 'target'): Point {
   const vertical = Math.abs(Math.sin(angle)) >= Math.abs(Math.cos(angle));
   const forward = vertical ? Math.sin(angle) >= 0 : Math.cos(angle) >= 0;
@@ -1028,15 +1032,15 @@ export class SVGRenderer {
     g.appendChild(title);
 
     const shape = this.createNodeShape(node);
-    shape.setAttribute('fill', this.theme.colors.nodeFill);
-    shape.setAttribute('stroke', this.theme.colors.nodeStroke);
+    shape.setAttribute('fill', isHexColor(node.style?.fill) ? node.style.fill : this.theme.colors.nodeFill);
+    shape.setAttribute('stroke', isHexColor(node.style?.stroke) ? node.style.stroke : this.theme.colors.nodeStroke);
     shape.setAttribute('stroke-width', '1.5');
     g.appendChild(shape);
 
     const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     text.setAttribute('x', String(node.center.x));
     text.setAttribute('text-anchor', 'middle');
-    text.setAttribute('fill', this.theme.colors.nodeText);
+    text.setAttribute('fill', isHexColor(node.style?.color) ? node.style.color : this.theme.colors.nodeText);
     text.setAttribute('font-family', this.theme.fontFamily);
     text.setAttribute('font-size', String(this.theme.fontSize));
     this.setTextLines(text, node.label_lines?.length ? node.label_lines : [node.label], node.center, this.theme.fontSize);

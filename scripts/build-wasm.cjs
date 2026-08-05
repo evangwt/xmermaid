@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 const { spawnSync } = require('node:child_process');
-const { existsSync } = require('node:fs');
+const { existsSync, rmSync } = require('node:fs');
 const { delimiter, join } = require('node:path');
 const { homedir } = require('node:os');
 
@@ -11,6 +11,10 @@ const pathParts = existingPath.split(delimiter).filter(Boolean);
 const childPath = existsSync(rustupBin)
   ? [rustupBin, ...pathParts.filter(part => part !== rustupBin)].join(delimiter)
   : existingPath;
+
+if (process.argv.includes('--clean-output')) {
+  rmSync(join(process.cwd(), 'dist'), { recursive: true, force: true });
+}
 
 const args = [
   'build',

@@ -36,12 +36,30 @@ pub enum EdgeStyle {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NodeStyle {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fill: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stroke: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color: Option<String>,
+}
+
+impl NodeStyle {
+    pub fn is_empty(&self) -> bool {
+        self.fill.is_none() && self.stroke.is_none() && self.color.is_none()
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Node {
     pub id: String,
     pub label: Option<String>,
     pub shape: NodeShape,
     pub classes: Vec<String>,
     pub styles: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub style: Option<NodeStyle>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

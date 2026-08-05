@@ -141,6 +141,169 @@ describe('visual flowchart real WASM roundtrip contract', () => {
     ]);
   });
 
+  it('does not add a generic class read-only diagnostic to a specific class syntax error', async () => {
+    const analysis = await analyzeFlowchartForVisualEdit([
+      'flowchart TD',
+      '  A --> B',
+      '  classDef hot fill:red',
+      '  class A hot',
+    ].join('\n'));
+
+    expect(analysis).toMatchObject({
+      capability: 'read-only',
+      model: null,
+    });
+    expect(analysis.diagnostics).toEqual([
+      expect.objectContaining({
+        code: 'visual_unsupported_syntax',
+        message: expect.stringContaining('three- or six-digit hexadecimal values'),
+      }),
+    ]);
+  });
+
+  it('keeps class keywords inside labels editable', async () => {
+    const analysis = await analyzeFlowchartForVisualEdit('flowchart TD\n  A[hello; class A hot]', {
+      parseDsl: parseWithRealWasm,
+    });
+
+    expect(analysis).toEqual(expect.objectContaining({
+      capability: 'editable',
+      diagnostics: [],
+    }));
+  });
+
+  it('keeps class keywords inside asymmetric labels editable', async () => {
+    const analysis = await analyzeFlowchartForVisualEdit('flowchart TD\n  A>hello; classDef hot fill:#f00]', {
+      parseDsl: parseWithRealWasm,
+    });
+
+    expect(analysis).toEqual(expect.objectContaining({
+      capability: 'editable',
+      diagnostics: [],
+    }));
+  });
+
+  it('keeps class keywords inside pipe edge labels editable', async () => {
+    const analysis = await analyzeFlowchartForVisualEdit('flowchart TD\n  A-->|Issue; classDef hot fill:#f00|B', {
+      parseDsl: parseWithRealWasm,
+    });
+
+    expect(analysis).toEqual(expect.objectContaining({
+      capability: 'editable',
+      diagnostics: [],
+    }));
+  });
+
+  it('blocks visual edits when multi-character arrows precede class styles', async () => {
+    const analysis = await analyzeFlowchartForVisualEdit('flowchart TD\n  A-->>B\n  classDef hot fill:#f00\n  class A hot', {
+      parseDsl: parseWithRealWasm,
+    });
+
+    expect(analysis).toEqual(expect.objectContaining({
+      capability: 'read-only',
+      model: null,
+      diagnostics: [expect.objectContaining({ code: 'visual_unsupported_syntax' })],
+    }));
+  });
+
+  it('blocks visual edits when class styles follow labels with unmatched literal openers', async () => {
+    const analysis = await analyzeFlowchartForVisualEdit('flowchart TD\n  A[Review (draft] --> B\n  classDef hot fill:#f00\n  class A hot', {
+      parseDsl: parseWithRealWasm,
+    });
+
+    expect(analysis).toEqual(expect.objectContaining({
+      capability: 'read-only',
+      model: null,
+      diagnostics: [expect.objectContaining({ code: 'visual_unsupported_syntax' })],
+    }));
+  });
+
+  it('fails closed for unterminated labels before producing a partial visual model', async () => {
+    for (const statement of [
+      'A[unterminated',
+      'A(unterminated',
+      'A{unterminated',
+      'A>unterminated',
+      '>unterminated',
+      'A-->|unterminated',
+    ]) {
+      const analysis = await analyzeFlowchartForVisualEdit([
+        'flowchart TD',
+        `  ${statement}`,
+        '  classDef hot fill:#f00',
+        '  class A hot',
+      ].join('\n'), { parseDsl: parseWithRealWasm });
+
+      expect(analysis).toEqual(expect.objectContaining({
+        capability: 'read-only',
+        model: null,
+        diagnostics: expect.arrayContaining([
+          expect.objectContaining({
+            code: 'visual_unsupported_syntax',
+            message: expect.stringContaining('unterminated'),
+          }),
+        ]),
+      }));
+    }
+  });
+
+  it('keeps Unicode class keyword prefixes editable as node ids', async () => {
+    for (const source of [
+      'flowchart TD\n  classé --> B',
+      'flowchart TD\n  classDef中 --> B',
+      'flowchart TD\n  class\u0345 --> B',
+      'flowchart TD\n  classDef\u0345 --> B',
+    ]) {
+      await expect(analyzeFlowchartForVisualEdit(source, realWasmVisualOptions))
+        .resolves.toEqual(expect.objectContaining({
+          capability: 'editable',
+          diagnostics: [],
+        }));
+    }
+  });
+
+  it('blocks inline class declarations that the visual model cannot preserve', async () => {
+    const source = 'flowchart TD\n  A[Styled] classDef hot fill:#f00\n  B class A hot';
+
+    await expect(analyzeFlowchartForVisualEdit(source, realWasmVisualOptions))
+      .resolves.toEqual(expect.objectContaining({
+        capability: 'read-only',
+        model: null,
+      }));
+  });
+
+  it('fails closed when the parsed AST contains class styling', async () => {
+    const styledSource = 'flowchart TD\n  A\n  classDef hot fill:#f00\n  class A hot';
+    const options = {
+      ...realWasmVisualOptions,
+      parseDsl: () => parseWithRealWasm(styledSource),
+    };
+
+    await expect(analyzeFlowchartForVisualEdit('flowchart TD\n  A', options))
+      .resolves.toEqual(expect.objectContaining({
+        capability: 'read-only',
+        model: null,
+      }));
+    await expect(validateVisualEditResult('flowchart TD\n  A', options))
+      .resolves.toEqual(expect.objectContaining({
+        status: 'blocked',
+        model: null,
+      }));
+  });
+
+  it('reports non-flowchart class syntax as unsupported instead of flowchart read-only', async () => {
+    const analysis = await analyzeFlowchartForVisualEdit('classDiagram\n  class Account', {
+      parseDsl: parseWithRealWasm,
+    });
+
+    expect(analysis).toEqual(expect.objectContaining({
+      capability: 'unsupported',
+      diagnostics: [expect.objectContaining({
+        message: 'Visual editing only supports flowchart sources, received class.',
+      })],
+    }));
+  });
+
   it('blocks parser-unsupported visual shape syntax before accepting a lossy roundtrip', async () => {
     for (const [shape, expectedSyntax] of [
       ['stadium', 'A([Start])'],

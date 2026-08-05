@@ -83,6 +83,40 @@ fn test_lexer_style_keywords() {
     }
 }
 
+#[test]
+fn test_lexer_preserves_class_style_punctuation_and_carriage_return_boundaries() {
+    let tokens: Vec<Token> =
+        Lexer::new("classDef hot fill:#f00,stroke:#900\rclass A hot").collect();
+    let kinds = tokens
+        .iter()
+        .map(|token| token.ty.clone())
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        kinds,
+        vec![
+            TokenType::Keyword,
+            TokenType::NodeId,
+            TokenType::NodeId,
+            TokenType::Colon,
+            TokenType::Hash,
+            TokenType::NodeId,
+            TokenType::Comma,
+            TokenType::NodeId,
+            TokenType::Colon,
+            TokenType::Hash,
+            TokenType::NodeId,
+            TokenType::Newline,
+            TokenType::Keyword,
+            TokenType::NodeId,
+            TokenType::NodeId,
+            TokenType::Eof,
+        ]
+    );
+    assert_eq!(tokens[11].line, 1);
+    assert_eq!(tokens[12].line, 2);
+}
+
 // ─── All directions ──────────────────────────────────────────────
 
 #[test]
@@ -196,14 +230,19 @@ fn test_lexer_label_with_special_chars() {
 }
 
 #[test]
-fn test_lexer_unclosed_label_produces_eof() {
-    let input = "A[unclosed";
-    let lexer = Lexer::new(input);
-    let tokens: Vec<Token> = lexer.collect();
-    assert_eq!(tokens[0].ty, TokenType::NodeId);
-    assert_eq!(tokens[1].ty, TokenType::BracketOpen);
-    assert_eq!(tokens[2].ty, TokenType::Label);
-    assert_eq!(tokens[3].ty, TokenType::Eof);
+fn test_lexer_marks_unclosed_labels_before_eof() {
+    for (input, expected_closer) in [
+        ("A[unclosed", "]"),
+        ("A(unclosed", ")"),
+        ("A{unclosed", "}"),
+        ("A>unclosed", "]"),
+        ("|unclosed", "|"),
+    ] {
+        let tokens: Vec<Token> = Lexer::new(input).collect();
+        assert_eq!(tokens[tokens.len() - 2].ty, TokenType::UnterminatedLabel);
+        assert_eq!(tokens[tokens.len() - 2].value, expected_closer);
+        assert_eq!(tokens.last().unwrap().ty, TokenType::Eof);
+    }
 }
 
 // ─── New token types ──────────────────────────────────────────────
@@ -214,7 +253,8 @@ fn test_lexer_pipe_token() {
     let lexer = Lexer::new(input);
     let tokens: Vec<Token> = lexer.collect();
     assert_eq!(tokens[0].ty, TokenType::Pipe);
-    assert_eq!(tokens[1].ty, TokenType::NodeId);
+    assert_eq!(tokens[1].ty, TokenType::Label);
+    assert_eq!(tokens[1].value, "label");
     assert_eq!(tokens[2].ty, TokenType::Pipe);
 }
 

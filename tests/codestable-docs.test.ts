@@ -2,6 +2,77 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 describe('CodeStable current evidence docs', () => {
+  it('keeps local planning artifacts private and npm installs on the official registry', () => {
+    const gitignore = readFileSync('.gitignore', 'utf8');
+    const npmrc = readFileSync('.npmrc', 'utf8');
+    const lockfile = readFileSync('package-lock.json', 'utf8');
+
+    expect(gitignore).toMatch(/^\.superpowers\/$/m);
+    expect(gitignore).toMatch(/^docs\/superpowers\/$/m);
+    expect(npmrc).toBe('registry=https://registry.npmjs.org/\nreplace-registry-host=always\n');
+    expect(lockfile).toContain('registry.npmjs.org');
+    expect(lockfile).not.toContain('registry.npmmirror.com');
+  });
+
+  it('keeps Chinese Flowchart class style docs aligned with the safe parser boundary', () => {
+    const readme = readFileSync('README.zh-CN.md', 'utf8');
+
+    expect(readme).toMatch(/`classDef <名称>`/);
+    expect(readme).toMatch(/`fill`、`stroke` 和 `color`/);
+    expect(readme).toMatch(/三位或六位十六进制颜色/);
+    expect(readme).toMatch(/可视化编辑.*只读/);
+  });
+
+  it('records the exact class style release size evidence and decision', () => {
+    const acceptance = readFileSync(
+      '.codestable/features/2026-08-04-flowchart-safe-class-styles/flowchart-safe-class-styles-acceptance.md',
+      'utf8',
+    );
+
+    expect(acceptance).toMatch(/WASM.*976,159.*994,083.*17,924.*1\.84%/s);
+    expect(acceptance).toMatch(/ESM.*251,102.*261,549.*10,447.*4\.16%/s);
+    expect(acceptance).toMatch(/initial candidate.*1,036,038.*6\.13%/is);
+    expect(acceptance).toMatch(/Rejected simplification/i);
+    expect(acceptance).toMatch(/Accepted rationale/i);
+  });
+
+  it('keeps Rust package versions aligned with the npm package version', () => {
+    const packageVersion = JSON.parse(readFileSync('package.json', 'utf8')).version;
+    const workspaceManifest = readFileSync('Cargo.toml', 'utf8');
+    const layoutManifest = readFileSync('crates/xmermaid-layout/Cargo.toml', 'utf8');
+    const wasmManifest = readFileSync('crates/xmermaid-wasm/Cargo.toml', 'utf8');
+    const lockfile = readFileSync('Cargo.lock', 'utf8');
+
+    expect(packageVersion).toBe('0.1.9');
+    expect(workspaceManifest).toMatch(new RegExp(`\\[workspace\\.package\\]\\s*version = "${packageVersion}"`));
+    expect(layoutManifest).toMatch(/version\.workspace = true/);
+    expect(wasmManifest).toMatch(/version\.workspace = true/);
+    for (const crate of ['xmermaid-layout', 'xmermaid-parser', 'xmermaid-wasm']) {
+      expect(lockfile).toMatch(new RegExp(`name = "${crate}"\\nversion = "${packageVersion}"`));
+    }
+  });
+
+  it('pins the npm publish toolchain used for reproducible release bytes', () => {
+    const workflow = readFileSync('.github/workflows/publish-npm.yml', 'utf8');
+
+    expect(existsSync('rust-toolchain.toml')).toBe(true);
+    const rustToolchain = readFileSync('rust-toolchain.toml', 'utf8');
+    expect(rustToolchain).toMatch(/channel = "1\.97\.1"/);
+    expect(rustToolchain).toMatch(/profile = "minimal"/);
+    expect(rustToolchain).toMatch(/targets = \["wasm32-unknown-unknown"\]/);
+    expect(workflow).toMatch(/runs-on: ubuntu-24\.04/);
+    expect(workflow).toMatch(/actions\/checkout@d23441a48e516b6c34aea4fa41551a30e30af803/);
+    expect(workflow).toMatch(/actions\/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38/);
+    expect(workflow).toMatch(/node-version: "24\.19\.0"/);
+    expect(workflow).toMatch(/npm@11\.17\.0/);
+    expect(workflow).toMatch(/rustup show active-toolchain/);
+    expect(workflow).toMatch(/cargo install wasm-pack --version 0\.14\.0 --locked/);
+    expect(workflow).not.toMatch(/rustup toolchain install|rustup target add|cargo \+1\.97\.1/);
+    expect(workflow).toMatch(/npm audit --audit-level=high --registry=https:\/\/registry\.npmjs\.org\n\s+- run: npm run verify:release/);
+    expect(workflow).toMatch(/npm publish --access public --provenance/);
+    expect(workflow).not.toMatch(/npm stage publish/);
+  });
+
   it('describes the current live editor browser gate as packed Chrome/CDP smoke', () => {
     const harshReview = readFileSync(
       '.codestable/roadmap/multi-diagram-live-editor/harsh-review-2026-06-07.md',
