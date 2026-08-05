@@ -6,6 +6,7 @@ use std::str::Chars;
 enum LexerState {
     Normal,
     InLabel(char), // close char: ']', ')', '}'
+    InEdgeLabel,
 }
 
 pub struct Lexer<'a> {
@@ -89,6 +90,13 @@ impl<'a> Lexer<'a> {
             if c == '\n' {
                 break;
             }
+            if c == '\r' {
+                if self.peek() == Some(&'\n') {
+                    self.input.next();
+                }
+                self.line += 1;
+                break;
+            }
         }
     }
 }
@@ -107,10 +115,9 @@ impl<'a> Iterator for Lexer<'a> {
             LexerState::InLabel(close_char) => match self.peek() {
                 None => {
                     self.state = LexerState::Normal;
-                    self.done = true;
                     return Some(Token {
-                        ty: TokenType::Eof,
-                        value: String::new(),
+                        ty: TokenType::UnterminatedLabel,
+                        value: close_char.to_string(),
                         line,
                     });
                 }
@@ -138,6 +145,30 @@ impl<'a> Iterator for Lexer<'a> {
                     });
                 }
             },
+            LexerState::InEdgeLabel => match self.peek() {
+                None => {
+                    self.state = LexerState::Normal;
+                    Some(Token {
+                        ty: TokenType::UnterminatedLabel,
+                        value: "|".to_string(),
+                        line,
+                    })
+                }
+                Some(&'|') => {
+                    self.advance();
+                    self.state = LexerState::Normal;
+                    Some(Token {
+                        ty: TokenType::Pipe,
+                        value: "|".to_string(),
+                        line,
+                    })
+                }
+                Some(_) => Some(Token {
+                    ty: TokenType::Label,
+                    value: self.read_label_content('|'),
+                    line,
+                }),
+            },
             LexerState::Normal => {
                 self.skip_whitespace();
 
@@ -154,6 +185,18 @@ impl<'a> Iterator for Lexer<'a> {
                     }
                     Some(&'\n') => {
                         self.advance();
+                        Some(Token {
+                            ty: TokenType::Newline,
+                            value: "\n".to_string(),
+                            line,
+                        })
+                    }
+                    Some(&'\r') => {
+                        self.advance();
+                        if self.peek() == Some(&'\n') {
+                            self.input.next();
+                        }
+                        self.line += 1;
                         Some(Token {
                             ty: TokenType::Newline,
                             value: "\n".to_string(),
@@ -189,9 +232,34 @@ impl<'a> Iterator for Lexer<'a> {
                             line,
                         })
                     }
+                    Some(&':') => {
+                        self.advance();
+                        Some(Token {
+                            ty: TokenType::Colon,
+                            value: ":".to_string(),
+                            line,
+                        })
+                    }
+                    Some(&',') => {
+                        self.advance();
+                        Some(Token {
+                            ty: TokenType::Comma,
+                            value: ",".to_string(),
+                            line,
+                        })
+                    }
+                    Some(&'#') => {
+                        self.advance();
+                        Some(Token {
+                            ty: TokenType::Hash,
+                            value: "#".to_string(),
+                            line,
+                        })
+                    }
                     // Pipe for edge labels
                     Some(&'|') => {
                         self.advance();
+                        self.state = LexerState::InEdgeLabel;
                         Some(Token {
                             ty: TokenType::Pipe,
                             value: "|".to_string(),

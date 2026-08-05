@@ -1,0 +1,34 @@
+[
+  {
+    "name": "safe hexadecimal styles",
+    "valid": true,
+    "lines": [
+      "flowchart TD",
+      "  A[Start] --> B[Finish]",
+      "  classDef emphasis fill:#ff0000,stroke:#990000,color:#ffffff",
+      "  class A,B emphasis"
+    ]
+  },
+  {
+    "name": "non-hexadecimal style value",
+    "valid": false,
+    "diagnosticId": "flowchart.classDef",
+    "lines": [
+      "flowchart TD",
+      "  A[Start]",
+      "  classDef emphasis fill:red",
+      "  class A emphasis"
+    ]
+  },
+  {
+    "name": "extra class assignment token",
+    "valid": false,
+    "diagnosticId": "flowchart.class",
+    "lines": [
+      "flowchart TD",
+      "  A[Start]",
+      "  classDef emphasis fill:#ff0000",
+      "  class A emphasis extra"
+    ]
+  }
+]

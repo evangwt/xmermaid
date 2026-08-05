@@ -22,12 +22,16 @@ pub enum TokenType {
 
     // Label text inside brackets
     Label,       // text inside [...], (...), {...}, etc.
+    UnterminatedLabel,
 
     // Edge label
     Pipe,        // | used for edge labels: -->|text|-->
 
     // Punctuation
     Semicolon,   // ;
+    Colon,       // : used by safe class style properties
+    Comma,       // , used by class style property and node lists
+    Hash,        // # used by hexadecimal class colors
     Slash,       // / for parallelogram [/.../]
     Backslash,   // \ for trapezoid [\...\]
 

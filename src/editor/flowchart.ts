@@ -1,5 +1,10 @@
 import { getWasm, initWasm } from '../wasm';
-import { detectUnsupportedFeatures as defaultDetectUnsupportedFeatures, type UnsupportedFeature } from '../support';
+import { detectDiagramType } from '../diagram-catalog';
+import {
+  detectUnsupportedFeatures as defaultDetectUnsupportedFeatures,
+  topLevelFlowchartClassStyleRange,
+  type UnsupportedFeature,
+} from '../support';
 import type { SourceRange } from '../types/diagnostics';
 import type { DiagramAst, EdgeStyle, FlowchartAst, NodeShape, Subgraph } from '../types/ast';
 
@@ -161,6 +166,13 @@ export async function analyzeFlowchartForVisualEdit(
         )],
       };
     }
+    if (flowchartHasClassStyles(ast)) {
+      return {
+        capability: 'read-only',
+        model: null,
+        diagnostics: [visualClassStyleDiagnostic(source)],
+      };
+    }
 
     return {
       capability: 'editable',
@@ -212,6 +224,14 @@ export async function validateVisualEditResult(
         'visual_unsupported_syntax',
         `Visual edit produced a non-flowchart source: ${ast.type}.`,
       )],
+    };
+  }
+  if (flowchartHasClassStyles(ast)) {
+    return {
+      status: 'blocked',
+      source: nextSource,
+      model: null,
+      diagnostics: [visualClassStyleDiagnostic(nextSource)],
     };
   }
 
@@ -545,12 +565,48 @@ function visualUnsupportedDiagnostics(
   options: VisualFlowchartParseOptions,
 ): VisualEditDiagnostic[] {
   const detectUnsupportedFeatures = options.detectUnsupportedFeatures ?? defaultDetectUnsupportedFeatures;
-  return detectUnsupportedFeatures(source).map(feature => ({
+  const unsupportedFeatures = detectUnsupportedFeatures(source);
+  const diagnostics: VisualEditDiagnostic[] = unsupportedFeatures.map(feature => ({
     code: 'visual_unsupported_syntax',
     message: feature.message,
     severity: feature.severity,
     range: feature.range,
   }));
+  const hasSpecificClassError = unsupportedFeatures.some(feature => (
+    (feature.id === 'flowchart.class' || feature.id === 'flowchart.classDef')
+    && feature.severity === 'error'
+  ));
+  if (
+    !hasSpecificClassError
+    && detectDiagramType(source) === 'flowchart'
+    && containsFlowchartClassStyles(source)
+  ) {
+    diagnostics.push(visualClassStyleDiagnostic(source));
+  }
+  return diagnostics;
+}
+
+function containsFlowchartClassStyles(source: string): boolean {
+  return topLevelFlowchartClassStyleRange(source) !== null;
+}
+
+function flowchartHasClassStyles(ast: FlowchartAst): boolean {
+  return ast.nodes.some(node => node.classes.length > 0 || node.styles.length > 0 || node.style !== undefined);
+}
+
+function visualClassStyleDiagnostic(source: string): VisualEditDiagnostic {
+  const startOffset = topLevelFlowchartClassStyleRange(source);
+  if (startOffset === null) return visualDiagnostic('visual_unsupported_syntax', 'Visual editing is read-only for flowcharts with classDef or class statements because source roundtrips do not preserve class styling.');
+  const keyword = source.startsWith('classDef', startOffset) ? 'classDef' : 'class';
+  const prefix = source.slice(0, startOffset);
+  const startLine = prefix.split(/\r\n|\r|\n/).length;
+  const startColumn = prefix.length - Math.max(prefix.lastIndexOf('\n'), prefix.lastIndexOf('\r'));
+  return {
+    code: 'visual_unsupported_syntax',
+    message: 'Visual editing is read-only for flowcharts with classDef or class statements because source roundtrips do not preserve class styling.',
+    severity: 'error',
+    range: { startOffset, endOffset: startOffset + keyword.length, startLine, startColumn, endLine: startLine, endColumn: startColumn + keyword.length },
+  };
 }
 
 function errorMessage(error: unknown): string {

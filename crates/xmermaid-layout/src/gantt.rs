@@ -22,6 +22,7 @@ pub fn layout(gantt: &GanttAst, config: &LayoutConfig) -> LayoutResult {
             shape: NodeShape::RoundedRect,
             label: label.clone(),
             label_lines: vec![label],
+            style: None,
         }
     }).collect();
 

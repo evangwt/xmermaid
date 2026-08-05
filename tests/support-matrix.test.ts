@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   analyzeSupport,
@@ -7,7 +8,199 @@ import {
   getSupportMatrix,
 } from '../src/index';
 
+interface FlowchartClassContractCase {
+  name: string;
+  valid: boolean;
+  diagnosticId?: 'flowchart.class' | 'flowchart.classDef';
+  lines: string[];
+}
+
+const flowchartClassContract = JSON.parse(readFileSync(
+  resolve(process.cwd(), 'tests/fixtures/flowchart-class-contract.json'),
+  'utf8',
+)) as FlowchartClassContractCase[];
+
 describe('support matrix production contract', () => {
+  it.each(flowchartClassContract)('matches the shared Flowchart class contract: $name', ({
+    diagnosticId,
+    lines,
+    valid,
+  }) => {
+    const classDiagnostics = analyzeSupport(lines.join('\n')).unsupportedFeatures
+      .filter(feature => feature.id === 'flowchart.class' || feature.id === 'flowchart.classDef');
+
+    if (valid) {
+      expect(classDiagnostics).toEqual([]);
+      return;
+    }
+
+    expect(classDiagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: diagnosticId, severity: 'error' }),
+    ]));
+  });
+
+  it('reports the package version from the build-time source of truth', () => {
+    const packageVersion = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf8')).version;
+
+    expect(getSupportMatrix().version).toBe(packageVersion);
+  });
+
+  it('allows the safe Flowchart classDef/class subset while rejecting unsafe declarations', () => {
+    const valid = [
+      'graph TD',
+      '  A[Start] --> B[Finish]',
+      '  classDef hot fill:#ff0000,stroke:#990000,color:#ffffff',
+      '  class A,B hot',
+    ].join('\n');
+    const invalid = [
+      'graph TD',
+      '  A[Start]',
+      '  classDef hot fill:url(javascript:alert(1))',
+      '  class A hot',
+    ].join('\n');
+
+    expect(analyzeSupport(valid).unsupportedFeatures).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'flowchart.classDef' }),
+      expect.objectContaining({ id: 'flowchart.class' }),
+    ]));
+    expect(getDiagramSupport('flowchart')?.supportedSyntax.map(item => item.id)).toEqual(expect.arrayContaining([
+      'flowchart.classDef',
+      'flowchart.class',
+    ]));
+    expect(analyzeSupport(invalid).unsupportedFeatures).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'flowchart.classDef',
+        severity: 'error',
+      }),
+    ]));
+    expect(analyzeSupport('graph TD\n  A[Start]\n  click A "https://example.com"').unsupportedFeatures).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'flowchart.click', severity: 'warning' }),
+    ]));
+
+    const semicolonAndTab = 'graph TD; A-->B; classDef\thot\tfill:#ff0000; class\tA\thot';
+    expect(analyzeSupport(semicolonAndTab).unsupportedFeatures).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'flowchart.classDef' }),
+      expect.objectContaining({ id: 'flowchart.class' }),
+    ]));
+
+    const spacedClassList = analyzeSupport('graph TD\n  A --> B\n  classDef TD fill:#ff0000\n  class A , B TD').unsupportedFeatures;
+    expect(spacedClassList).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'flowchart.classDef' }),
+    ]));
+    expect(spacedClassList).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'flowchart.class' }),
+    ]));
+
+    const numericClassName = analyzeSupport('graph TD\n  A\n  classDef 1hot fill:#ff0000\n  class A 1hot').unsupportedFeatures;
+    expect(numericClassName).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'flowchart.classDef' }),
+      expect.objectContaining({ id: 'flowchart.class' }),
+    ]));
+    expect(analyzeSupport('graph TD\n  A\n  classDef class fill:#ff0000\n  class A class').unsupportedFeatures).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'flowchart.classDef', severity: 'error' }),
+    ]));
+
+    expect(analyzeSupport('graph TD; A[Start]; classDef hot fill:red; class A hot').unsupportedFeatures).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'flowchart.classDef',
+        severity: 'error',
+      }),
+    ]));
+
+    for (const source of [
+      'graph TD\n  A[hello; classDef hot fill:#f00]',
+      'graph TD\n  A[hello; class A hot]',
+      'graph TD\n  A[hello]\n  %% classDef hot fill:#f00; class A hot',
+      'graph TD\n  A[Review (draft] --> B\n  classDef hot fill:#f00\n  class A hot',
+      'graph TD\n  A>hello; classDef hot fill:#f00]',
+      'graph TD\n  A-->|Issue; classDef hot fill:#f00|B',
+    ]) {
+      const classFeatures = analyzeSupport(source).unsupportedFeatures;
+      expect(classFeatures).not.toEqual(expect.arrayContaining([expect.objectContaining({ id: 'flowchart.classDef' })]));
+      expect(classFeatures).not.toEqual(expect.arrayContaining([expect.objectContaining({ id: 'flowchart.class' })]));
+    }
+
+    expect(analyzeSupport('graph TD; A[Start]; classDef hot fill:#fff; stroke:#000; class A hot').unsupportedFeatures).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'flowchart.classDef', severity: 'error' }),
+    ]));
+  });
+
+  it('treats Unicode keyword prefixes as node ids', () => {
+    for (const source of [
+      'flowchart TD\n  classé --> B',
+      'flowchart TD\n  classDef中 --> B',
+      'flowchart TD\n  class\u0345 --> B',
+      'flowchart TD\n  classDef\u0345 --> B',
+    ]) {
+      const features = analyzeSupport(source).unsupportedFeatures;
+      expect(features).not.toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: 'flowchart.class' }),
+      ]));
+      expect(features).not.toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: 'flowchart.classDef' }),
+      ]));
+    }
+  });
+
+  it('matches the parser ASCII whitespace contract for class styles', () => {
+    const nonBreakingSpaces = analyzeSupport([
+      'flowchart TD',
+      '  A',
+      '  classDef\u00a0hot\u00a0fill:#fff',
+      '  class\u00a0A\u00a0hot',
+    ].join('\n')).unsupportedFeatures;
+
+    expect(nonBreakingSpaces).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'flowchart.classDef', severity: 'error' }),
+      expect.objectContaining({ id: 'flowchart.class', severity: 'error' }),
+    ]));
+
+    expect(analyzeSupport([
+      'flowchart TD',
+      '  A',
+      '  classDef hot fill:# fff',
+      '  class A hot',
+    ].join('\n')).unsupportedFeatures).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'flowchart.classDef' }),
+      expect.objectContaining({ id: 'flowchart.class' }),
+    ]));
+  });
+
+  it('rejects unterminated Flowchart labels without hiding later statements', () => {
+    for (const statement of [
+      'A[unterminated',
+      'A(unterminated',
+      'A{unterminated',
+      'A>unterminated',
+      '>unterminated',
+      'A-->|unterminated',
+    ]) {
+      const source = [
+        'flowchart TD',
+        `  ${statement}`,
+        '  classDef hot fill:#f00',
+        '  class A hot',
+      ].join('\n');
+
+      expect(analyzeSupport(source).unsupportedFeatures).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          id: 'flowchart.unterminatedLabel',
+          severity: 'error',
+        }),
+      ]));
+    }
+
+    expect(analyzeSupport([
+      'flowchart TD',
+      '  A[First line',
+      '  second line]',
+      '  classDef hot fill:#f00',
+      '  class A hot',
+    ].join('\n')).unsupportedFeatures).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'flowchart.unterminatedLabel' }),
+    ]));
+  });
+
   it('publishes flowchart as partial support instead of claiming full Mermaid compatibility', () => {
     const matrix = getSupportMatrix();
     const flowchart = getDiagramSupport('flowchart');
@@ -19,8 +212,6 @@ describe('support matrix production contract', () => {
       status: 'partial',
     });
     expect(flowchart?.unsupportedSyntax.map(item => item.id)).toEqual(expect.arrayContaining([
-      'flowchart.class',
-      'flowchart.classDef',
       'flowchart.click',
       'flowchart.htmlLabel',
       'flowchart.quotedLabel',
@@ -399,8 +590,8 @@ describe('support matrix production contract', () => {
     const features = detectUnsupportedFeatures([
       'graph TD',
       '  A[Start] --> B[End]',
-      '  class A important',
-      '  classDef important fill:#fff',
+      '  class A important extra',
+      '  classDef important fill:red',
       '  style A fill:#fff',
       '  click A callback',
       '  C[<b>HTML</b>]',
@@ -417,12 +608,12 @@ describe('support matrix production contract', () => {
     ]);
     expect(features[0]).toMatchObject({
       id: 'flowchart.class',
-      severity: 'warning',
+      severity: 'error',
       range: {
         startLine: 3,
         startColumn: 3,
         endLine: 3,
-        endColumn: 20,
+        endColumn: 26,
       },
     });
     expect(features[4].range).toMatchObject({

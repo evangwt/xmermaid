@@ -44,7 +44,7 @@ tags: [production, support, release]
 
 ## 怎么解决
 
-把当前支持范围做成公开合同：README 讲清楚，package 描述不夸大，代码提供可查询的支持矩阵。用户可以在渲染前判断一个图大概属于支持、部分支持还是不支持。发布前还必须跑真实消费者 smoke：packed tarball 安装进临时项目，消费者 TypeScript 解析 root public API，浏览器加载 installed package 的 ESM bundle 与 WASM asset 并渲染最小 flowchart。SDK 同时提供容器替换 API、SVG element API 和 SVG string API，方便应用层选择自己的挂载、序列化或存储方式。支持分析器提供 `detectUnsupportedFeatures(source)`，把 unsupported diagram family 和已知 unsupported flowchart syntax 转成 feature id + range；render API 会把这些结果转为结构化 diagnostics，unsupported diagram 预先失败，unsupported flowchart syntax 作为 warning 随成功 SVG 返回，live editor 也消费同一诊断合同。安全策略默认 strict，在调用 WASM 前用 `security_blocked_*` diagnostics 阻断 click、HTML label 和危险 URL；loose 只放宽 click/HTML 的 security blocking，不放开危险 URL。发布门禁包含 docs support matrix sync，README、package 描述、release checklist 和关键生产事实不同步时直接失败。
+把当前支持范围做成公开合同：README 讲清楚，package 描述不夸大，代码提供可查询的支持矩阵。用户可以在渲染前判断一个图大概属于支持、部分支持还是不支持。Flowchart 的 `classDef` / `class` 仅支持 `fill`、`stroke`、`color` 三或六位十六进制颜色，按字段级最后赋值覆盖；视觉编辑在尚不能无损重写这类声明前必须只读。发布前还必须跑真实消费者 smoke：packed tarball 安装进临时项目，消费者 TypeScript 解析 root public API，浏览器加载 installed package 的 ESM bundle 与 WASM asset 并渲染最小 flowchart。SDK 同时提供容器替换 API、SVG element API 和 SVG string API，方便应用层选择自己的挂载、序列化或存储方式。支持分析器提供 `detectUnsupportedFeatures(source)`，把 unsupported diagram family 和已知 unsupported flowchart syntax 转成 feature id + range；render API 会把这些结果转为结构化 diagnostics，unsupported diagram 预先失败，unsupported flowchart syntax 作为 warning 随成功 SVG 返回，live editor 也消费同一诊断合同。安全策略默认 strict，在调用 WASM 前用 `security_blocked_*` diagnostics 阻断 click、HTML label 和危险 URL；loose 只放宽 click/HTML 的 security blocking，不放开危险 URL。发布门禁包含 docs support matrix sync，README、package 描述、release checklist 和关键生产事实不同步时直接失败。
 
 ## 边界
 

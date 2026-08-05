@@ -45,6 +45,7 @@ pub fn layout(diagram: &EventModelingAst, config: &LayoutConfig) -> LayoutResult
             shape: NodeShape::RoundedRect,
             label: format!("{} · {}", frame.id, frame.entity),
             label_lines: vec![],
+            style: None,
         }
     }).collect::<Vec<_>>();
 

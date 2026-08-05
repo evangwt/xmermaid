@@ -6,6 +6,8 @@ import {
   type DiagramType,
 } from './diagram-catalog';
 
+declare const __XMERMAID_VERSION__: string;
+
 export type { DetectedDiagramType, DiagramType } from './diagram-catalog';
 
 export type SupportStatus = 'supported' | 'partial' | 'unsupported';
@@ -23,6 +25,7 @@ export type UnsupportedFeatureId =
   | 'flowchart.entityCodeLabel'
   | 'flowchart.fontAwesomeLabel'
   | 'flowchart.invalidDirection'
+  | 'flowchart.unterminatedLabel'
   | 'flowchart.expandedShape'
   | 'flowchart.stadiumShape'
   | 'flowchart.cylinderShape'
@@ -105,7 +108,7 @@ export interface SupportReport {
 }
 
 const SUPPORT_MATRIX: SupportMatrix = {
-  version: '0.1.3',
+  version: __XMERMAID_VERSION__,
   mermaidVersion: MERMAID_COMPATIBILITY_VERSION,
   entries: [
     {
@@ -117,10 +120,10 @@ const SUPPORT_MATRIX: SupportMatrix = {
         { id: 'flowchart.basic-labels', label: 'square-bracket node labels and pipe edge labels', status: 'supported' },
         { id: 'flowchart.basic-shapes', label: 'core node shapes', status: 'partial' },
         { id: 'flowchart.subgraph-parse', label: 'subgraph parsing', status: 'partial' },
+        { id: 'flowchart.classDef', label: 'safe hexadecimal fill, stroke, and color class definitions', status: 'supported' },
+        { id: 'flowchart.class', label: 'class assignments to declared nodes', status: 'supported' },
       ],
       unsupportedSyntax: [
-        { id: 'flowchart.class', label: 'class assignments', status: 'unsupported' },
-        { id: 'flowchart.classDef', label: 'class definitions', status: 'unsupported' },
         { id: 'flowchart.style', label: 'inline style statements', status: 'unsupported' },
         { id: 'flowchart.click', label: 'click callbacks and links', status: 'unsupported' },
         { id: 'flowchart.htmlLabel', label: 'HTML labels', status: 'unsupported' },
@@ -129,6 +132,7 @@ const SUPPORT_MATRIX: SupportMatrix = {
         { id: 'flowchart.entityCodeLabel', label: 'HTML entity code labels', status: 'unsupported' },
         { id: 'flowchart.fontAwesomeLabel', label: 'FontAwesome icon labels', status: 'unsupported' },
         { id: 'flowchart.invalidDirection', label: 'invalid graph/flowchart directions', status: 'unsupported' },
+        { id: 'flowchart.unterminatedLabel', label: 'unterminated node or edge labels', status: 'unsupported' },
         { id: 'flowchart.expandedShape', label: 'expanded shape syntax', status: 'unsupported' },
         { id: 'flowchart.stadiumShape', label: 'stadium shape syntax', status: 'unsupported' },
         { id: 'flowchart.cylinderShape', label: 'cylinder/database shape syntax', status: 'unsupported' },
@@ -307,7 +311,24 @@ export function detectUnsupportedFeatures(source: string): UnsupportedFeature[] 
 
   const features: UnsupportedFeature[] = [];
   const lines = linesWithRanges(source);
+  const statementScan = scanFlowchartStatements(source);
+  const statements = statementScan.statements;
+  if (statementScan.unterminatedLabel) {
+    features.push({
+      id: 'flowchart.unterminatedLabel',
+      range: statementScan.unterminatedLabel,
+      severity: 'error',
+      message: 'Flowchart labels cannot be unterminated; add the matching closing delimiter.',
+    });
+  }
+  const statementsByLine = new Map<number, SourceLine[]>();
+  for (const statement of statements) {
+    const lineStatements = statementsByLine.get(statement.lineNumber) ?? [];
+    lineStatements.push(statement);
+    statementsByLine.set(statement.lineNumber, lineStatements);
+  }
   const subgraphIds = collectSubgraphIds(lines);
+  let previousWasClassDefinition: SourceLine | null = null;
   for (const line of lines) {
     const trimmed = line.text.trimStart();
     if (!trimmed) continue;
@@ -319,7 +340,6 @@ export function detectUnsupportedFeatures(source: string): UnsupportedFeature[] 
         'Flowchart declarations must use direction TD, TB, BT, LR, or RL.',
         'error',
       ));
-      continue;
     }
 
     if (/\b[A-Za-z0-9_]+\(\[[^\]\r\n]*\]\)/.test(line.text)) {
@@ -428,23 +448,6 @@ export function detectUnsupportedFeatures(source: string): UnsupportedFeature[] 
       ));
     }
 
-    if (/^classDef\b/.test(trimmed)) {
-      features.push(unsupportedSyntax('flowchart.classDef', line, 'Flowchart classDef statements are not supported yet.'));
-    } else if (/^class\b/.test(trimmed)) {
-      features.push(unsupportedSyntax('flowchart.class', line, 'Flowchart class assignments are not supported yet.'));
-    } else if (/^style\b/.test(trimmed)) {
-      features.push(unsupportedSyntax('flowchart.style', line, 'Flowchart style statements are not supported yet.'));
-    } else if (/^click\b/.test(trimmed)) {
-      features.push(unsupportedSyntax('flowchart.click', line, 'Flowchart click callbacks and links are not supported yet.'));
-    } else if (/^linkStyle\b/.test(trimmed)) {
-      features.push(unsupportedSyntax(
-        'flowchart.linkStyle',
-        line,
-        'Flowchart linkStyle statements are not supported yet.',
-        'error',
-      ));
-    }
-
     if (/\b[A-Za-z0-9_]+:::[A-Za-z0-9_-]+/.test(line.text)) {
       features.push(unsupportedSyntax(
         'flowchart.inlineClass',
@@ -469,9 +472,187 @@ export function detectUnsupportedFeatures(source: string): UnsupportedFeature[] 
     if (/\[[^\]\r\n]*\bfa:fa-[A-Za-z0-9-]+[^\]\r\n]*\]/.test(line.text)) {
       features.push(unsupportedSyntax('flowchart.fontAwesomeLabel', line, 'Flowchart FontAwesome icon labels are not supported yet.'));
     }
+
+    for (const statement of statementsByLine.get(line.lineNumber) ?? []) {
+      const statementTrimmed = trimFlowchartWhitespace(statement.text);
+      const classKeyword = flowchartClassStyleKeyword(statementTrimmed);
+      if (classKeyword === 'classDef') {
+        if (!isSafeFlowchartClassDefinition(statementTrimmed)) {
+          features.push(unsupportedSyntax('flowchart.classDef', statement, 'Flowchart classDef statements only support named fill, stroke, and color properties with three- or six-digit hexadecimal values.', 'error'));
+        }
+        previousWasClassDefinition = statement;
+        continue;
+      }
+      if (previousWasClassDefinition && isFlowchartClassPropertyStatement(statementTrimmed)) {
+        features.push(unsupportedSyntax('flowchart.classDef', previousWasClassDefinition, 'Flowchart class definitions require comma-separated properties.', 'error'));
+      }
+      previousWasClassDefinition = null;
+
+      if (classKeyword === 'class') {
+        if (!isSafeFlowchartClassAssignment(statementTrimmed)) {
+          features.push(unsupportedSyntax('flowchart.class', statement, 'Flowchart class assignments require comma-separated node ids and a declared class name.', 'error'));
+        }
+      } else if (/^style\b/.test(statementTrimmed)) {
+        features.push(unsupportedSyntax('flowchart.style', statement, 'Flowchart style statements are not supported yet.', 'error'));
+      } else if (/^click\b/.test(statementTrimmed)) {
+        features.push(unsupportedSyntax('flowchart.click', statement, 'Flowchart click callbacks and links are not supported yet.', 'warning'));
+      } else if (/^linkStyle\b/.test(statementTrimmed)) {
+        features.push(unsupportedSyntax('flowchart.linkStyle', statement, 'Flowchart linkStyle statements are not supported yet.', 'error'));
+      }
+    }
   }
 
   return features;
+}
+
+const FLOWCHART_IDENTIFIER_CHARACTERS = '\\p{Alphabetic}\\p{Number}_';
+const FLOWCHART_IDENTIFIER = `[${FLOWCHART_IDENTIFIER_CHARACTERS}]+`;
+const FLOWCHART_IDENTIFIER_CHARACTER = new RegExp(`[${FLOWCHART_IDENTIFIER_CHARACTERS}]`, 'u');
+const FLOWCHART_SPACE = '[ \\t]';
+const HEX_COLOR = `#${FLOWCHART_SPACE}*(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})`;
+const FLOWCHART_CLASS_RESERVED_WORDS = new Set([
+  'graph', 'flowchart', 'subgraph', 'end', 'classDef', 'class', 'style', 'click', 'direction',
+]);
+
+function isSafeFlowchartClassDefinition(source: string): boolean {
+  const match = new RegExp(`^classDef${FLOWCHART_SPACE}+(${FLOWCHART_IDENTIFIER})${FLOWCHART_SPACE}+(.+?)${FLOWCHART_SPACE}*$`, 'u').exec(source);
+  if (!match || !isFlowchartClassIdentifier(match[1])) return false;
+
+  const seen = new Set<string>();
+  const propertyPattern = new RegExp(`^(fill|stroke|color)${FLOWCHART_SPACE}*:${FLOWCHART_SPACE}*${HEX_COLOR}$`);
+  const properties = match[2].split(',').map(trimFlowchartWhitespace);
+  return properties.length > 0 && properties.every(property => {
+    const propertyMatch = propertyPattern.exec(property);
+    if (!propertyMatch || seen.has(propertyMatch[1])) return false;
+    seen.add(propertyMatch[1]);
+    return true;
+  });
+}
+
+function isSafeFlowchartClassAssignment(source: string): boolean {
+  const match = new RegExp(`^class${FLOWCHART_SPACE}+(.+?)${FLOWCHART_SPACE}+(${FLOWCHART_IDENTIFIER})${FLOWCHART_SPACE}*$`, 'u').exec(source);
+  if (!match || !isFlowchartClassIdentifier(match[2])) return false;
+  return match[1].split(',').map(trimFlowchartWhitespace).every(isFlowchartClassIdentifier);
+}
+
+function isFlowchartClassIdentifier(value: string): boolean {
+  return new RegExp(`^${FLOWCHART_IDENTIFIER}$`, 'u').test(value)
+    && !FLOWCHART_CLASS_RESERVED_WORDS.has(value);
+}
+
+function isFlowchartClassPropertyStatement(source: string): boolean {
+  return /^(?:fill|stroke|color)[ \t]*:[ \t]*\S/.test(source);
+}
+
+function trimFlowchartWhitespace(value: string): string {
+  return value.replace(/^[ \t]+|[ \t]+$/g, '');
+}
+
+function flowchartClassStyleKeyword(source: string): 'classDef' | 'class' | null {
+  if (startsWithFlowchartKeyword(source, 'classDef')) return 'classDef';
+  if (startsWithFlowchartKeyword(source, 'class')) return 'class';
+  return null;
+}
+
+function startsWithFlowchartKeyword(source: string, keyword: string): boolean {
+  if (!source.startsWith(keyword)) return false;
+  const next = source[keyword.length];
+  return next === undefined || !FLOWCHART_IDENTIFIER_CHARACTER.test(next);
+}
+
+interface FlowchartStatementScan {
+  statements: SourceLine[];
+  unterminatedLabel: SupportSourceRange | null;
+}
+
+function scanFlowchartStatements(source: string): FlowchartStatementScan {
+  const statements: SourceLine[] = [];
+  let startOffset = 0;
+  let lineStartOffset = 0;
+  let lineNumber = 1;
+  let statementLine = 1;
+  let labelCloser: string | null = null;
+  let labelRange: SupportSourceRange | null = null;
+  let inComment = false;
+
+  const push = (endOffset: number) => {
+    const text = source.slice(startOffset, endOffset);
+    if (!text.trim()) return;
+    statements.push({ text, startOffset, endOffset, lineNumber: statementLine });
+  };
+
+  for (let index = 0; index < source.length; index += 1) {
+    const character = source[index];
+    if (inComment) {
+      if (character === '\n' || character === '\r') {
+        inComment = false;
+        if (character === '\r' && source[index + 1] === '\n') index += 1;
+        startOffset = index + 1;
+        lineStartOffset = startOffset;
+        lineNumber += 1;
+        statementLine = lineNumber;
+      }
+      continue;
+    }
+    if (labelCloser === null && character === '%' && source[index + 1] === '%') {
+      push(index);
+      index += 1;
+      inComment = true;
+      continue;
+    }
+    let closer: string | null = null;
+    if (labelCloser === null) {
+      if (character === '[') closer = ']';
+      else if (character === '(') closer = ')';
+      else if (character === '{') closer = '}';
+      else if (character === '>' && startsAsymmetricFlowchartLabel(source, index)) closer = ']';
+      else if (character === '|') closer = '|';
+    }
+    if (closer !== null) {
+      labelCloser = closer;
+      const startColumn = index - lineStartOffset + 1;
+      labelRange = {
+        startOffset: index,
+        endOffset: index + 1,
+        startLine: lineNumber,
+        startColumn,
+        endLine: lineNumber,
+        endColumn: startColumn + 1,
+      };
+    } else if (labelCloser === character) {
+      labelCloser = null;
+      labelRange = null;
+    } else if (character === ';' && labelCloser === null) {
+      push(index);
+      startOffset = index + 1;
+      statementLine = lineNumber;
+    } else if (character === '\n' || character === '\r') {
+      if (labelCloser === null) push(index);
+      if (character === '\r' && source[index + 1] === '\n') index += 1;
+      lineNumber += 1;
+      lineStartOffset = index + 1;
+      if (labelCloser === null) {
+        startOffset = lineStartOffset;
+        statementLine = lineNumber;
+      }
+    }
+  }
+  if (!inComment) push(source.length);
+  return { statements, unterminatedLabel: labelRange };
+}
+
+export function topLevelFlowchartClassStyleRange(source: string): number | null {
+  for (const statement of scanFlowchartStatements(source).statements) {
+    const leading = statement.text.search(/[^ \t]/);
+    if (leading >= 0 && flowchartClassStyleKeyword(statement.text.slice(leading)) !== null) {
+      return statement.startOffset + leading;
+    }
+  }
+  return null;
+}
+
+function startsAsymmetricFlowchartLabel(source: string, index: number): boolean {
+  return index === 0 || !/[-.=~>]/.test(source[index - 1]);
 }
 
 function detectUnsupportedSequenceFeatures(source: string): UnsupportedFeature[] {

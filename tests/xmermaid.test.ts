@@ -108,16 +108,7 @@ describe('XMermaid', () => {
     ].join('\n'));
 
     expect(result.svg).toBeInstanceOf(SVGSVGElement);
-    expect(result.diagnostics).toContainEqual(expect.objectContaining({
-      code: 'unsupported_syntax',
-      severity: 'warning',
-      featureId: 'flowchart.classDef',
-      range: expect.objectContaining({
-        startLine: 3,
-        startColumn: 3,
-        endLine: 3,
-      }),
-    }));
+    expect(result.diagnostics).toEqual([]);
   });
 
   it('rejects error-severity unsupported flowchart syntax before WASM render', async () => {
@@ -314,6 +305,14 @@ describe('XMermaid', () => {
     expect(looseHtml.diagnostics).not.toContainEqual(expect.objectContaining({
       code: 'security_blocked_html',
     }));
+
+    const looseClick = await xm.renderToSVGElement('graph TD\n  A-->B\n  click A "https://example.com"', { securityLevel: 'loose' });
+    expect(looseClick.diagnostics).toContainEqual(expect.objectContaining({
+      code: 'unsupported_syntax',
+      featureId: 'flowchart.click',
+      severity: 'warning',
+    }));
+    expect(looseClick.diagnostics).not.toContainEqual(expect.objectContaining({ code: 'security_blocked_click' }));
 
     await expect(xm.renderToSVGElement('graph TD\n  A-->B\n  click A javascript:alert(1)', { securityLevel: 'loose' }))
       .rejects.toMatchObject<XMermaidError>({

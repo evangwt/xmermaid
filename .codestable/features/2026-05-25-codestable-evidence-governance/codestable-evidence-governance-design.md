@@ -117,7 +117,7 @@ flowchart TD
 ##### 评估
 
 - 文件级 — `.gitignore`：当前只有 5 行，增加分组注释和 ignore 规则即可，不需要拆分。
-- 目录级 — `docs/`：已有 `plans/` 和 `superpowers/`，新增一个顶层治理文档不会形成拥挤目录。
+- 目录级 — `docs/`：已有 `plans/` 和顶层治理文档，新增一个顶层治理文档不会形成拥挤目录。
 - 目录级 — `tests/`：已有多个 Vitest 文件，本次新增一个专用 repo-hygiene 测试，匹配现有测试组织方式。
 - compound convention：`.codestable/compound` 无相关 decision/trick/learning 文档。
 

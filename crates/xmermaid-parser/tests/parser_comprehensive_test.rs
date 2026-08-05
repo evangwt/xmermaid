@@ -1,5 +1,29 @@
 use xmermaid_parser::{parse, DiagramAst, EdgeStyle, FlowDirection, NodeShape};
 
+const FLOWCHART_CLASS_CONTRACT: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../tests/fixtures/flowchart-class-contract.json"
+));
+
+#[test]
+fn test_shared_flowchart_class_contract() {
+    let cases: serde_json::Value = serde_json::from_str(FLOWCHART_CLASS_CONTRACT).unwrap();
+
+    for case in cases.as_array().unwrap() {
+        let name = case["name"].as_str().unwrap();
+        let source = case["lines"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|line| line.as_str().unwrap())
+            .collect::<Vec<_>>()
+            .join("\n");
+        let valid = case["valid"].as_bool().unwrap();
+
+        assert_eq!(parse(&source).is_ok(), valid, "contract case: {name}");
+    }
+}
+
 // ─── Direction variants ──────────────────────────────────────────
 
 #[test]
@@ -378,6 +402,20 @@ fn test_parse_edge_label_pipe() {
 }
 
 #[test]
+fn test_parse_edge_label_pipe_preserves_punctuation() {
+    let ast = parse("graph TD\n  A-->|Issue #123: high,urgent; classDef hot fill:#f00|B").unwrap();
+    match ast {
+        DiagramAst::Flowchart(fc) => {
+            assert_eq!(
+                fc.edges[0].label,
+                Some("Issue #123: high,urgent; classDef hot fill:#f00".to_string())
+            );
+        }
+        _ => panic!("Expected Flowchart"),
+    }
+}
+
+#[test]
 fn test_parse_subgraph() {
     let ast = parse("graph TD\n  subgraph sg\n  A-->B\n  end").unwrap();
     match ast {
@@ -422,7 +460,10 @@ fn test_falsify_node_classes_always_empty() {
     match ast {
         DiagramAst::Flowchart(fc) => {
             for node in &fc.nodes {
-                assert!(node.classes.is_empty(), "Node classes should be empty in MVP");
+                assert!(
+                    node.classes.is_empty(),
+                    "Node classes should be empty in MVP"
+                );
             }
         }
         _ => panic!("Expected Flowchart"),
@@ -449,26 +490,26 @@ fn test_falsify_sequence_diagram_not_supported() {
 }
 
 #[test]
-fn test_falsify_unclosed_bracket_consumes_rest() {
-    // KNOWN LIMITATION: lexer's InLabel state reads until matching bracket
-    // A[unclosed\n  B-->C — the label consumes everything until ] or EOF
-    let result = parse("graph TD\n  A[unclosed\n  B-->C");
-    // Parse succeeds but label contains the rest of the input
-    assert!(result.is_ok(), "Known limitation: unclosed bracket consumes rest");
-    let ast = result.unwrap();
-    match ast {
-        DiagramAst::Flowchart(fc) => {
-            // Only 1 node: A with a label containing the rest of the input
-            assert_eq!(fc.nodes.len(), 1);
-            assert_eq!(fc.nodes[0].id, "A");
-            // Label should contain the rest (unclosed label)
-            assert!(fc.nodes[0].label.is_some());
-            let label = fc.nodes[0].label.as_ref().unwrap();
-            assert!(label.contains("unclosed"), "Label should contain 'unclosed'");
-            assert!(label.contains("B-->C"), "Label should have consumed B-->C");
-        }
-        _ => panic!("Expected Flowchart"),
+fn test_falsify_unclosed_flowchart_labels_are_rejected() {
+    for statement in [
+        "A[unterminated",
+        "A(unterminated",
+        "A{unterminated",
+        "A>unterminated",
+        ">unterminated",
+        "A-->|unterminated",
+    ] {
+        let source = format!("graph TD\n  {}", statement);
+        assert!(
+            parse(&source).is_err(),
+            "expected rejection for {statement}"
+        );
     }
+}
+
+#[test]
+fn test_closed_multiline_flowchart_labels_remain_valid() {
+    assert!(parse("graph TD\n  A[First line\n  second line]\n  A-->B").is_ok());
 }
 
 #[test]

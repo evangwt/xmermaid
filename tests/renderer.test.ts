@@ -72,6 +72,29 @@ function renderedArrowTip(svg: SVGSVGElement): string {
 }
 
 describe('SVGRenderer', () => {
+  it('renders only validated Flowchart class colors', () => {
+    const layout = createTestLayout();
+    layout.nodes[0] = {
+      ...layout.nodes[0],
+      style: { fill: '#ff0000', stroke: '#990000', color: '#ffffff' },
+    } as LayoutNode;
+    layout.nodes[1] = {
+      ...layout.nodes[1],
+      style: { fill: 'url(javascript:alert(1))', stroke: '#009900', color: '#000000' },
+    } as LayoutNode;
+
+    const svg = new SVGRenderer().render(layout);
+    const [safeShape, unsafeShape] = Array.from(svg.querySelectorAll<SVGElement>('.node > :not(title):not(text)'));
+    const [safeText, unsafeText] = Array.from(svg.querySelectorAll<SVGTextElement>('.node > text'));
+
+    expect(safeShape.getAttribute('fill')).toBe('#ff0000');
+    expect(safeShape.getAttribute('stroke')).toBe('#990000');
+    expect(safeText.getAttribute('fill')).toBe('#ffffff');
+    expect(unsafeShape.getAttribute('fill')).toBe(DEFAULT_THEME.colors.nodeFill);
+    expect(unsafeShape.getAttribute('stroke')).toBe('#009900');
+    expect(unsafeText.getAttribute('fill')).toBe('#000000');
+  });
+
   it('renders swimlane backgrounds beneath their native nodes and edges', () => {
     const layout = {
       nodes: [
