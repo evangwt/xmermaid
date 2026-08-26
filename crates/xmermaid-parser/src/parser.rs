@@ -2359,6 +2359,10 @@ fn split_sequence_participant_alias(declaration: &str) -> (&str, &str) {
     if let Some(alias_start) = lowercase.find(" as ") {
         let id = declaration[..alias_start].trim();
         let label = declaration[alias_start + 4..].trim();
+        let label = label
+            .strip_prefix('"')
+            .and_then(|rest| rest.strip_suffix('"'))
+            .unwrap_or(label);
         return (id, label);
     }
     let declaration = declaration.trim();

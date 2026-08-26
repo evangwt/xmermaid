@@ -524,3 +524,19 @@ fn test_falsify_min_length_always_one() {
         _ => panic!("Expected Flowchart"),
     }
 }
+
+#[test]
+fn sequence_participant_alias_strips_surrounding_quotes() {
+    let ast = parse("sequenceDiagram\n  participant zh as \"中文参与者\"\n  A->>B: hi").expect("parse ok");
+    match ast {
+        DiagramAst::Sequence(seq) => {
+            let participant = seq
+                .participants
+                .iter()
+                .find(|participant| participant.id == "zh")
+                .expect("participant exists");
+            assert_eq!(participant.label, "中文参与者");
+        }
+        _ => panic!("Expected Sequence"),
+    }
+}
