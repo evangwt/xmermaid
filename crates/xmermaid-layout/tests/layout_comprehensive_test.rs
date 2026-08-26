@@ -367,3 +367,27 @@ fn pos(layout: &xmermaid_layout::LayoutResult, id: &str) -> (f64, f64) {
     let node = layout.nodes.iter().find(|n| n.id == id).unwrap();
     (node.center.x, node.center.y)
 }
+
+#[test]
+fn test_journey_uses_multiline_labels_not_literal_backslash_n() {
+    let ast = parse("journey\n  title T\n  section S\n    Task: 5: Alice").unwrap();
+    let layout = compute_layout(&ast, &LayoutConfig::default());
+    let node = layout.nodes.iter().find(|node| node.id == "journey-0").expect("journey node");
+    assert_eq!(node.label_lines, vec!["S · Task".to_string(), "5/5".to_string()]);
+}
+
+#[test]
+fn test_timeline_uses_multiline_labels_not_literal_backslash_n() {
+    let ast = parse("timeline\n  title T\n  2024 : First release\n       : Team grows").unwrap();
+    let layout = compute_layout(&ast, &LayoutConfig::default());
+    let node = layout.nodes.iter().find(|node| node.id == "timeline-0").expect("timeline node");
+    assert_eq!(node.label_lines, vec!["2024".to_string(), "First release · Team grows".to_string()]);
+}
+
+#[test]
+fn test_c4_element_uses_multiline_labels_not_literal_backslash_n() {
+    let ast = parse("C4Context\n  SystemDb(db, \"DB\", \"store\")\n  System(a, \"A\")\n  Rel(a, db, \"reads\")").unwrap();
+    let layout = compute_layout(&ast, &LayoutConfig::default());
+    let node = layout.nodes.iter().find(|node| node.id == "db").expect("c4 node");
+    assert_eq!(node.label_lines, vec!["DB".to_string(), "store".to_string()]);
+}
