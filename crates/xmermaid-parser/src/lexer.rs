@@ -80,7 +80,11 @@ impl<'a> Lexer<'a> {
             }
             label.push(self.advance().unwrap());
         }
-        label.trim().to_string()
+        let label = label.trim().to_string();
+        if label.len() >= 2 && label.starts_with('"') && label.ends_with('"') {
+            return label[1..label.len() - 1].trim().to_string();
+        }
+        label
     }
 
     fn skip_comment(&mut self) {

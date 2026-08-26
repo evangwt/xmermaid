@@ -465,7 +465,7 @@ export function detectUnsupportedFeatures(source: string): UnsupportedFeature[] 
       features.push(unsupportedSyntax('flowchart.markdownLabel', line, 'Flowchart Markdown labels are not supported yet.'));
     }
     if (!/`[^`]+`/.test(line.text) && /\[[^\]\r\n]*"[^"\]\r\n]+"[^\]\r\n]*\]/.test(line.text)) {
-      features.push(unsupportedSyntax('flowchart.quotedLabel', line, 'Flowchart quoted labels are not supported yet.'));
+      features.push(unsupportedSyntax('flowchart.quotedLabel', line, 'Flowchart quoted label delimiters are stripped; contents render literally.'));
     }
     if (/\[[^\]\r\n]*#\d+;[^\]\r\n]*\]/.test(line.text)) {
       features.push(unsupportedSyntax('flowchart.entityCodeLabel', line, 'Flowchart entity-code labels are not supported yet.'));

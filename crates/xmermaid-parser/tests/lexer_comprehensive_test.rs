@@ -360,3 +360,38 @@ fn test_lexer_multiple_arrows_same_line() {
     assert_eq!(tokens[3].ty, TokenType::Arrow);
     assert_eq!(tokens[3].value, "-->");
 }
+
+// ─── Quote delimiter stripping ────────────────────────────────────
+
+#[test]
+fn test_label_content_strips_one_layer_of_surrounding_quotes() {
+    let lexer = Lexer::new("flowchart TD\n  A[\"hi\"] --> B");
+    let tokens: Vec<Token> = lexer.collect();
+    let label = tokens
+        .iter()
+        .find(|token| token.ty == TokenType::Label)
+        .expect("label token");
+    assert_eq!(label.value, "hi");
+}
+
+#[test]
+fn test_label_content_keeps_inner_escaped_quotes() {
+    let lexer = Lexer::new("flowchart TD\n  A[\"say \\\"hi\\\"\"] --> B");
+    let tokens: Vec<Token> = lexer.collect();
+    let label = tokens
+        .iter()
+        .find(|token| token.ty == TokenType::Label)
+        .expect("label token");
+    assert_eq!(label.value, "say \\\"hi\\\"");
+}
+
+#[test]
+fn test_unquoted_label_unchanged() {
+    let lexer = Lexer::new("flowchart TD\n  A[plain label] --> B");
+    let tokens: Vec<Token> = lexer.collect();
+    let label = tokens
+        .iter()
+        .find(|token| token.ty == TokenType::Label)
+        .expect("label token");
+    assert_eq!(label.value, "plain label");
+}

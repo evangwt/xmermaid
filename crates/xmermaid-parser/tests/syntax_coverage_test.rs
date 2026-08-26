@@ -646,10 +646,10 @@ fn test_label_trimmed() {
 
 #[test]
 fn test_falsify_unicode_quotes_in_label() {
-    // A["Unicode"] — " characters are part of the label text in InLabel state
+    // A["Unicode"] — surrounding quote delimiters are stripped in InLabel state
     let fc = fc("graph TD\n  A[\"Unicode\"]");
-    // The " characters are part of the label
-    assert!(fc.nodes[0].label.as_ref().unwrap().contains('"'));
+    // The " delimiters are stripped; inner text is preserved literally
+    assert_eq!(fc.nodes[0].label.as_ref().unwrap(), "Unicode");
 }
 
 #[test]
