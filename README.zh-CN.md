@@ -86,13 +86,33 @@ xmermaid 提供 `LIGHT_THEME` 和 `DARK_THEME` 主题预设，同时保留 `DEFA
 
 ## 当前支持范围
 
-xmermaid 专注于 Mermaid 流程图的浏览器端 SVG 渲染，支持基础 `graph` / `flowchart` 声明、基础节点和有向边、常见标签、核心形状与部分子图解析。它还为 Sequence、Class、State、ER、User Journey、Gantt、Pie、Mindmap、Timeline、Requirement、GitGraph、C4、ZenUML、XY Chart、Sankey、Quadrant、Architecture、Block、Kanban、Treemap、Radar、Packet、Venn、Swimlane、Ishikawa、Event Modeling、Wardley Map 和 Cynefin 提供了精心限定的原生子集。
+xmermaid 专注于 Mermaid 流程图的浏览器端 SVG 渲染，提供较为完整的原生流程图能力：`graph` / `flowchart` 声明与全部方向、链式与 `&` 组合语句（`A & B --> C & D`）、管道与内联边标签（`A -- text --> B`、`A -. text .-> B`、`A == text ==> B`）、圆形（`o`）、交叉（`x`）与双向（`<-->`、`o--o`、`x--x`）边端点、通过额外短横线/等号实现的延长边（`A---->B`），以及完整的核心形状集——矩形、圆角、体育场 `([t])`、圆柱/数据库 `[(t)]`、圆形、双圆形、菱形、六边形、平行四边形、梯形、子例程与非对称。安全的十六进制 `classDef`、`class`、`style` 语句可以为节点着色，FontAwesome 4 标签以 SVG 图标嵌入。
+
+子图容器会渲染为带标签的容器框，边可以连接到容器 ID。安全的 `classDef`、`class`、`style`、`linkStyle` 语句接受十六进制与 CSS 命名颜色以及数值 `stroke-width` / `stroke-dasharray`；内联 `A:::className` 分配、带连字符的节点 ID、实体编码标签解码（`#9829;`）以及 `A@{ shape: stadium, label: "..." }` 扩展形状均可渲染。FontAwesome 4 标签以 SVG 图标嵌入。
+
+它还为 Sequence、Class、State、ER、User Journey、Gantt、Pie、Mindmap、Timeline、Requirement、GitGraph、C4、ZenUML、XY Chart、Sankey、Quadrant、Architecture、Block、Kanban、Treemap、Radar、Packet、Venn、Swimlane、Ishikawa、Event Modeling、Wardley Map 和 Cynefin 提供了精心限定的原生子集。
+
+所有图表族都接受 `accTitle` / `accDescr` 指令与 `---` frontmatter，并作为 SVG 的可访问名称与描述呈现。
 
 这不是完整的 Mermaid 兼容实现。其余 Mermaid 图表族会在 `getSupportMatrix()` 中明确标记为 `planned`，并在 WASM 渲染前拒绝。请使用 `getSupportMatrix()` 或 `analyzeSupport(source)` 查询当前生产支持边界。
 
-流程图支持 `classDef <名称>` 和 `class <节点 ID>[,<节点 ID>...] <名称>`。定义仅可包含 `fill`、`stroke` 和 `color`，且颜色必须是三位或六位十六进制颜色。一个节点分配多个类时按字段级联，后分配的值优先。在序列化能够无损保留这些声明之前，包含 `classDef` 或 `class` 的源码在可视化编辑中保持只读。
+`sequenceDiagram` 为部分支持：显式 `participant` / `actor` 声明（含 `as` 别名）、实线/虚线/交叉（`-x`、`--x`）与异步开放箭头（`-)`、`--)`) 消息、双向 `<->` 链接、`create` / `destroy` 生命周期（销毁的生命寿命以 ✕ 截止）、`box` 参与者分组、带起始与步进的 `autonumber`、`activate` / `deactivate`（含 `+` / `-` 后缀）、单行 `Note left/right/over`、`rgb()` 或十六进制颜色的 `rect` 框，以及嵌套的 `loop`、`alt` / `else`、`opt`、`par` / `and`、`critical` / `option`、`break` 块。多行备注尚不支持。
 
-当前不支持或仅部分支持的流程图语法包括无效方向、`style`、`click`、`linkStyle`、HTML 或 Markdown 标签、引号标签、实体编码标签、FontAwesome 图标标签、扩展形状、粗线或延长边、双向/圆形/交叉边端点、内联边标签、边 ID、连接到子图 ID 的边、带连字符的节点 ID 和内联类分配。
+`classDiagram` 为部分支持：完整关系语法原生渲染——继承（`<|--`、`--|>`）、组合（`*--`）、聚合（`o--`）、关联（`-->`、`<--`）、连接（`--`）、依赖（`..>`、`..`）与实现（`..|>`、`<|..`），支持关系标签与带引号的基数。类成员块（`class Foo { ... }`）、成员简写（`Foo : +int size`）与分类注解（`<<interface>>`）会渲染在类框内。命名空间与样式指令尚不支持。
+
+`stateDiagram` 为部分支持：命名状态、带标签转换、以圆点渲染的起止 `[*]` 伪状态、`<<choice>>` 菱形与 `<<fork>>`/`<<join>>` 条形、状态别名、渲染为附加备注框的左右备注，以及内部转换被扁平化为带标签容器的复合状态块。并发区可解析但渲染为单一合并图，并以警告诊断提示。
+
+`erDiagram` 为部分支持：完整的鸦脚基数语法（左侧 `|o`、`||`、`}o`、`}|`；右侧 `o|`、`||`、`o{`、`|{`）以原生鸦脚图形在两端渲染，配合标识（`--`）与非标识（`..`）连接；实体属性块连同键标记（PK/FK/UK）与注释渲染在实体框内。
+
+`gantt` 为部分支持：基于 `YYYY`、`MM`、`DD` 组合的 `dateFormat` 指令、ISO 开始日期、`Nd` / `Nw` / `Nh` 时长、显式结束日期、以颜色渲染的 `done` / `active` / `crit` 任务状态、以菱形渲染的里程碑、`after <task...>` 依赖（多重锚点在全部完成后开始），以及 `excludes weekends` / 星期 / 日期指令——时长会按工作日历展开。unix `dateFormat` 尚不支持。
+
+`pie` 为部分支持：数值扇区、标题与 `showData` 数值表格渲染为饼图；自定义主题尚不支持。
+
+`mindmap` 为部分支持：带方括号、圆角、圆形、体育场、圆柱、六边形与非对称形状的缩进层级，`::icon(fa fa-*)` 声明会渲染为 FontAwesome 图标（未知图标名会提前报错）。Markdown 字符串尚不支持。
+
+流程图支持 `classDef <名称>`、`class <节点 ID>[,<节点 ID>...] <名称>` 与 `style <节点 ID>`。定义仅可包含 `fill`、`stroke` 和 `color`，且颜色必须是三位或六位十六进制颜色。一个节点应用多个类或样式时按字段级联，后应用的值优先。在序列化能够无损保留这些声明之前，包含 `classDef` 或 `class` 的源码在可视化编辑中保持只读。
+
+当前不支持或仅部分支持的流程图语法包括无效方向、不安全的 `style` 或 `linkStyle` 属性值、`click`、HTML 或 Markdown 标签、边 ID，以及子图内的 `direction` 语句（会解析但布局忽略）。
 
 ## 诊断
 
