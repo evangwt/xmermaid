@@ -302,6 +302,7 @@ fn test_sequence_without_messages_positions_participants() {
         }],
         messages: vec![],
         events: vec![],
+        boxes: Vec::new(),
     });
     let config = config_for_ast(&ast);
     let result = compute_layout(&ast, &config);

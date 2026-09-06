@@ -34,7 +34,7 @@ pub fn layout(diagram: &IshikawaAst, config: &LayoutConfig) -> LayoutResult {
     }
 
     let effect_bounds = Bounds { x: spine_end.x + 22.0, y: spine_end.y - 31.0, width: 128.0, height: 62.0 };
-    LayoutResult {
+    LayoutResult { pie_show_data: false, pie_title: None, subgraph_boxes: Vec::new(),
         nodes: vec![], edges: vec![], dimensions: Dimensions { width: WIDTH + config.padding * 2.0, height: HEIGHT + config.padding * 2.0 },
         pie_slices: vec![], xy_chart: None, sankey: None, quadrant_chart: None, block_diagram: None, kanban_board: None,
         treemap: None, radar: None, packet: None, venn: None, swimlanes: None, sequence: None, wardley: None, cynefin: None,

@@ -39,6 +39,7 @@ pub fn layout(diagram: &EventModelingAst, config: &LayoutConfig) -> LayoutResult
             y: lane.bounds.y + HEADER_HEIGHT + (LANE_HEIGHT - HEADER_HEIGHT) / 2.0,
         };
         LayoutNode {
+           hidden: false,
             id: format!("frame-{}", frame.id),
             center,
             bounds: Bounds::from_center(center, config.node_width, config.node_height),
@@ -61,10 +62,14 @@ pub fn layout(diagram: &EventModelingAst, config: &LayoutConfig) -> LayoutResult
             label: None, label_lines: None, label_position: None, style: EdgeStyle::Arrow,
             source_boundary: None, target_boundary: None, path_end: None, final_tangent_angle: None,
             label_anchor: None, geometry_version: 1,
-        })
+start_marker: None, end_marker: None,
+            stroke_color: None,
+            stroke_width: None,
+            stroke_dasharray: None,
+})
     }).collect();
 
-    LayoutResult {
+    LayoutResult { pie_show_data: false, pie_title: None, subgraph_boxes: Vec::new(),
         nodes,
         edges,
         dimensions: Dimensions { width: lane_width + config.padding * 2.0, height: LANES.len() as f64 * LANE_HEIGHT + (LANES.len() - 1) as f64 * LANE_GAP + config.padding * 2.0 },

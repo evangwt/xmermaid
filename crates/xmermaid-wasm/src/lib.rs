@@ -91,8 +91,24 @@ pub fn render_with_config(input: &str, config_json: Option<String>) -> Result<Js
     let config = build_config(&ast, config_json)?;
     let result = xmermaid_layout::compute_layout(&ast, &config);
 
-    serde_wasm_bindgen::to_value(&result)
-        .map_err(|e| JsValue::from_str(&format!("Serialization error: {}", e)))
+    let mut value = serde_wasm_bindgen::to_value(&result)
+        .map_err(|e| JsValue::from_str(&format!("Serialization error: {}", e)))?;
+    if let Some(metadata) = xmermaid_parser::take_accessibility_metadata() {
+        if let Ok(object) = value.clone().dyn_into::<js_sys::Object>() {
+            let set = |key: &str, val: &str| {
+                let key = JsValue::from_str(key);
+                let _ = js_sys::Reflect::set(&object, &key, &JsValue::from_str(val));
+            };
+            if let Some(title) = &metadata.title {
+                set("acc_title", title);
+            }
+            if let Some(description) = &metadata.description {
+                set("acc_descr", description);
+            }
+            value = object.into();
+        }
+    }
+    Ok(value)
 }
 
 /// Return the default LayoutConfig as a JSON string.

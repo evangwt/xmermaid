@@ -18,7 +18,7 @@ pub fn layout(chart: &TreemapAst, config: &LayoutConfig) -> LayoutResult {
         height: CHART_HEIGHT,
     };
     layout_children(chart, &roots, bounds, 0, &mut result);
-    LayoutResult {
+    LayoutResult { pie_show_data: false, pie_title: None, subgraph_boxes: Vec::new(),
         nodes: vec![],
         edges: vec![],
         dimensions: Dimensions { width: CHART_WIDTH + config.padding * 2.0, height: CHART_HEIGHT + config.padding * 2.0 },

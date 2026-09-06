@@ -89,9 +89,15 @@ pub enum NodeShape {
     Stadium,
     Diamond,
     Circle,
+    DoubleCircle,
     Hexagon,
     Parallelogram,
     Trapezoid,
+    Asymmetric,
+    Subroutine,
+    Cylinder,
+    /// Fork/join synchronization bar.
+    Bar,
 }
 
 /// A positioned node in the layout result
@@ -106,6 +112,18 @@ pub struct LayoutNode {
     pub label_lines: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub style: Option<NodeStyle>,
+    /// Hidden nodes participate in edge geometry but are never drawn; used
+    /// for subgraph container endpoints.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub hidden: bool,
+}
+
+/// A rendered subgraph container box.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LayoutSubgraphBox {
+    pub id: String,
+    pub label: String,
+    pub bounds: Bounds,
 }
 
 /// Style of an edge, forwarded from AST
@@ -156,6 +174,16 @@ pub struct LayoutEdge {
     pub label_lines: Option<Vec<String>>,
     pub label_position: Option<Point>,
     pub style: EdgeStyle,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stroke_color: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stroke_width: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stroke_dasharray: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub start_marker: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub end_marker: Option<String>,
     pub source_boundary: Option<Point>,
     pub target_boundary: Option<Point>,
     pub path_end: Option<Point>,
@@ -355,6 +383,19 @@ pub struct SequenceLifelineLayout {
     pub participant: String,
     pub start: Point,
     pub end: Point,
+    /// Terminal ✕ position when the participant is destroyed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub destroy_y: Option<f64>,
+}
+
+/// A `box ... end` participant group frame.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SequenceBoxLayout {
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub label: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color: Option<String>,
+    pub bounds: Bounds,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SequenceMessageLayout {
@@ -372,6 +413,8 @@ pub struct SequenceMessageLayout {
     pub number: Option<u32>,
     #[serde(default)]
     pub end_marker: String,
+    #[serde(default)]
+    pub bidirectional: bool,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -416,6 +459,8 @@ pub struct SequenceLayout {
     pub activations: Vec<SequenceActivationLayout>,
     pub notes: Vec<SequenceNoteLayout>,
     pub blocks: Vec<SequenceBlockLayout>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub boxes: Vec<SequenceBoxLayout>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IshikawaCauseLayout {
@@ -479,11 +524,18 @@ pub struct CynefinLayout {
 /// Complete layout result
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LayoutResult {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub subgraph_boxes: Vec<LayoutSubgraphBox>,
     pub nodes: Vec<LayoutNode>,
     pub edges: Vec<LayoutEdge>,
     pub dimensions: Dimensions,
     #[serde(default)]
     pub pie_slices: Vec<PieSlice>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pie_title: Option<String>,
+    /// Render the slice value table next to the pie.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub pie_show_data: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub xy_chart: Option<XyChartLayout>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

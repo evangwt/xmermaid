@@ -11,9 +11,9 @@
 
 use crate::types::{
     Bounds, Dimensions, FlowDirection, LayoutConfig, LayoutEdge, LayoutNode, LayoutResult,
-    NodeShape, Point,
+    LayoutSubgraphBox, NodeShape, Point,
 };
-use xmermaid_parser::ast::{EdgeStyle as ParserEdgeStyle, FlowchartAst, NodeShape as ParserNodeShape};
+use xmermaid_parser::ast::{EdgeMarker as ParserEdgeMarker,EdgeStyle as ParserEdgeStyle, FlowchartAst, NodeShape as ParserNodeShape};
 
 const GEOMETRY_VERSION: u8 = 2;
 const DEFAULT_NODE_FONT_SIZE: f64 = 14.0;
@@ -34,15 +34,31 @@ fn map_shape(parser_shape: &ParserNodeShape) -> NodeShape {
         ParserNodeShape::Rect => NodeShape::Rectangle,
         ParserNodeShape::Rounded => NodeShape::RoundedRect,
         ParserNodeShape::Circle => NodeShape::Circle,
-        ParserNodeShape::DoubleCircle => NodeShape::Circle,     // simplify
+        ParserNodeShape::DoubleCircle => NodeShape::DoubleCircle,
         ParserNodeShape::Diamond => NodeShape::Diamond,
         ParserNodeShape::Hexagon => NodeShape::Hexagon,
         ParserNodeShape::Stadium => NodeShape::Stadium,
-        ParserNodeShape::Subroutine => NodeShape::Rectangle,     // simplify
+        ParserNodeShape::Subroutine => NodeShape::Subroutine,
         ParserNodeShape::Parallelogram => NodeShape::Parallelogram,
         ParserNodeShape::Trapezoid => NodeShape::Trapezoid,
-        ParserNodeShape::Asymmetric => NodeShape::Rectangle,     // simplify
-        ParserNodeShape::Cylinder => NodeShape::Rectangle,       // simplify
+        ParserNodeShape::Asymmetric => NodeShape::Asymmetric,
+        ParserNodeShape::Cylinder => NodeShape::Cylinder,
+        ParserNodeShape::Bar => NodeShape::Bar,
+    }
+}
+
+/// Serialize an AST edge marker for the layout payload.
+fn map_edge_marker(marker: &ParserEdgeMarker) -> String {
+    match marker {
+        ParserEdgeMarker::Arrow => "arrow".to_string(),
+        ParserEdgeMarker::Triangle => "triangle".to_string(),
+        ParserEdgeMarker::Circle => "circle".to_string(),
+        ParserEdgeMarker::Cross => "cross".to_string(),
+        ParserEdgeMarker::Diamond => "diamond".to_string(),
+        ParserEdgeMarker::CrowZeroOne => "crow_zero_one".to_string(),
+        ParserEdgeMarker::CrowOne => "crow_one".to_string(),
+        ParserEdgeMarker::CrowMany => "crow_many".to_string(),
+        ParserEdgeMarker::CrowOneOrMore => "crow_one_or_more".to_string(),
     }
 }
 
@@ -198,7 +214,7 @@ fn boundary_point(center: Point, toward: Point, bounds: Bounds, shape: NodeShape
     let height = bounds.height;
 
     match shape {
-        NodeShape::Circle => circle_boundary_point(center, toward, width.min(height) / 2.0),
+        NodeShape::Circle | NodeShape::DoubleCircle => circle_boundary_point(center, toward, width.min(height) / 2.0),
         NodeShape::Diamond => polygon_boundary_point(
             center,
             toward,
@@ -251,8 +267,28 @@ fn boundary_point(center: Point, toward: Point, bounds: Bounds, shape: NodeShape
             )
         }
         NodeShape::Stadium => stadium_boundary_point(center, toward, bounds),
+        NodeShape::Cylinder => cylinder_boundary_point(center, toward, bounds),
+        NodeShape::Asymmetric | NodeShape::Subroutine | NodeShape::Bar => rectangle_boundary_point(center, toward, bounds),
         NodeShape::Rectangle | NodeShape::RoundedRect => rectangle_boundary_point(center, toward, bounds),
     }
+}
+
+/// Cylinder/database boundary: ellipses cap top and bottom; side hits meet the
+/// rectangle body.
+fn cylinder_boundary_point(center: Point, toward: Point, bounds: Bounds) -> Point {
+    let cap = bounds.height * 0.18;
+    let dx = toward.x - center.x;
+    let dy = toward.y - center.y;
+    if dy.abs() > 0.001 && dy.abs() / dy.hypot(dx) > 0.5 {
+        let mut point = rectangle_boundary_point(center, toward, bounds);
+        if dy < 0.0 {
+            point.y = bounds.y + cap / 2.0;
+        } else {
+            point.y = bounds.y + bounds.height - cap / 2.0;
+        }
+        return point;
+    }
+    rectangle_boundary_point(center, toward, bounds)
 }
 
 fn effective_label(node: &xmermaid_parser::ast::Node) -> String {
@@ -489,7 +525,8 @@ pub fn layout(fc: &FlowchartAst, config: &LayoutConfig) -> LayoutResult {
     let is_horizontal = matches!(config.direction, FlowDirection::LR | FlowDirection::RL);
 
     if fc.nodes.is_empty() {
-        return LayoutResult {
+        return LayoutResult { pie_show_data: false, pie_title: None,
+            subgraph_boxes: Vec::new(),
             nodes: vec![],
             edges: vec![],
             pie_slices: vec![],
@@ -886,6 +923,7 @@ pub fn layout(fc: &FlowchartAst, config: &LayoutConfig) -> LayoutResult {
         .iter()
         .enumerate()
         .map(|(i, node)| LayoutNode {
+           hidden: false,
             id: node.id.clone(),
             center: centers[i],
             bounds: Bounds::from_center(centers[i], node_sizes[i].0, node_sizes[i].1),
@@ -1023,6 +1061,11 @@ pub fn layout(fc: &FlowchartAst, config: &LayoutConfig) -> LayoutResult {
                 label_lines,
                 label_position,
                 style,
+                stroke_color: None,
+                stroke_width: None,
+                stroke_dasharray: None,
+                start_marker: edge.start_marker.as_ref().map(map_edge_marker),
+                end_marker: edge.end_marker.as_ref().map(map_edge_marker),
                 source_boundary,
                 target_boundary,
                 path_end,
@@ -1101,7 +1144,140 @@ pub fn layout(fc: &FlowchartAst, config: &LayoutConfig) -> LayoutResult {
         final_height = final_height.max(label_max_y + y_shift + padding);
     }
 
-    LayoutResult {
+    // ── Subgraph containers ───────────────────────────────────────────
+    // Compute container boxes bottom-up from member bounds, fit the canvas,
+    // and resolve edges whose endpoints are container ids.
+    let subgraph_boxes = layout_subgraph_boxes(&fc.subgraphs, &final_nodes);
+    let mut container_shift_x = f64::MAX;
+    let mut container_shift_y = f64::MAX;
+    for box_bounds in &subgraph_boxes {
+        container_shift_x = container_shift_x.min(box_bounds.bounds.x);
+        container_shift_y = container_shift_y.min(box_bounds.bounds.y);
+    }
+    if container_shift_x.is_finite() && (container_shift_x < padding || container_shift_y < padding) {
+        let x_shift = (padding - container_shift_x).max(0.0);
+        let y_shift = (padding - container_shift_y).max(0.0);
+        translate_layout(&mut final_nodes, &mut final_edges, x_shift, y_shift);
+        for box_item in &subgraph_boxes {
+            // boxes are recomputed below from shifted nodes when needed; shift
+            // the recorded bounds directly here.
+        }
+        let shifted_boxes = subgraph_boxes
+            .iter()
+            .map(|item| LayoutSubgraphBox {
+                id: item.id.clone(),
+                label: item.label.clone(),
+                bounds: Bounds {
+                    x: item.bounds.x + x_shift,
+                    y: item.bounds.y + y_shift,
+                    width: item.bounds.width,
+                    height: item.bounds.height,
+                },
+            })
+            .collect::<Vec<_>>();
+        final_width += x_shift;
+        final_height += y_shift;
+        return finalize_flowchart_result(shifted_boxes, final_nodes, final_edges, final_width, final_height, fc);
+    }
+
+    finalize_flowchart_result(subgraph_boxes, final_nodes, final_edges, final_width, final_height, fc)
+}
+
+/// Apply `linkStyle` overrides, synthesize hidden container endpoint nodes for
+/// edges that reference subgraph ids, and assemble the final layout result.
+fn finalize_flowchart_result(
+    subgraph_boxes: Vec<LayoutSubgraphBox>,
+    mut final_nodes: Vec<LayoutNode>,
+    mut final_edges: Vec<LayoutEdge>,
+    mut final_width: f64,
+    mut final_height: f64,
+    fc: &FlowchartAst,
+) -> LayoutResult {
+    // Hidden nodes for edges whose endpoints are container ids.
+    let node_ids: std::collections::HashSet<&str> = final_nodes.iter().map(|node| node.id.as_str()).collect();
+    let mut container_bounds: std::collections::HashMap<String, Bounds> = std::collections::HashMap::new();
+    for box_item in &subgraph_boxes {
+        container_bounds.insert(box_item.id.clone(), box_item.bounds);
+    }
+    let mut hidden_nodes: Vec<LayoutNode> = Vec::new();
+    for edge in &mut final_edges {
+        for endpoint in [&mut edge.from, &mut edge.to] {
+            if let Some(bounds) = container_bounds.get(endpoint.as_str()) {
+                if !node_ids.contains(endpoint.as_str())
+                    && !hidden_nodes.iter().any(|node| &node.id == endpoint)
+                {
+                    hidden_nodes.push(LayoutNode {
+                        id: endpoint.clone(),
+                        center: Point { x: bounds.x + bounds.width / 2.0, y: bounds.y + bounds.height / 2.0 },
+                        bounds: *bounds,
+                        shape: NodeShape::Rectangle,
+                        label: String::new(),
+                        label_lines: vec![],
+                        style: None,
+                        hidden: true,
+                    });
+                }
+            }
+        }
+    }
+    if !hidden_nodes.is_empty() {
+        final_nodes.extend(hidden_nodes);
+        // Straight-line geometry for edges touching containers, since the
+        // regular router ran before the containers existed as nodes.
+        let lookup: std::collections::HashMap<&str, &LayoutNode> =
+            final_nodes.iter().map(|node| (node.id.as_str(), node)).collect();
+        for edge in &mut final_edges {
+            let from_exists = lookup.contains_key(edge.from.as_str());
+            let to_exists = lookup.contains_key(edge.to.as_str());
+            let from_is_container = container_bounds.contains_key(&edge.from);
+            let to_is_container = container_bounds.contains_key(&edge.to);
+            if !(from_is_container || to_is_container) || !from_exists || !to_exists {
+                continue;
+            }
+            let from_node = lookup.get(edge.from.as_str()).copied();
+            let to_node = lookup.get(edge.to.as_str()).copied();
+            if let (Some(from_node), Some(to_node)) = (from_node, to_node) {
+                let waypoints = vec![from_node.center, to_node.center];
+                let (source_boundary, target_boundary, path_end, final_tangent_angle) =
+                    compute_edge_geometry(&waypoints, Some(from_node), Some(to_node));
+                edge.waypoints = waypoints;
+                edge.source_boundary = source_boundary;
+                edge.target_boundary = target_boundary;
+                edge.path_end = path_end;
+                edge.final_tangent_angle = final_tangent_angle;
+                if edge.label_anchor.is_none() {
+                    edge.label_anchor = Some(Point {
+                        x: (from_node.center.x + to_node.center.x) / 2.0,
+                        y: (from_node.center.y + to_node.center.y) / 2.0,
+                    });
+                }
+            }
+        }
+        final_width = final_width.max(padding_for(&final_nodes));
+        final_height = final_height.max(padding_for_height(&final_nodes));
+    }
+
+    // linkStyle overrides apply by edge declaration order.
+    if !fc.link_styles.is_empty() {
+        for (index, edge) in final_edges.iter_mut().enumerate() {
+            for link_style in &fc.link_styles {
+                if link_style.targets_default || link_style.indices.contains(&index) {
+                    if let Some(stroke) = &link_style.style.stroke {
+                        edge.stroke_color = Some(stroke.clone());
+                    }
+                    if let Some(width) = &link_style.style.stroke_width {
+                        edge.stroke_width = Some(width.clone());
+                    }
+                    if let Some(dasharray) = &link_style.style.stroke_dasharray {
+                        edge.stroke_dasharray = Some(dasharray.clone());
+                    }
+                }
+            }
+        }
+    }
+
+    LayoutResult { pie_show_data: false, pie_title: None,
+        subgraph_boxes,
         nodes: final_nodes,
         edges: final_edges,
         pie_slices: vec![],
@@ -1115,6 +1291,61 @@ pub fn layout(fc: &FlowchartAst, config: &LayoutConfig) -> LayoutResult {
             height: final_height,
         },
     }
+}
+
+fn padding_for(nodes: &[LayoutNode]) -> f64 {
+    nodes.iter().map(|node| node.bounds.x + node.bounds.width).fold(0.0_f64, f64::max) + 40.0
+}
+
+fn padding_for_height(nodes: &[LayoutNode]) -> f64 {
+    nodes.iter().map(|node| node.bounds.y + node.bounds.height).fold(0.0_f64, f64::max) + 40.0
+}
+
+/// Compute subgraph container boxes bottom-up from member node bounds.
+fn layout_subgraph_boxes(
+    subgraphs: &[xmermaid_parser::ast::Subgraph],
+    nodes: &[LayoutNode],
+) -> Vec<LayoutSubgraphBox> {
+    const CONTAINER_PADDING: f64 = 18.0;
+    const TITLE_STRIP: f64 = 32.0;
+
+    let mut boxes = Vec::new();
+    for subgraph in subgraphs {
+        let child_boxes = layout_subgraph_boxes(&subgraph.subgraphs, nodes);
+        let mut min_x = f64::MAX;
+        let mut min_y = f64::MAX;
+        let mut max_x = f64::MIN;
+        let mut max_y = f64::MIN;
+        for node in nodes {
+            if node.hidden || !subgraph.nodes.contains(&node.id) {
+                continue;
+            }
+            min_x = min_x.min(node.bounds.x);
+            min_y = min_y.min(node.bounds.y);
+            max_x = max_x.max(node.bounds.x + node.bounds.width);
+            max_y = max_y.max(node.bounds.y + node.bounds.height);
+        }
+        for child in &child_boxes {
+            min_x = min_x.min(child.bounds.x);
+            min_y = min_y.min(child.bounds.y);
+            max_x = max_x.max(child.bounds.x + child.bounds.width);
+            max_y = max_y.max(child.bounds.y + child.bounds.height);
+        }
+        if min_x.is_finite() {
+            boxes.push(LayoutSubgraphBox {
+                id: subgraph.id.clone().unwrap_or_else(|| subgraph.title.clone()),
+                label: subgraph.title.clone(),
+                bounds: Bounds {
+                    x: min_x - CONTAINER_PADDING,
+                    y: min_y - TITLE_STRIP,
+                    width: (max_x - min_x) + CONTAINER_PADDING * 2.0,
+                    height: (max_y - min_y) + CONTAINER_PADDING * 2.0 + TITLE_STRIP,
+                },
+            });
+        }
+        boxes.extend(child_boxes);
+    }
+    boxes
 }
 
 #[cfg(test)]

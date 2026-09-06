@@ -70,7 +70,7 @@ pub fn layout(chart: &SankeyAst, config: &LayoutConfig) -> LayoutResult {
         target_offsets[target] += thickness;
         SankeyLink { source: link.source.clone(), target: link.target.clone(), value: link.value, source_y, target_y, thickness }
     }).collect();
-    LayoutResult {
+    LayoutResult { pie_show_data: false, pie_title: None, subgraph_boxes: Vec::new(),
         nodes: vec![], edges: vec![],
         dimensions: Dimensions { width: CHART_WIDTH + config.padding * 2.0, height: CHART_HEIGHT + config.padding * 2.0 },
         pie_slices: vec![], xy_chart: None,

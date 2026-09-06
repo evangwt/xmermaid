@@ -21,7 +21,7 @@ pub fn layout(chart: &RadarAst, config: &LayoutConfig) -> LayoutResult {
         }).collect(),
     }).collect();
 
-    LayoutResult {
+    LayoutResult { pie_show_data: false, pie_title: None, subgraph_boxes: Vec::new(),
         nodes: vec![], edges: vec![],
         dimensions: Dimensions { width: CHART_SIZE + config.padding * 2.0, height: CHART_SIZE + config.padding * 2.0 },
         pie_slices: vec![], xy_chart: None, sankey: None, quadrant_chart: None,

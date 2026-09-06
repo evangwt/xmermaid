@@ -23,11 +23,13 @@ pub fn layout(diagram: &BlockAst, config: &LayoutConfig) -> LayoutResult {
             from: relationship.from.clone(), to: relationship.to.clone(),
             waypoints: vec![from.center(), to.center()], label: None, label_lines: None, label_position: None,
             style: if relationship.arrow_at_target { EdgeStyle::Arrow } else { EdgeStyle::Line },
+            stroke_color: None, stroke_width: None, stroke_dasharray: None,
+            start_marker: None, end_marker: None,
             source_boundary: None, target_boundary: None, path_end: None, final_tangent_angle: None,
             label_anchor: None, geometry_version: 1,
         })
     }).collect();
-    LayoutResult {
+    LayoutResult { pie_show_data: false, pie_title: None, subgraph_boxes: Vec::new(),
         nodes: vec![], edges,
         dimensions: Dimensions { width: width + config.padding * 2.0, height: height + config.padding * 2.0 },
         pie_slices: vec![], xy_chart: None, sankey: None, quadrant_chart: None,

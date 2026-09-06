@@ -146,6 +146,7 @@ fn test_compute_layout_sequence_participants() {
         }],
         messages: vec![],
         events: vec![],
+        boxes: Vec::new(),
     });
     let config = LayoutConfig::default();
     let result = xmermaid_layout::compute_layout(&ast, &config);

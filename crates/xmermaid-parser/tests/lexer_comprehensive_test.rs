@@ -317,14 +317,18 @@ fn test_lexer_node_id_with_numbers() {
 }
 
 #[test]
-fn test_lexer_hyphen_not_in_node_id() {
+fn test_lexer_hyphenated_node_id() {
     let input = "A-B";
     let lexer = Lexer::new(input);
     let tokens: Vec<Token> = lexer.collect();
     assert_eq!(tokens[0].ty, TokenType::NodeId);
+    assert_eq!(tokens[0].value, "A-B");
+
+    // A dash followed by whitespace still splits into separate tokens.
+    let tokens: Vec<Token> = Lexer::new("A - B").collect();
     assert_eq!(tokens[0].value, "A");
     assert_eq!(tokens[1].ty, TokenType::Unknown);
-    assert_eq!(tokens[2].ty, TokenType::NodeId);
+    assert_eq!(tokens[2].value, "B");
 }
 
 // ─── Complex token sequences ─────────────────────────────────────

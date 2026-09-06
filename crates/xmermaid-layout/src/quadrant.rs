@@ -15,7 +15,7 @@ pub fn layout(chart: &QuadrantAst, config: &LayoutConfig) -> LayoutResult {
             y: plot.y + (1.0 - point.y) * plot.height,
         },
     }).collect();
-    LayoutResult {
+    LayoutResult { pie_show_data: false, pie_title: None, subgraph_boxes: Vec::new(),
         nodes: vec![], edges: vec![],
         dimensions: Dimensions { width: CHART_SIZE + config.padding * 2.0, height: CHART_SIZE + config.padding * 2.0 },
         pie_slices: vec![], xy_chart: None, sankey: None,

@@ -13,12 +13,16 @@ pub fn layout(board: &KanbanAst, config: &LayoutConfig) -> LayoutResult {
         let x = config.padding + index as f64 * (COLUMN_WIDTH + GAP);
         let header = Bounds { x, y: config.padding, width: COLUMN_WIDTH, height: HEADER_HEIGHT };
         let tasks = column.tasks.iter().enumerate().map(|(task_index, task)| KanbanTaskLayout {
-            id: task.id.clone(), label: task.label.clone(),
+            id: task.id.clone(),
+            label: match &task.ticket {
+                Some(ticket) => format!("{} (#{}", task.label.trim_end(), ticket),
+                None => task.label.clone(),
+            },
             bounds: Bounds { x, y: header.bottom() + GAP + task_index as f64 * (TASK_HEIGHT + GAP), width: COLUMN_WIDTH, height: TASK_HEIGHT },
         }).collect();
         KanbanColumnLayout { id: column.id.clone(), label: column.label.clone(), header, tasks }
     }).collect();
-    LayoutResult {
+    LayoutResult { pie_show_data: false, pie_title: None, subgraph_boxes: Vec::new(),
         nodes: vec![], edges: vec![],
         dimensions: Dimensions { width: board.columns.len() as f64 * COLUMN_WIDTH + board.columns.len().saturating_sub(1) as f64 * GAP + config.padding * 2.0, height: content_height + config.padding * 2.0 },
         pie_slices: vec![], xy_chart: None, sankey: None, quadrant_chart: None, block_diagram: None,

@@ -423,8 +423,30 @@ fn test_parse_gantt_tasks_with_sections_and_durations() {
     assert_eq!(json["tasks"].as_array().map(Vec::len), Some(2));
     assert_eq!(json["tasks"][0]["section"], "Build");
     assert_eq!(json["tasks"][0]["label"], "Compile");
-    assert_eq!(json["tasks"][0]["start"], "2026-07-28");
-    assert_eq!(json["tasks"][0]["duration_days"], 2);
+    assert_eq!(json["tasks"][0]["start"]["kind"], "date");
+    assert_eq!(json["tasks"][0]["start"]["date"], "2026-07-28");
+    assert_eq!(json["tasks"][0]["duration_days"], 2.0);
+}
+
+#[test]
+fn test_parse_gantt_states_milestones_and_dependencies() {
+    let ast = parse(concat!(
+        "gantt\n",
+        "  dateFormat YYYY-MM-DD\n",
+        "  section Track\n",
+        "  done task : done, t1, 2026-01-01, 2d\n",
+        "  release : milestone, 2026-01-03, 0d\n",
+        "  follow-up : after t1, 1d"
+    ))
+    .unwrap();
+    let json = serde_json::to_value(ast).unwrap();
+
+    let tasks = json["tasks"].as_array().unwrap();
+    assert_eq!(tasks.len(), 3);
+    assert_eq!(tasks[0]["state"], "done");
+    assert_eq!(tasks[1]["milestone"], true);
+    assert_eq!(tasks[2]["start"]["kind"], "after");
+    assert_eq!(tasks[2]["start"]["task_ids"][0], "t1");
 }
 
 #[test]
@@ -579,10 +601,17 @@ fn test_parse_indented_mindmap_hierarchy() {
 }
 
 #[test]
-fn test_rejects_mindmap_shape_syntax_until_shapes_are_supported() {
-    let error = parse("mindmap\n  root(A)").unwrap_err();
-
-    assert!(format!("{error:?}").contains("Mindmap node shapes are not supported"));
+fn test_parse_mindmap_shape_delimiters() {
+    let ast = parse("mindmap\n  root((mind))\n    child[child shape]\n    round(round shape)").unwrap();
+    match ast {
+        DiagramAst::Mindmap(mindmap) => {
+            assert_eq!(mindmap.nodes[0].shape, NodeShape::Circle);
+            assert_eq!(mindmap.nodes[0].label, "mind");
+            assert_eq!(mindmap.nodes[1].shape, NodeShape::Rect);
+            assert_eq!(mindmap.nodes[2].shape, NodeShape::Rounded);
+        }
+        _ => panic!("Expected Mindmap AST"),
+    }
 }
 
 #[test]
@@ -605,3 +634,24 @@ fn test_parse_flowchart_multiple_edges() {
         _ => panic!("Expected Flowchart AST"),
     }
 }
+
+#[test]
+fn test_beta_and_bare_keywords_both_dispatch() {
+    let cases: [(&str, &str); 9] = [
+        ("packet", "packet-beta\n  0-7: \"bits\""),
+        ("packet-beta", "packet\n  0-7: \"bits\""),
+        ("radar", "radar\n  axis a[\"A\"], b[\"B\"], c[\"C\"]\n  curve c1{1,2,3}"),
+        ("treemap", "treemap\n    \"A\"\n        \"L\": 4"),
+        ("venn", "venn\n  set a\n  set b\n  union a,b[\"U\"]"),
+        ("wardley", "wardley\n  component C[0.5, 0.5]"),
+        ("cynefin", "cynefin\n  clear\n  \"do it\""),
+        ("xychart", "xychart\n  x-axis [a]\n  y-axis \"Y\" 0 --> 5\n  bar [3]"),
+        ("architecture", "architecture\n  service s(db)[S]"),
+    ];
+    for (name, source) in cases {
+        if let Err(error) = parse(source) {
+            panic!("{} keyword form should parse: {}", name, error);
+        }
+    }
+}
+

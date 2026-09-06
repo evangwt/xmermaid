@@ -2,7 +2,8 @@ use std::collections::HashMap;
 
 use crate::types::{
     Bounds, Dimensions, LayoutConfig, LayoutResult, Point, SequenceActivationLayout,
-    SequenceBlockDividerLayout, SequenceBlockLayout, SequenceLayout, SequenceLifelineLayout,
+    SequenceBlockDividerLayout, SequenceBlockLayout, SequenceBoxLayout, SequenceLayout,
+    SequenceLifelineLayout,
     SequenceMessageLayout, SequenceNoteLayout, SequenceNotePlacementLayout,
     SequenceParticipantLayout,
 };
@@ -107,7 +108,9 @@ pub fn layout(diagram: &SequenceAst, config: &LayoutConfig) -> LayoutResult {
     let mut blocks = Vec::new();
     let mut open_blocks = Vec::new();
     let mut autonumber = false;
+    let mut autonumber_increment = 1_u32;
     let mut next_message_number = 1_u32;
+    let mut destroyed: HashMap<String, f64> = HashMap::new();
 
     for event in events {
         match event {
@@ -151,13 +154,15 @@ pub fn layout(diagram: &SequenceAst, config: &LayoutConfig) -> LayoutResult {
                     dashed: matches!(message.line_style, SequenceMessageLineStyle::Dashed),
                     number: autonumber.then(|| {
                         let number = next_message_number;
-                        next_message_number += 1;
+                        next_message_number += autonumber_increment.max(1);
                         number
                     }),
                     end_marker: match message.end_marker {
                         SequenceMessageEnd::Arrow => "arrow".to_string(),
                         SequenceMessageEnd::Cross => "cross".to_string(),
+                        SequenceMessageEnd::Open => "open".to_string(),
                     },
+                    bidirectional: message.bidirectional,
                 });
                 if message.activate_target {
                     open_activation(&mut open_activations, &message.to, y);
@@ -173,8 +178,10 @@ pub fn layout(diagram: &SequenceAst, config: &LayoutConfig) -> LayoutResult {
                 }
                 y += ROW_HEIGHT;
             }
-            SequenceEvent::Autonumber => {
+            SequenceEvent::Autonumber { start, increment } => {
                 autonumber = true;
+                autonumber_increment = increment.max(1);
+                next_message_number = start.max(1);
             }
             SequenceEvent::Activation {
                 participant,
@@ -236,6 +243,15 @@ pub fn layout(diagram: &SequenceAst, config: &LayoutConfig) -> LayoutResult {
                 }
                 y += ROW_HEIGHT;
             }
+            SequenceEvent::Create { .. } => {
+                // The participant column already exists; the create statement
+                // occupies a row so subsequent messages align below it.
+                y += ROW_HEIGHT;
+            }
+            SequenceEvent::Destroy { participant } => {
+                destroyed.insert(participant, y);
+                y += ROW_HEIGHT * 0.6;
+            }
             SequenceEvent::BlockEnd => {
                 if let Some(block) = open_blocks.pop() {
                     let bounds = block_bounds(&block, config.padding);
@@ -273,18 +289,23 @@ pub fn layout(diagram: &SequenceAst, config: &LayoutConfig) -> LayoutResult {
         .iter()
         .map(|participant| {
             let x = participant.header.center().x;
+            let destroy_y = destroyed.get(&participant.id).copied();
             SequenceLifelineLayout {
                 participant: participant.id.clone(),
                 start: Point {
                     x,
                     y: participant.header.bottom(),
                 },
-                end: Point { x, y: timeline_end },
+                end: Point {
+                    x,
+                    y: destroy_y.unwrap_or(timeline_end),
+                },
+                destroy_y,
             }
         })
         .collect();
 
-    LayoutResult {
+    LayoutResult { pie_show_data: false, pie_title: None, subgraph_boxes: Vec::new(),
         nodes: vec![],
         edges: vec![],
         dimensions: Dimensions {
@@ -303,6 +324,45 @@ pub fn layout(diagram: &SequenceAst, config: &LayoutConfig) -> LayoutResult {
         venn: None,
         swimlanes: None,
         sequence: Some(SequenceLayout {
+            boxes: diagram
+                .boxes
+                .iter()
+                .filter_map(|box_group| {
+                    let columns: Vec<f64> = box_group
+                        .participants
+                        .iter()
+                        .filter_map(|id| participant_x.get(id.as_str()).copied())
+                        .collect();
+                    if columns.is_empty() {
+                        return None;
+                    }
+                    let widths: Vec<f64> = box_group
+                        .participants
+                        .iter()
+                        .filter_map(|id| {
+                            diagram
+                                .participants
+                                .iter()
+                                .find(|participant| &participant.id == id)
+                                .map(|participant| participant_width(&participant.label))
+                        })
+                        .collect();
+                    let left = columns.iter().copied().fold(f64::MAX, f64::min)
+                        - widths.iter().copied().fold(0.0, f64::max) / 2.0;
+                    let right = columns.iter().copied().fold(f64::MIN, f64::max)
+                        + widths.iter().copied().fold(0.0, f64::max) / 2.0;
+                    Some(SequenceBoxLayout {
+                        label: box_group.label.clone(),
+                        color: box_group.color.clone(),
+                        bounds: Bounds {
+                            x: left - 10.0,
+                            y: config.padding,
+                            width: (right - left) + 20.0,
+                            height: timeline_end + 30.0 - config.padding,
+                        },
+                    })
+                })
+                .collect(),
             participants,
             lifelines,
             messages,

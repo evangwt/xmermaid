@@ -14,7 +14,7 @@ pub fn layout(diagram: &WardleyAst, config: &LayoutConfig) -> LayoutResult {
         anchor: component.anchor,
     }).collect();
     let dependencies = diagram.dependencies.iter().map(|dependency| WardleyDependencyLayout { from: dependency.from.clone(), to: dependency.to.clone() }).collect();
-    LayoutResult {
+    LayoutResult { pie_show_data: false, pie_title: None, subgraph_boxes: Vec::new(),
         nodes: vec![], edges: vec![], dimensions: Dimensions { width: plot.x + plot.width + config.padding, height: plot.y + plot.height + config.padding },
         pie_slices: vec![], xy_chart: None, sankey: None, quadrant_chart: None, block_diagram: None, kanban_board: None,
         treemap: None, radar: None, packet: None, venn: None, swimlanes: None, sequence: None, ishikawa: None,

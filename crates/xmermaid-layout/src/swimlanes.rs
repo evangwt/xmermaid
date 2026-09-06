@@ -16,14 +16,16 @@ pub fn layout(diagram: &SwimlaneAst, config: &LayoutConfig) -> LayoutResult {
         for (node_index, id) in lane.nodes.iter().enumerate() {
             let ast_node = diagram.nodes.iter().find(|node| node.id == *id).expect("lane node exists");
             let center = Point { x: config.padding * 2.0 + config.node_width / 2.0 + node_index as f64 * (config.node_width + config.h_spacing), y: y + HEADER_HEIGHT + (LANE_HEIGHT - HEADER_HEIGHT) / 2.0 };
-            nodes.push(LayoutNode { id: id.clone(), center, bounds: Bounds::from_center(center, config.node_width, config.node_height), shape: NodeShape::RoundedRect, label: ast_node.label.clone().unwrap_or_else(|| id.clone()), label_lines: vec![], style: None });
+            nodes.push(LayoutNode { hidden: false, id: id.clone(), center, bounds: Bounds::from_center(center, config.node_width, config.node_height), shape: NodeShape::RoundedRect, label: ast_node.label.clone().unwrap_or_else(|| id.clone()), label_lines: vec![], style: None });
         }
     }
     let edges = diagram.edges.iter().filter_map(|edge| {
         let source = nodes.iter().find(|node| node.id == edge.from)?;
         let target = nodes.iter().find(|node| node.id == edge.to)?;
-        Some(LayoutEdge { from: edge.from.clone(), to: edge.to.clone(), waypoints: vec![source.center, target.center], label: edge.label.clone(), label_lines: None, label_position: None, style: EdgeStyle::Arrow, source_boundary: None, target_boundary: None, path_end: None, final_tangent_angle: None, label_anchor: None, geometry_version: 1 })
+        Some(LayoutEdge { from: edge.from.clone(), to: edge.to.clone(), waypoints: vec![source.center, target.center], label: edge.label.clone(), label_lines: None, label_position: None, style: EdgeStyle::Arrow, source_boundary: None, target_boundary: None, path_end: None, final_tangent_angle: None, label_anchor: None, geometry_version: 1,
+stroke_color: None, stroke_width: None, stroke_dasharray: None, start_marker: None, end_marker: None,
+})
     }).collect();
     let direction = match diagram.direction { xmermaid_parser::ast::FlowDirection::TD => crate::types::FlowDirection::TB, xmermaid_parser::ast::FlowDirection::BT => crate::types::FlowDirection::BT, xmermaid_parser::ast::FlowDirection::LR => crate::types::FlowDirection::LR, xmermaid_parser::ast::FlowDirection::RL => crate::types::FlowDirection::RL };
-    LayoutResult { nodes, edges, dimensions: Dimensions { width: lane_width + config.padding * 2.0, height: diagram.lanes.len() as f64 * LANE_HEIGHT + diagram.lanes.len().saturating_sub(1) as f64 * LANE_GAP + config.padding * 2.0 }, pie_slices: vec![], xy_chart: None, sankey: None, quadrant_chart: None, block_diagram: None, kanban_board: None, treemap: None, radar: None, packet: None, venn: None, swimlanes: Some(SwimlaneLayout { direction, lanes }), sequence: None, ishikawa: None, wardley: None, cynefin: None }
+    LayoutResult { subgraph_boxes: Vec::new(), pie_show_data: false, nodes, edges, dimensions: Dimensions { width: lane_width + config.padding * 2.0, height: diagram.lanes.len() as f64 * LANE_HEIGHT + diagram.lanes.len().saturating_sub(1) as f64 * LANE_GAP + config.padding * 2.0 }, pie_slices: vec![], xy_chart: None, sankey: None, quadrant_chart: None, block_diagram: None, kanban_board: None, treemap: None, radar: None, packet: None, venn: None, swimlanes: Some(SwimlaneLayout { direction, lanes }), sequence: None, ishikawa: None, wardley: None, cynefin: None, pie_title: None }
 }

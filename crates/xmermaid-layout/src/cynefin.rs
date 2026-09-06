@@ -32,7 +32,7 @@ pub fn layout(diagram: &CynefinAst, config: &LayoutConfig) -> LayoutResult {
         from: transition.from.clone(), to: transition.to.clone(), label: transition.label.clone(),
     }).collect();
 
-    LayoutResult {
+    LayoutResult { pie_show_data: false, pie_title: None, subgraph_boxes: Vec::new(),
         nodes: vec![], edges: vec![], dimensions: Dimensions { width: WIDTH + config.padding * 2.0, height: HEIGHT + config.padding * 2.0 },
         pie_slices: vec![], xy_chart: None, sankey: None, quadrant_chart: None, block_diagram: None, kanban_board: None,
         treemap: None, radar: None, packet: None, venn: None, swimlanes: None, sequence: None, ishikawa: None, wardley: None,

@@ -50,11 +50,24 @@ impl<'a> Lexer<'a> {
 
     fn read_word(&mut self) -> String {
         let mut word = String::new();
-        while let Some(&c) = self.peek() {
-            if c.is_alphanumeric() || c == '_' {
-                word.push(self.advance().unwrap());
-            } else {
-                break;
+        loop {
+            match self.peek() {
+                Some(&c) if c.is_alphanumeric() || c == '_' => {
+                    word.push(self.advance().unwrap());
+                }
+                // Hyphenated node ids such as `user-login`: a dash joins the
+                // word only when the next character continues the word.
+                Some(&'-') => {
+                    let continues = match self.input.clone().nth(1) {
+                        Some(next) => next.is_alphanumeric() || next == '_',
+                        None => false,
+                    };
+                    if !continues || word.is_empty() {
+                        break;
+                    }
+                    word.push(self.advance().unwrap());
+                }
+                _ => break,
             }
         }
         word
@@ -67,6 +80,15 @@ impl<'a> Lexer<'a> {
                 arrow.push(self.advance().unwrap());
             } else {
                 break;
+            }
+        }
+        // Circle (`o`) and cross (`x`) edge endings attach to the dash run
+        // directly, as in `A--oB`; Mermaid reserves them in this position.
+        if !arrow.contains('.') && !arrow.contains('~') && !arrow.ends_with('>')
+            && arrow.ends_with(['-', '='])
+        {
+            if let Some(&'o' | &'x') = self.peek() {
+                arrow.push(self.advance().unwrap());
             }
         }
         arrow
@@ -416,13 +438,21 @@ impl<'a> Iterator for Lexer<'a> {
                         let ty = match word.as_str() {
                             "graph" | "flowchart" | "subgraph" | "end"
                             | "classDef" | "class" | "style" | "click"
-                            | "direction" => TokenType::Keyword,
+                            | "linkStyle" | "direction" => TokenType::Keyword,
                             "TD" | "TB" | "BT" | "LR" | "RL" => TokenType::Direction,
                             _ => TokenType::NodeId,
                         };
                         Some(Token {
                             ty,
                             value: word,
+                            line,
+                        })
+                    }
+                    Some(&'@') => {
+                        self.advance();
+                        Some(Token {
+                            ty: TokenType::Unknown,
+                            value: "@".to_string(),
                             line,
                         })
                     }

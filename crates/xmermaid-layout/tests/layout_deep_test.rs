@@ -311,6 +311,7 @@ fn test_sequence_with_participants_has_a_layout() {
         }],
         messages: vec![],
         events: vec![],
+        boxes: Vec::new(),
     });
     let config = config_for_ast(&ast);
     let result = compute_layout(&ast, &config);

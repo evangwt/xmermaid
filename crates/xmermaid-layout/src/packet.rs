@@ -22,7 +22,7 @@ pub fn layout(packet: &PacketAst, config: &LayoutConfig) -> LayoutResult {
         PacketFieldLayout { start: field.start, end: field.end, label: field.label.clone(), segments }
     }).collect();
 
-    LayoutResult {
+    LayoutResult { pie_show_data: false, pie_title: None, subgraph_boxes: Vec::new(),
         nodes: vec![],
         edges: vec![],
         dimensions: Dimensions {
