@@ -145,7 +145,7 @@ describe('visual flowchart real WASM roundtrip contract', () => {
     const analysis = await analyzeFlowchartForVisualEdit([
       'flowchart TD',
       '  A --> B',
-      '  classDef hot fill:red',
+      '  classDef hot fill:url(#gradient)',
       '  class A hot',
     ].join('\n'));
 
@@ -156,7 +156,7 @@ describe('visual flowchart real WASM roundtrip contract', () => {
     expect(analysis.diagnostics).toEqual([
       expect.objectContaining({
         code: 'visual_unsupported_syntax',
-        message: expect.stringContaining('three- or six-digit hexadecimal values'),
+        message: expect.stringContaining('safe color values'),
       }),
     ]);
   });
@@ -304,7 +304,7 @@ describe('visual flowchart real WASM roundtrip contract', () => {
     }));
   });
 
-  it('blocks parser-unsupported visual shape syntax before accepting a lossy roundtrip', async () => {
+  it('roundtrips stadium and cylinder shapes through visual editing', async () => {
     for (const [shape, expectedSyntax] of [
       ['stadium', 'A([Start])'],
       ['cylinder', 'A[(Start)]'],
@@ -322,13 +322,7 @@ describe('visual flowchart real WASM roundtrip contract', () => {
 
       await expect(validateVisualEditResult(source, realWasmVisualOptions))
         .resolves.toEqual(expect.objectContaining({
-          status: 'blocked',
-          diagnostics: [
-            expect.objectContaining({
-              code: 'visual_unsupported_syntax',
-              range: expect.objectContaining({ startLine: 2 }),
-            }),
-          ],
+          status: 'applied',
         }));
     }
   });

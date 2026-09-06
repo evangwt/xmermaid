@@ -16,6 +16,8 @@ export type NodeShape =
 
 export type EdgeStyle = 'arrow' | 'line' | 'dotted' | 'thick' | 'invisible';
 
+export type EdgeMarker = 'arrow' | 'triangle' | 'circle' | 'cross' | 'diamond';
+
 export interface FlowchartNode {
   id: string;
   label: string | null;
@@ -29,6 +31,8 @@ export interface NodeStyle {
   fill?: string;
   stroke?: string;
   color?: string;
+  stroke_width?: string;
+  stroke_dasharray?: string;
 }
 
 export interface FlowchartEdge {
@@ -37,10 +41,13 @@ export interface FlowchartEdge {
   style: EdgeStyle;
   label: string | null;
   min_length: number;
+  start_marker?: EdgeMarker;
+  end_marker?: EdgeMarker;
 }
 
 export interface Subgraph {
   title: string;
+  id?: string;
   nodes: string[];
   subgraphs: Subgraph[];
 }
@@ -58,6 +65,7 @@ export interface SequenceAst {
   participants: SequenceParticipant[];
   messages: SequenceMessage[];
   events: SequenceEvent[];
+  boxes?: SequenceBox[];
 }
 
 export type SequenceParticipantKind = 'participant' | 'actor';
@@ -76,15 +84,24 @@ export interface SequenceMessage {
   end_marker?: SequenceMessageEnd;
   activate_target?: boolean;
   deactivate_source?: boolean;
+  bidirectional?: boolean;
+}
+
+export interface SequenceBox {
+  label?: string;
+  color?: string;
+  participants: string[];
 }
 
 export type SequenceMessageLineStyle = 'solid' | 'dashed';
-export type SequenceMessageEnd = 'arrow' | 'cross';
+export type SequenceMessageEnd = 'arrow' | 'cross' | 'open';
 export type SequenceNotePlacement = 'left_of' | 'right_of' | 'over';
 export type SequenceBlockKind = 'rect' | 'loop' | 'alt' | 'opt' | 'par' | 'critical' | 'break';
 export type SequenceBlockDividerKind = 'else' | 'and' | 'option';
 export type SequenceEvent =
-  | { kind: 'autonumber' }
+  | { kind: 'autonumber'; start?: number; increment?: number }
+  | { kind: 'create'; participant: string }
+  | { kind: 'destroy'; participant: string }
   | { kind: 'message'; message_index: number }
   | { kind: 'activation'; participant: string; active: boolean }
   | { kind: 'note'; placement: SequenceNotePlacement; participants: string[]; text: string }
@@ -96,22 +113,69 @@ export interface ClassAst {
   type: 'class';
   classes: ClassDefinition[];
   relations: ClassRelation[];
+  namespaces?: ClassNamespace[];
+  styles?: ClassStyleAssignment[];
+}
+
+export interface ClassNamespace {
+  id: string;
+  classes: string[];
+}
+
+export interface ClassStyleAssignment {
+  class: string;
+  style: NodeStyle;
 }
 
 export interface ClassDefinition {
   id: string;
   label: string;
+  members?: string[];
+  annotation?: string;
+  namespace?: string;
 }
+
+export type ClassRelationKind =
+  | 'inheritance'
+  | 'composition'
+  | 'aggregation'
+  | 'association'
+  | 'link'
+  | 'dependency'
+  | 'realization';
 
 export interface ClassRelation {
   from: string;
   to: string;
+  kind: ClassRelationKind;
+  label?: string;
+  from_cardinality?: string;
+  to_cardinality?: string;
+}
+
+export type StatePseudostate = 'start' | 'end' | 'choice' | 'fork' | 'join';
+
+export interface StateNode {
+  id: string;
+  label?: string;
+  pseudostate?: StatePseudostate;
+  composite?: boolean;
+  parent?: string;
+}
+
+export type StateNotePlacement = 'left' | 'right';
+
+export interface StateNote {
+  target: string;
+  placement: StateNotePlacement;
+  text: string;
 }
 
 export interface StateAst {
   type: 'state';
-  states: string[];
+  states: StateNode[];
   transitions: StateTransition[];
+  notes?: StateNote[];
 }
 
 export interface StateTransition {
@@ -120,9 +184,23 @@ export interface StateTransition {
   label: string;
 }
 
+export type ErCardinality = 'zero_or_one' | 'exactly_one' | 'zero_or_more' | 'one_or_more';
+
+export interface ErAttribute {
+  kind: string;
+  name: string;
+  keys: string[];
+  comment?: string;
+}
+
+export interface ErEntity {
+  name: string;
+  attributes?: ErAttribute[];
+}
+
 export interface ErAst {
   type: 'er';
-  entities: string[];
+  entities: ErEntity[];
   relationships: ErRelationship[];
 }
 
@@ -130,18 +208,32 @@ export interface ErRelationship {
   from: string;
   to: string;
   label: string;
+  from_cardinality: ErCardinality;
+  to_cardinality: ErCardinality;
+  non_identifying: boolean;
 }
+
+export type GanttTaskState = 'todo' | 'done' | 'active' | 'crit';
+
+export type GanttStart =
+  | { kind: 'date'; date: string }
+  | { kind: 'after'; task_id: string };
 
 export interface GanttAst {
   type: 'gantt';
+  title?: string;
   tasks: GanttTask[];
 }
 
 export interface GanttTask {
   section: string;
   label: string;
-  start: string;
+  id: string;
+  state?: GanttTaskState;
+  milestone?: boolean;
+  start: GanttStart;
   duration_days: number;
+  end_date?: string;
 }
 
 export interface UserJourneyAst {
@@ -166,6 +258,7 @@ export interface TimelineAst {
 export interface TimelineEntry {
   period: string;
   events: string[];
+  section?: string;
 }
 
 export interface RequirementAst {
@@ -208,6 +301,7 @@ export interface C4Ast {
   title: string;
   elements: C4Element[];
   relationships: C4Relationship[];
+  boundaries?: C4Boundary[];
 }
 
 export interface C4Element {
@@ -215,12 +309,22 @@ export interface C4Element {
   id: string;
   label: string;
   description: string | null;
+  container?: string;
 }
 
 export interface C4Relationship {
   from: string;
   to: string;
   label: string;
+  bidirectional?: boolean;
+}
+
+export interface C4Boundary {
+  kind: string;
+  id: string;
+  label: string;
+  elements: string[];
+  boundaries?: C4Boundary[];
 }
 
 export interface ZenUmlAst {
@@ -247,6 +351,9 @@ export interface XyChartAst {
   type: 'xychart';
   title: string;
   x_labels: string[];
+  /** Numeric x-axis range; present when x_labels is empty. */
+  x_range?: [number, number];
+  x_title?: string;
   y_min: number;
   y_max: number;
   series: XySeries[];
@@ -283,18 +390,32 @@ export interface ArchitectureService {
   id: string;
   icon: string;
   label: string;
+  group?: string;
+}
+
+export interface ArchitectureGroup {
+  id: string;
+  icon: string;
+  label: string;
+}
+
+export interface ArchitectureJunction {
+  id: string;
 }
 
 export interface ArchitectureRelationship {
   from: string;
   to: string;
   arrow_at_target: boolean;
+  arrow_at_source?: boolean;
 }
 
 export interface ArchitectureAst {
   type: 'architecture';
   services: ArchitectureService[];
   relationships: ArchitectureRelationship[];
+  groups?: ArchitectureGroup[];
+  junctions?: ArchitectureJunction[];
 }
 
 export interface BlockAstBlock {
@@ -321,6 +442,7 @@ export interface BlockAst {
 export interface KanbanTask {
   id: string;
   label: string;
+  ticket?: string;
 }
 
 export interface KanbanColumn {

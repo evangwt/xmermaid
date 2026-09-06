@@ -14,8 +14,56 @@ function sameCoordinate(a: number, b: number): boolean {
   return Math.abs(a - b) < 1e-6;
 }
 
+function markerToArrowStyle(marker: string): ArrowStyle {
+  switch (marker) {
+    case 'arrow': return 'filled';
+    case 'triangle': return 'triangle';
+    case 'circle': return 'circle';
+    case 'cross': return 'cross';
+    default: return 'circle';
+  }
+}
+
+/** True for crow's-foot glyphs whose prongs extend past the anchor. */
+function isCrowMarker(marker: string): boolean {
+  return marker.startsWith('crow_');
+}
+
 function isHexColor(value: string | undefined): value is string {
   return typeof value === 'string' && /^#[0-9a-f]{3}(?:[0-9a-f]{3})?$/i.test(value);
+}
+
+const SAFE_COLOR_KEYWORDS = new Set([
+  'transparent', 'none', 'currentcolor',
+  'aliceblue','antiquewhite','aqua','aquamarine','azure','beige','bisque','black',
+  'blanchedalmond','blue','blueviolet','brown','burlywood','cadetblue','chartreuse',
+  'chocolate','coral','cornflowerblue','cornsilk','crimson','cyan','darkblue',
+  'darkcyan','darkgoldenrod','darkgray','darkgreen','darkgrey','darkkhaki',
+  'darkmagenta','darkolivegreen','darkorange','darkorchid','darkred','darksalmon',
+  'darkseagreen','darkslateblue','darkslategray','darkslategrey','darkturquoise',
+  'darkviolet','deeppink','deepskyblue','dimgray','dimgrey','dodgerblue',
+  'firebrick','floralwhite','forestgreen','fuchsia','gainsboro','ghostwhite',
+  'gold','goldenrod','gray','green','greenyellow','grey','honeydew','hotpink',
+  'indianred','indigo','ivory','khaki','lavender','lavenderblush','lawngreen',
+  'lemonchiffon','lightblue','lightcoral','lightcyan','lightgoldenrodyellow',
+  'lightgray','lightgreen','lightgrey','lightpink','lightsalmon','lightseagreen',
+  'lightskyblue','lightslategray','lightslategrey','lightsteelblue','lightyellow',
+  'lime','limegreen','linen','magenta','maroon','mediumaquamarine','mediumblue',
+  'mediumorchid','mediumpurple','mediumseagreen','mediumslateblue',
+  'mediumspringgreen','mediumturquoise','mediumvioletred','midnightblue',
+  'mintcream','mistyrose','moccasin','navajowhite','navy','oldlace','olive',
+  'olivedrab','orange','orangered','orchid','palegoldenrod','palegreen',
+  'paleturquoise','palevioletred','papayawhip','peachpuff','peru','pink','plum',
+  'powderblue','purple','rebeccapurple','red','rosybrown','royalblue',
+  'saddlebrown','salmon','sandybrown','seagreen','seashell','sienna','silver',
+  'skyblue','slateblue','slategray','slategrey','snow','springgreen','steelblue',
+  'tan','teal','thistle','tomato','turquoise','violet','wheat','white',
+  'whitesmoke','yellow','yellowgreen',
+]);
+
+function isSafeColorValue(value: string | undefined): value is string {
+  if (typeof value !== 'string') return false;
+  return /^#[0-9a-f]{3}(?:[0-9a-f]{3})?$/i.test(value) || SAFE_COLOR_KEYWORDS.has(value.toLowerCase());
 }
 
 function flowAxisBoundary(bounds: LayoutNode['bounds'], angle: number, end: 'source' | 'target'): Point {
@@ -53,6 +101,18 @@ export class SVGRenderer {
     svg.setAttribute('viewBox', `0 0 ${layout.dimensions.width} ${layout.dimensions.height}`);
     svg.classList.add('xmermaid-diagram');
     svg.style.backgroundColor = this.theme.colors.background;
+    if (layout.acc_title) {
+      svg.setAttribute('role', 'img');
+      svg.setAttribute('aria-label', layout.acc_title);
+      const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+      title.textContent = layout.acc_title;
+      svg.appendChild(title);
+      if (layout.acc_descr) {
+        const desc = document.createElementNS('http://www.w3.org/2000/svg', 'desc');
+        desc.textContent = layout.acc_descr;
+        svg.appendChild(desc);
+      }
+    }
     if (layout.pie_slices?.length) {
       this.renderPie(svg, layout);
       return svg;
@@ -111,6 +171,34 @@ export class SVGRenderer {
     }
     if (layout.swimlanes) this.renderSwimlanes(svg, layout);
 
+    // Draw subgraph container boxes beneath edges and nodes.
+    for (const box of layout.subgraph_boxes ?? []) {
+      const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      rect.classList.add('subgraph-box');
+      rect.setAttribute('x', String(box.bounds.x));
+      rect.setAttribute('y', String(box.bounds.y));
+      rect.setAttribute('width', String(box.bounds.width));
+      rect.setAttribute('height', String(box.bounds.height));
+      rect.setAttribute('rx', '8');
+      rect.setAttribute('fill', this.theme.colors.nodeFill);
+      rect.setAttribute('fill-opacity', '0.15');
+      rect.setAttribute('stroke', this.theme.colors.edgeStroke);
+      rect.setAttribute('stroke-dasharray', '6,4');
+      rect.setAttribute('stroke-width', '1.5');
+      svg.appendChild(rect);
+      if (box.label) {
+        const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        label.textContent = box.label;
+        label.setAttribute('x', String(box.bounds.x + 14));
+        label.setAttribute('y', String(box.bounds.y + 20));
+        label.setAttribute('fill', this.theme.colors.nodeText);
+        label.setAttribute('font-family', this.theme.fontFamily);
+        label.setAttribute('font-size', String(this.theme.fontSize));
+        label.setAttribute('font-weight', '600');
+        svg.appendChild(label);
+      }
+    }
+
     // Build node index for bounds lookup
     const nodeMap = new Map<string, LayoutNode>();
     for (const node of layout.nodes) {
@@ -123,8 +211,9 @@ export class SVGRenderer {
       svg.appendChild(group);
     }
 
-    // Render nodes on top
+    // Render nodes on top (hidden nodes only exist for edge geometry)
     for (const node of layout.nodes) {
+      if (node.hidden) continue;
       const group = this.renderNode(node);
       svg.appendChild(group);
     }
@@ -133,8 +222,43 @@ export class SVGRenderer {
   }
 
   private renderPie(svg: SVGSVGElement, layout: LayoutResult): void {
+    const hasTitle = Boolean(layout.pie_title);
+    if (hasTitle) {
+      const title = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      title.textContent = layout.pie_title!;
+      title.setAttribute('x', String(layout.dimensions.width / 2));
+      title.setAttribute('y', '30');
+      title.setAttribute('text-anchor', 'middle');
+      title.setAttribute('fill', this.theme.colors.nodeText);
+      title.setAttribute('font-family', this.theme.fontFamily);
+      title.setAttribute('font-size', String(this.theme.fontSize + 4));
+      title.setAttribute('font-weight', '600');
+      svg.appendChild(title);
+    }
     const cx = layout.dimensions.width / 2;
-    const cy = layout.dimensions.height / 2;
+    const cy = layout.dimensions.height / 2 + (hasTitle ? 22 : 0);
+    const legendX = layout.dimensions.width - 180;
+    if (layout.pie_show_data) {
+      const palette = ['#8b5cf6', '#38bdf8', '#f472b6', '#fbbf24', '#34d399', '#fb7185'];
+      layout.pie_slices?.slice(0, 12).forEach((slice, index) => {
+        const y = 80 + index * 20;
+        const swatch = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        swatch.setAttribute('x', String(legendX));
+        swatch.setAttribute('y', String(y - 9));
+        swatch.setAttribute('width', '12');
+        swatch.setAttribute('height', '12');
+        swatch.setAttribute('fill', palette[index % palette.length]);
+        svg.appendChild(swatch);
+        const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        label.textContent = `${slice.label}: ${slice.value}`;
+        label.setAttribute('x', String(legendX + 20));
+        label.setAttribute('y', String(y + 1));
+        label.setAttribute('fill', this.theme.colors.nodeText);
+        label.setAttribute('font-family', this.theme.fontFamily);
+        label.setAttribute('font-size', String(this.theme.fontSize - 1));
+        svg.appendChild(label);
+      });
+    }
     const radius = Math.min(layout.dimensions.width, layout.dimensions.height) * .34;
     const palette = ['#8b5cf6', '#38bdf8', '#f472b6', '#fbbf24', '#34d399', '#fb7185'];
     layout.pie_slices?.forEach((slice, index) => {
@@ -908,6 +1032,23 @@ export class SVGRenderer {
     title.textContent = 'Sequence diagram';
     group.appendChild(title);
 
+    for (const participantBox of sequence.boxes ?? []) {
+      const boxGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      boxGroup.classList.add('sequence-participant-box');
+      const frame = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      frame.setAttribute('x', String(participantBox.bounds.x)); frame.setAttribute('y', String(participantBox.bounds.y));
+      frame.setAttribute('width', String(participantBox.bounds.width)); frame.setAttribute('height', String(participantBox.bounds.height));
+      frame.setAttribute('rx', '6');
+      frame.setAttribute('fill', isSafeColorValue(participantBox.color) ? participantBox.color : this.theme.colors.subgraphFill);
+      frame.setAttribute('fill-opacity', '.18');
+      frame.setAttribute('stroke', this.theme.colors.subgraphStroke); frame.setAttribute('stroke-width', '1.25');
+      boxGroup.appendChild(frame);
+      if (participantBox.label) {
+        this.appendSequenceText(boxGroup, participantBox.label, participantBox.bounds.x + 10, participantBox.bounds.y + 17, 'start', 'sequence-box-label', Math.max(10, this.theme.fontSize - 2));
+      }
+      group.appendChild(boxGroup);
+    }
+
     for (const block of sequence.blocks) {
       const blockGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
       blockGroup.classList.add('sequence-block');
@@ -941,6 +1082,15 @@ export class SVGRenderer {
       line.setAttribute('y1', String(lifeline.start.y)); line.setAttribute('y2', String(lifeline.end.y));
       line.setAttribute('stroke', this.theme.colors.edgeStroke); line.setAttribute('stroke-width', '1.25'); line.setAttribute('stroke-dasharray', '6 5');
       group.appendChild(line);
+      if (lifeline.destroy_y !== undefined) {
+        const cross = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        cross.classList.add('sequence-destroy');
+        const cx = lifeline.end.x;
+        const cy = lifeline.destroy_y;
+        cross.setAttribute('d', `M ${cx - 6} ${cy - 6} L ${cx + 6} ${cy + 6} M ${cx - 6} ${cy + 6} L ${cx + 6} ${cy - 6}`);
+        cross.setAttribute('fill', 'none'); cross.setAttribute('stroke', this.theme.colors.edgeStroke); cross.setAttribute('stroke-width', '2');
+        group.appendChild(cross);
+      }
     }
 
     for (const message of sequence.messages) {
@@ -958,6 +1108,13 @@ export class SVGRenderer {
       messageGroup.appendChild(line);
       const direction = selfMessage ? 1 : Math.sign(message.to_x - message.from_x) || 1;
       const tipX = selfMessage ? message.from_x : message.to_x;
+      if (message.bidirectional && !selfMessage) {
+        const tailArrow = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+        tailArrow.classList.add('sequence-message-arrow');
+        tailArrow.setAttribute('points', `${message.from_x},${message.y} ${message.from_x + direction * 8},${message.y - 4} ${message.from_x + direction * 8},${message.y + 4}`);
+        tailArrow.setAttribute('fill', this.theme.colors.edgeStroke);
+        messageGroup.appendChild(tailArrow);
+      }
       if (message.end_marker === 'cross') {
         const cross = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         cross.classList.add('sequence-message-cross');
@@ -1048,13 +1205,15 @@ export class SVGRenderer {
     g.appendChild(title);
 
     const shape = this.createNodeShape(node);
-    shape.setAttribute('fill', isHexColor(node.style?.fill) ? node.style.fill : this.theme.colors.nodeFill);
-    shape.setAttribute('stroke', isHexColor(node.style?.stroke) ? node.style.stroke : this.theme.colors.nodeStroke);
+    shape.setAttribute('fill', isSafeColorValue(node.style?.fill) ? node.style.fill : this.theme.colors.nodeFill);
+    shape.setAttribute('stroke', isSafeColorValue(node.style?.stroke) ? node.style.stroke : this.theme.colors.nodeStroke);
+    if (node.style?.stroke_width) shape.setAttribute('stroke-width', node.style.stroke_width);
+    if (node.style?.stroke_dasharray) shape.setAttribute('stroke-dasharray', node.style.stroke_dasharray);
     shape.setAttribute('stroke-width', '1.5');
     g.appendChild(shape);
 
     const labelLines = node.label_lines?.length ? node.label_lines : [node.label];
-    const fill = isHexColor(node.style?.color) ? node.style.color : this.theme.colors.nodeText;
+    const fill = isSafeColorValue(node.style?.color) ? node.style.color : this.theme.colors.nodeText;
     const fontAwesomeLabel = labelLines.length === 1 ? parseFontAwesomeLabel(labelLines[0]!) : undefined;
     if (fontAwesomeLabel) {
       this.appendFontAwesomeLabel(g, fontAwesomeLabel, node.center, fill);
@@ -1179,6 +1338,83 @@ export class SVGRenderer {
         ].join(' '));
         return polygon;
       }
+      case 'DoubleCircle': {
+        const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        const outer = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        outer.setAttribute('cx', String(cx));
+        outer.setAttribute('cy', String(cy));
+        outer.setAttribute('r', String(Math.min(width, height) / 2));
+        const inner = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        inner.setAttribute('cx', String(cx));
+        inner.setAttribute('cy', String(cy));
+        inner.setAttribute('r', String(Math.min(width, height) * 0.3));
+        group.appendChild(outer);
+        group.appendChild(inner);
+        return group;
+      }
+      case 'Cylinder': {
+        const cap = height * 0.18;
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        const bodyTop = y + cap / 2;
+        const bodyBottom = y + height - cap / 2;
+        path.setAttribute(
+          'd',
+          `M ${x} ${bodyTop} A ${width / 2} ${cap / 2} 0 0 1 ${x + width} ${bodyTop} `
+          + `L ${x + width} ${bodyBottom} A ${width / 2} ${cap / 2} 0 0 1 ${x} ${bodyBottom} Z`,
+        );
+        const lid = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        lid.setAttribute(
+          'd',
+          `M ${x} ${bodyTop} A ${width / 2} ${cap / 2} 0 0 0 ${x + width} ${bodyTop}`,
+        );
+        lid.setAttribute('fill', 'none');
+        const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        group.appendChild(path);
+        group.appendChild(lid);
+        return group;
+      }
+      case 'Asymmetric': {
+        const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+        const notch = width * 0.18;
+        polygon.setAttribute('points', [
+          `${x},${y}`,
+          `${x + width - notch},${y}`,
+          `${x + width},${cy}`,
+          `${x + width - notch},${y + height}`,
+          `${x},${y + height}`,
+        ].join(' '));
+        return polygon;
+      }
+      case 'Subroutine': {
+        const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        rect.setAttribute('x', String(x));
+        rect.setAttribute('y', String(y));
+        rect.setAttribute('width', String(width));
+        rect.setAttribute('height', String(height));
+        rect.setAttribute('rx', String(this.theme.nodeBorderRadius));
+        rect.setAttribute('ry', String(this.theme.nodeBorderRadius));
+        const inset = width * 0.09;
+        for (const side of [x + inset, x + width - inset]) {
+          const rule = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+          rule.setAttribute('x1', String(side));
+          rule.setAttribute('y1', String(y));
+          rule.setAttribute('x2', String(side));
+          rule.setAttribute('y2', String(y + height));
+          group.appendChild(rule);
+        }
+        group.insertBefore(rect, group.firstChild);
+        return group;
+      }
+      case 'Bar': {
+        const bar = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        bar.setAttribute('x', String(x));
+        bar.setAttribute('y', String(cy - 5));
+        bar.setAttribute('width', String(width));
+        bar.setAttribute('height', '10');
+        bar.setAttribute('fill', this.theme.colors.nodeStroke);
+        return bar;
+      }
       case 'Rectangle':
       default: {
         const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
@@ -1202,22 +1438,26 @@ export class SVGRenderer {
 
     if (!sourceNode || !targetNode) return g;
 
-    const edgeResult = this.resolveEdgePath(edge, sourceNode, targetNode);
+    const endMarkerStyle = edge.end_marker ? markerToArrowStyle(edge.end_marker) : null;
+    const edgeResult = this.resolveEdgePath(edge, sourceNode, targetNode, endMarkerStyle);
 
     // Draw the edge path (ends at arrow base, not arrow tip)
+    const edgeColor = isSafeColorValue(edge.stroke_color) ? edge.stroke_color : this.theme.colors.edgeStroke;
     const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     pathEl.setAttribute('d', edgeResult.path);
     pathEl.setAttribute('fill', 'none');
-    pathEl.setAttribute('stroke', this.theme.colors.edgeStroke);
+    pathEl.setAttribute('stroke', edgeColor);
+    if (edge.stroke_width) pathEl.setAttribute('stroke-width', edge.stroke_width);
+    if (edge.stroke_dasharray) pathEl.setAttribute('stroke-dasharray', edge.stroke_dasharray);
 
-    // Apply edge style
+    // Apply edge style (linkStyle overrides take precedence)
     switch (edge.style) {
       case 'dotted':
-        pathEl.setAttribute('stroke-dasharray', '5,5');
-        pathEl.setAttribute('stroke-width', '1.5');
+        if (!edge.stroke_dasharray) pathEl.setAttribute('stroke-dasharray', '5,5');
+        if (!edge.stroke_width) pathEl.setAttribute('stroke-width', '1.5');
         break;
       case 'thick':
-        pathEl.setAttribute('stroke-width', '3');
+        if (!edge.stroke_width) pathEl.setAttribute('stroke-width', '3');
         break;
       case 'invisible':
         pathEl.setAttribute('stroke', 'none');
@@ -1227,10 +1467,20 @@ export class SVGRenderer {
     }
     g.appendChild(pathEl);
 
-    // Draw arrowhead (skip for 'line' and 'invisible' styles)
-    if (edge.style !== 'line' && edge.style !== 'invisible') {
+    // Draw the endpoint decorations. An explicit end marker replaces the
+    // default arrowhead; a plain 'arrow' edge keeps the theme arrowhead.
+    if (edge.end_marker) {
+      for (const el of this.createMarkerElements(edge.end_marker, edgeResult, false)) {
+        g.appendChild(el);
+      }
+    } else if (edge.style === 'arrow') {
       for (const arrowEl of this.createArrowElements(this.theme.arrowStyle, edgeResult)) {
         g.appendChild(arrowEl);
+      }
+    }
+    if (edge.start_marker) {
+      for (const el of this.createMarkerElements(edge.start_marker, edgeResult, true)) {
+        g.appendChild(el);
       }
     }
 
@@ -1270,10 +1520,16 @@ export class SVGRenderer {
     return g;
   }
 
-  private resolveEdgePath(edge: LayoutEdge, sourceNode: LayoutNode, targetNode: LayoutNode): EdgePathResult {
+  private resolveEdgePath(
+    edge: LayoutEdge,
+    sourceNode: LayoutNode,
+    targetNode: LayoutNode,
+    markerStyle: ArrowStyle | null = null,
+  ): EdgePathResult {
     const explicit = this.computeExplicitEdgePath(edge, sourceNode, targetNode);
     if (explicit) return explicit;
 
+    const arrowStyle = markerStyle ?? (this.edgeHasArrow(edge) ? this.theme.arrowStyle : null);
     return computeEdgePath(
       edge.waypoints,
       sourceNode.bounds,
@@ -1283,7 +1539,7 @@ export class SVGRenderer {
       this.theme.arrowSize,
       sourceNode.shape,
       targetNode.shape,
-      this.edgeHasArrow(edge) ? this.theme.arrowStyle : null,
+      arrowStyle,
       this.edgeStrokeWidth(edge),
     );
   }
@@ -1546,11 +1802,137 @@ export class SVGRenderer {
   }
 
   private edgeHasArrow(edge: LayoutEdge): boolean {
-    return edge.style !== 'line' && edge.style !== 'invisible';
+    return edge.style === 'arrow';
   }
 
   private edgeStrokeWidth(edge: LayoutEdge): number {
     return edge.style === 'thick' ? 3 : 1.5;
+  }
+
+  /**
+   * Draw an edge endpoint decoration: filled/hollow arrowheads, circles,
+   * crosses, and diamonds, at either end of the path.
+   */
+  private createMarkerElements(marker: string, edgeResult: EdgePathResult, atStart: boolean): SVGElement[] {
+    const baseAngle = (atStart ? edgeResult.startAngle : edgeResult.arrowAngle) ?? 0;
+    const angle = atStart ? baseAngle + Math.PI : baseAngle;
+    const anchor = atStart
+      ? edgeResult.pathStart ?? edgeResult.arrowTip
+      : edgeResult.arrowAnchor ?? edgeResult.arrowTip;
+    const size = this.theme.arrowSize;
+    const half = size / 2;
+    const elements: SVGElement[] = [];
+
+    const line = (from: Point, to: Point): SVGLineElement => {
+      const el = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      el.setAttribute('x1', String(from.x));
+      el.setAttribute('y1', String(from.y));
+      el.setAttribute('x2', String(to.x));
+      el.setAttribute('y2', String(to.y));
+      el.setAttribute('stroke', this.theme.colors.edgeStroke);
+      el.setAttribute('stroke-width', '1.5');
+      return el;
+    };
+
+    switch (marker) {
+      case 'arrow':
+      case 'triangle': {
+        const spread = Math.PI / 6;
+        const tip = { x: anchor.x + Math.cos(angle) * half, y: anchor.y + Math.sin(angle) * half };
+        const base1 = {
+          x: anchor.x + Math.cos(angle + Math.PI - spread) * half,
+          y: anchor.y + Math.sin(angle + Math.PI - spread) * half,
+        };
+        const base2 = {
+          x: anchor.x + Math.cos(angle + Math.PI + spread) * half,
+          y: anchor.y + Math.sin(angle + Math.PI + spread) * half,
+        };
+        const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+        polygon.setAttribute('points', `${tip.x},${tip.y} ${base1.x},${base1.y} ${base2.x},${base2.y}`);
+        polygon.setAttribute('fill', marker === 'arrow' ? this.theme.colors.arrowFill : this.theme.colors.background);
+        polygon.setAttribute('stroke', this.theme.colors.edgeStroke);
+        polygon.setAttribute('stroke-width', '1');
+        elements.push(polygon);
+        break;
+      }
+      case 'circle': {
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('cx', String(anchor.x));
+        circle.setAttribute('cy', String(anchor.y));
+        circle.setAttribute('r', String(half));
+        circle.setAttribute('fill', this.theme.colors.background);
+        circle.setAttribute('stroke', this.theme.colors.edgeStroke);
+        circle.setAttribute('stroke-width', '1.5');
+        elements.push(circle);
+        break;
+      }
+      case 'cross': {
+        for (const diagonal of [Math.PI / 4, -Math.PI / 4]) {
+          const a = angle + diagonal;
+          elements.push(line(
+            { x: anchor.x - Math.cos(a) * half, y: anchor.y - Math.sin(a) * half },
+            { x: anchor.x + Math.cos(a) * half, y: anchor.y + Math.sin(a) * half },
+          ));
+        }
+        break;
+      }
+      case 'crow_zero_one':
+      case 'crow_one':
+      case 'crow_many':
+      case 'crow_one_or_more': {
+        // Crow's-foot glyphs point back along the edge from the anchor.
+        const back = angle + Math.PI;
+        const prong = (spread: number, length: number): SVGLineElement => {
+          const a = back + spread;
+          return line(
+            anchor,
+            { x: anchor.x + Math.cos(a) * length, y: anchor.y + Math.sin(a) * length },
+          );
+        };
+        // Fork prongs for "many" sides.
+        if (marker === 'crow_many' || marker === 'crow_one_or_more') {
+          elements.push(prong(-0.5, size), prong(0, size), prong(0.5, size));
+        }
+        // Single prong for "one".
+        if (marker === 'crow_one' || marker === 'crow_one_or_more') {
+          elements.push(prong(0, size));
+        }
+        // Zero-or-one adds a circle after the prong.
+        if (marker === 'crow_zero_one') {
+          elements.push(prong(0, size * 0.7));
+          const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+          const center = {
+            x: anchor.x + Math.cos(back) * size * 0.55,
+            y: anchor.y + Math.sin(back) * size * 0.55,
+          };
+          circle.setAttribute('cx', String(center.x));
+          circle.setAttribute('cy', String(center.y));
+          circle.setAttribute('r', String(half * 0.6));
+          circle.setAttribute('fill', this.theme.colors.background);
+          circle.setAttribute('stroke', this.theme.colors.edgeStroke);
+          circle.setAttribute('stroke-width', '1.5');
+          elements.push(circle);
+        }
+        break;
+      }
+      case 'diamond': {
+        const quarter = half / 2;
+        const tip = { x: anchor.x + Math.cos(angle) * half, y: anchor.y + Math.sin(angle) * half };
+        const back = { x: anchor.x - Math.cos(angle) * half, y: anchor.y - Math.sin(angle) * half };
+        const side1 = { x: anchor.x + Math.cos(angle + Math.PI / 2) * quarter, y: anchor.y + Math.sin(angle + Math.PI / 2) * quarter };
+        const side2 = { x: anchor.x + Math.cos(angle - Math.PI / 2) * quarter, y: anchor.y + Math.sin(angle - Math.PI / 2) * quarter };
+        const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+        polygon.setAttribute('points', [tip, side1, back, side2].map(p => `${p.x},${p.y}`).join(' '));
+        polygon.setAttribute('fill', this.theme.colors.background);
+        polygon.setAttribute('stroke', this.theme.colors.edgeStroke);
+        polygon.setAttribute('stroke-width', '1');
+        elements.push(polygon);
+        break;
+      }
+      default:
+        break;
+    }
+    return elements;
   }
 
   private computeArrowPoints(style: ArrowStyle, edgeResult: EdgePathResult): string {

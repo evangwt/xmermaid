@@ -10,13 +10,23 @@
     ]
   },
   {
-    "name": "non-hexadecimal style value",
+    "name": "unsupported style property value",
     "valid": false,
-    "diagnosticId": "flowchart.classDef",
     "lines": [
       "flowchart TD",
       "  A[Start]",
-      "  classDef emphasis fill:red",
+      "  classDef emphasis fill:url(#gradient)",
+      "  class A emphasis"
+    ],
+    "diagnosticId": "flowchart.classDef"
+  },
+  {
+    "name": "safe CSS named color value",
+    "valid": true,
+    "lines": [
+      "flowchart TD",
+      "  A[Start]",
+      "  classDef emphasis fill:firebrick, color: white",
       "  class A emphasis"
     ]
   },

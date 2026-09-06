@@ -100,7 +100,7 @@ describe('support matrix production contract', () => {
       expect.objectContaining({ id: 'flowchart.classDef', severity: 'error' }),
     ]));
 
-    expect(analyzeSupport('graph TD; A[Start]; classDef hot fill:red; class A hot').unsupportedFeatures).toEqual(expect.arrayContaining([
+    expect(analyzeSupport('graph TD; A[Start]; classDef hot fill:url(#gradient); class A hot').unsupportedFeatures).toEqual(expect.arrayContaining([
       expect.objectContaining({
         id: 'flowchart.classDef',
         severity: 'error',
@@ -214,10 +214,13 @@ describe('support matrix production contract', () => {
     expect(flowchart?.unsupportedSyntax.map(item => item.id)).toEqual(expect.arrayContaining([
       'flowchart.click',
       'flowchart.htmlLabel',
-      'flowchart.quotedLabel',
-      'flowchart.entityCodeLabel',
-      'flowchart.edgeToSubgraph',
-      'flowchart.hyphenatedNodeId',
+      'flowchart.edgeId',
+    ]));
+    expect(flowchart?.supportedSyntax.map(item => item.id)).toEqual(expect.arrayContaining([
+      'flowchart.subgraph-containers',
+      'flowchart.inlineClass',
+      'flowchart.linkStyle',
+      'flowchart.expandedShape',
     ]));
     expect(flowchart?.supportedSyntax.map(item => item.id)).toContain('flowchart.fontAwesomeLabel');
     expect(matrix.entries).toHaveLength(30);
@@ -342,17 +345,11 @@ describe('support matrix production contract', () => {
     });
   });
 
-  it('keeps unimplemented sequence lifecycle statements fail-closed', () => {
-    expect(analyzeSupport('sequenceDiagram\n  create participant Worker\n  destroy Worker')).toMatchObject({
+  it('renders sequence create/destroy lifecycle without unsupported diagnostics', () => {
+    expect(analyzeSupport('sequenceDiagram\n  create participant Worker\n  Worker->>Boss: hello\n  destroy Worker')).toMatchObject({
       diagramType: 'sequence',
       status: 'partial',
-      unsupportedFeatures: expect.arrayContaining([
-        expect.objectContaining({
-          id: 'sequence.advanced',
-          severity: 'error',
-          message: 'Sequence create/destroy, box, links, and advanced autonumber or rect syntax are not supported yet.',
-        }),
-      ]),
+      unsupportedFeatures: [],
     });
   });
 
@@ -591,8 +588,9 @@ describe('support matrix production contract', () => {
       'graph TD',
       '  A[Start] --> B[End]',
       '  class A important extra',
-      '  classDef important fill:red',
-      '  style A fill:#fff',
+      '  classDef important fill:url(#x)',
+      '  style A stroke-width:big',
+      '  style B fill:#fff',
       '  click A callback',
       '  C[<b>HTML</b>]',
       '  D["`Markdown`"]',
@@ -617,33 +615,22 @@ describe('support matrix production contract', () => {
       },
     });
     expect(features[4].range).toMatchObject({
-      startLine: 7,
+      startLine: 8,
       startColumn: 3,
     });
   });
 
-  it('detects flowchart shape syntaxes that the Rust parser cannot roundtrip', () => {
+  it('renders stadium and cylinder shapes without unsupported diagnostics', () => {
     const features = detectUnsupportedFeatures([
       'flowchart TD',
       '  A([Stadium])',
       '  B[(Database)]',
     ].join('\n'));
 
-    expect(features.map(feature => feature.id)).toEqual([
-      'flowchart.stadiumShape',
-      'flowchart.cylinderShape',
-    ]);
-    expect(features[0]).toMatchObject({
-      severity: 'error',
-      range: expect.objectContaining({ startLine: 2, startColumn: 3 }),
-    });
-    expect(features[1]).toMatchObject({
-      severity: 'error',
-      range: expect.objectContaining({ startLine: 3, startColumn: 3 }),
-    });
+    expect(features).toEqual([]);
   });
 
-  it('detects unsupported flowchart edge syntaxes that the Rust parser misparses', () => {
+  it('renders edge endings and inline labels while flagging edge IDs', () => {
     const features = detectUnsupportedFeatures([
       'flowchart TD',
       '  A<-->B',
@@ -654,19 +641,15 @@ describe('support matrix production contract', () => {
     ].join('\n'));
 
     expect(features.map(feature => feature.id)).toEqual([
-      'flowchart.bidirectionalEdge',
-      'flowchart.circleEdge',
-      'flowchart.crossEdge',
-      'flowchart.inlineEdgeLabel',
       'flowchart.edgeId',
     ]);
-    expect(features).toEqual(features.map((feature, index) => expect.objectContaining({
+    expect(features[0]).toMatchObject({
       severity: 'error',
-      range: expect.objectContaining({ startLine: index + 2 }),
-    })));
+      range: expect.objectContaining({ startLine: 6 }),
+    });
   });
 
-  it('detects additional lossy flowchart syntaxes documented by Rust parser coverage', () => {
+  it('renders thick and extended edges while flagging expanded shapes and directives', () => {
     const features = detectUnsupportedFeatures([
       'flowchart TD',
       '  A@{ shape: cloud }',
@@ -679,19 +662,15 @@ describe('support matrix production contract', () => {
 
     expect(features.map(feature => feature.id)).toEqual([
       'flowchart.expandedShape',
-      'flowchart.thickLineEdge',
-      'flowchart.extendedLineEdge',
-      'flowchart.extendedThickEdge',
-      'flowchart.inlineClass',
-      'flowchart.linkStyle',
+      'flowchart.style',
     ]);
     expect(features).toEqual(features.map((feature, index) => expect.objectContaining({
       severity: 'error',
-      range: expect.objectContaining({ startLine: index + 2 }),
+      range: expect.objectContaining({ startLine: [2, 7][index] }),
     })));
   });
 
-  it('detects unsupported special label syntaxes while allowing FontAwesome labels', () => {
+  it('renders quoted labels and entity codes while allowing FontAwesome labels', () => {
     const features = detectUnsupportedFeatures([
       'flowchart TD',
       '  A["Quoted"]',
@@ -699,53 +678,28 @@ describe('support matrix production contract', () => {
       '  B[fa:fa-car Text]',
     ].join('\n'));
 
-    expect(features.map(feature => feature.id)).toEqual([
-      'flowchart.quotedLabel',
-      'flowchart.entityCodeLabel',
-    ]);
-    expect(features).toEqual(features.map((feature, index) => expect.objectContaining({
-      severity: 'warning',
-      range: expect.objectContaining({ startLine: index + 2 }),
-    })));
+    expect(features).toEqual([]);
   });
 
-  it('detects unsupported edges that target a subgraph id as compound edges', () => {
+  it('renders edges that target subgraph ids as container connections', () => {
     const features = detectUnsupportedFeatures([
       'flowchart TD',
-      '  A-->sub1',
-      '  subgraph sub1',
-      '    B-->C',
+      '  subgraph one [One]',
+      '    A[Start]',
       '  end',
+      '  A --> one',
     ].join('\n'));
 
-    expect(features).toEqual([
-      expect.objectContaining({
-        id: 'flowchart.edgeToSubgraph',
-        severity: 'error',
-        range: expect.objectContaining({ startLine: 2 }),
-      }),
-    ]);
+    expect(features).toEqual([]);
   });
 
-  it('detects unsupported hyphenated node ids before they split into wrong nodes', () => {
+  it('renders hyphenated node ids as single nodes', () => {
     const features = detectUnsupportedFeatures([
       'flowchart TD',
       '  my-node-->B',
-      '  A-->next-node',
     ].join('\n'));
 
-    expect(features).toEqual([
-      expect.objectContaining({
-        id: 'flowchart.hyphenatedNodeId',
-        severity: 'error',
-        range: expect.objectContaining({ startLine: 2 }),
-      }),
-      expect.objectContaining({
-        id: 'flowchart.hyphenatedNodeId',
-        severity: 'error',
-        range: expect.objectContaining({ startLine: 3 }),
-      }),
-    ]);
+    expect(features).toEqual([]);
   });
 
   it('returns no unsupported features for a basic supported flowchart', () => {

@@ -124,11 +124,9 @@ describe('verify-release script', () => {
     expect(record.missing).toContain('README mentions partial Mermaid support');
     expect(record.missing).toContain('package files explicitly include English, Chinese, and license docs');
     expect(record.missing).toContain('README documents special label limitations');
-    expect(record.missing).toContain('README documents quoted label limitation');
     expect(record.missing).toContain('README documents safe Flowchart class style boundary');
     expect(record.missing).toContain('Chinese README documents safe Flowchart class style boundary');
-    expect(record.missing).toContain('README documents subgraph edge limitation');
-    expect(record.missing).toContain('README documents hyphenated node id limitation');
+    expect(record.missing).toContain('README documents subgraph container support');
     expect(record.missing).toContain('README documents live editor workflow smoke');
     expect(record.missing).toContain('README documents live editor direction and safety smoke');
     expect(record.missing).toContain('release checklist mentions consumer-pack-install');

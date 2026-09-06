@@ -18,9 +18,14 @@ export type NodeShape =
   | 'Stadium'
   | 'Diamond'
   | 'Circle'
+  | 'DoubleCircle'
   | 'Hexagon'
   | 'Parallelogram'
-  | 'Trapezoid';
+  | 'Trapezoid'
+  | 'Asymmetric'
+  | 'Subroutine'
+  | 'Cylinder'
+  | 'Bar';
 
 export interface LayoutConfig {
   node_width: number;
@@ -41,12 +46,22 @@ export interface LayoutNode {
   label_lines?: string[];
   /** Safe Flowchart class colors emitted by the Rust parser and layout pipeline. */
   style?: NodeStyle;
+  /** Hidden nodes resolve edge geometry but are never drawn. */
+  hidden?: boolean;
 }
 
 export interface NodeStyle {
   fill?: string;
   stroke?: string;
   color?: string;
+  stroke_width?: string;
+  stroke_dasharray?: string;
+}
+
+export interface LayoutSubgraphBox {
+  id: string;
+  label: string;
+  bounds: Bounds;
 }
 
 export type EdgeStyle = 'arrow' | 'line' | 'dotted' | 'thick' | 'invisible';
@@ -60,6 +75,13 @@ export interface LayoutEdge {
   label_lines?: string[];
   label_position?: Point;
   style: EdgeStyle;
+  /** Safe linkStyle stroke color overrides. */
+  stroke_color?: string;
+  stroke_width?: string;
+  stroke_dasharray?: string;
+  /** Endpoint decorations such as arrow, triangle, circle, cross, or diamond. */
+  start_marker?: string;
+  end_marker?: string;
   source_boundary?: Point;
   target_boundary?: Point;
   path_end?: Point;
@@ -205,14 +227,22 @@ export interface VennLayout { title: string; sets: VennSetLayout[]; unions: Venn
 export interface SwimlaneLaneLayout { id: string; label: string; bounds: Bounds; }
 export interface SwimlaneLayout { direction: FlowDirection; lanes: SwimlaneLaneLayout[]; }
 export interface SequenceParticipantLayout { id: string; label: string; kind: 'participant' | 'actor'; header: Bounds; }
-export interface SequenceLifelineLayout { participant: string; start: Point; end: Point; }
-export interface SequenceMessageLayout { from: string; to: string; from_x: number; to_x: number; y: number; label: string; label_position: Point; self_width?: number; dashed: boolean; number?: number; end_marker?: 'arrow' | 'cross'; }
+export interface SequenceLifelineLayout { participant: string; start: Point; end: Point; destroy_y?: number; }
+
+export interface SequenceBoxLayout {
+  label?: string;
+  color?: string;
+  bounds: Bounds;
+}
+export interface SequenceMessageLayout { from: string; to: string; from_x: number; to_x: number; y: number; label: string; label_position: Point; self_width?: number; dashed: boolean; number?: number; end_marker?: 'arrow' | 'cross';  bidirectional?: boolean;
+}
 export type SequenceNotePlacementLayout = 'left_of' | 'right_of' | 'over';
 export interface SequenceNoteLayout { placement: SequenceNotePlacementLayout; participants: string[]; bounds: Bounds; text: string; lines?: string[]; }
 export interface SequenceActivationLayout { participant: string; bounds: Bounds; }
 export interface SequenceBlockDividerLayout { label: string; y: number; }
 export interface SequenceBlockLayout { kind: string; label: string; color?: string; bounds: Bounds; dividers: SequenceBlockDividerLayout[]; }
-export interface SequenceLayout { participants: SequenceParticipantLayout[]; lifelines: SequenceLifelineLayout[]; messages: SequenceMessageLayout[]; activations: SequenceActivationLayout[]; notes: SequenceNoteLayout[]; blocks: SequenceBlockLayout[]; }
+export interface SequenceLayout { participants: SequenceParticipantLayout[]; lifelines: SequenceLifelineLayout[]; messages: SequenceMessageLayout[]; activations: SequenceActivationLayout[]; notes: SequenceNoteLayout[]; blocks: SequenceBlockLayout[];  boxes?: SequenceBoxLayout[];
+}
 export interface IshikawaCauseLayout { label: string; parent: string | null; depth: number; branch_anchor: Point; position: Point; }
 export interface IshikawaLayout { effect: string; effect_bounds: Bounds; spine_start: Point; spine_end: Point; causes: IshikawaCauseLayout[]; }
 export interface WardleyComponentLayout { id: string; label: string; center: Point; anchor: boolean; }
@@ -228,6 +258,15 @@ export interface LayoutResult {
   edges: LayoutEdge[];
   dimensions: Dimensions;
   pie_slices?: PieSlice[];
+  pie_title?: string;
+  /** Rendered subgraph container boxes. */
+  subgraph_boxes?: LayoutSubgraphBox[];
+  /** Render the pie slice value table. */
+  pie_show_data?: boolean;
+  /** Accessible name captured from accTitle / frontmatter title directives. */
+  acc_title?: string;
+  /** Accessible description captured from accDescr directives. */
+  acc_descr?: string;
   xy_chart?: XyChartLayout;
   sankey?: SankeyLayout;
   quadrant_chart?: QuadrantChartLayout;

@@ -71,6 +71,76 @@ function renderedArrowTip(svg: SVGSVGElement): string {
   return values.slice(2, 4).join(',');
 }
 
+describe('SVGRenderer endpoint markers and new shapes', () => {
+  it('draws circle and cross end markers instead of the default arrowhead', () => {
+    const layout = createTestLayout();
+    layout.edges[0] = { ...layout.edges[0]!, label: null, style: 'line', end_marker: 'circle' };
+    const svg = new SVGRenderer().render(layout);
+    const edge = svg.querySelector('.edge')!;
+    expect(edge.querySelector('circle')).not.toBeNull();
+  });
+
+  it('draws cross markers as crossing lines', () => {
+    const layout = createTestLayout();
+    layout.edges[0] = { ...layout.edges[0]!, label: null, style: 'line', end_marker: 'cross' };
+    const edge = new SVGRenderer().render(layout).querySelector('.edge')!;
+    expect(edge.querySelectorAll('line').length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('draws start markers for bidirectional edges at the source end', () => {
+    const layout = createTestLayout();
+    layout.edges[0] = {
+      ...layout.edges[0]!,
+      label: null,
+      style: 'arrow',
+      start_marker: 'arrow',
+      end_marker: 'arrow',
+    };
+    const edge = new SVGRenderer().render(layout).querySelector('.edge')!;
+    // One filled polygon for the source arrowhead plus one for the target.
+    expect(edge.querySelectorAll('polygon').length).toBe(2);
+  });
+
+  it('keeps plain line and thick edges free of arrowheads', () => {
+    for (const style of ['line', 'thick', 'dotted'] as const) {
+      const layout = createTestLayout();
+      layout.edges[0] = { ...layout.edges[0]!, label: null, style };
+      const edge = new SVGRenderer().render(layout).querySelector('.edge')!;
+      expect(edge.querySelectorAll('polygon')).toHaveLength(0);
+    }
+  });
+
+  it('renders double-circle, cylinder, asymmetric, and subroutine shapes', () => {
+    const layout = createTestLayout();
+    layout.nodes[0] = { ...layout.nodes[0]!, shape: 'DoubleCircle' };
+    const svg = new SVGRenderer().render(layout);
+    expect(svg.querySelectorAll('circle').length).toBe(2);
+    for (const [shape, selector] of [
+      ['Cylinder', 'path'],
+      ['Asymmetric', 'polygon'],
+      ['Subroutine', 'line'],
+    ] as const) {
+      const scoped = createTestLayout();
+      scoped.nodes[0] = { ...scoped.nodes[0]!, shape };
+      const rendered = new SVGRenderer().render(scoped);
+      expect(rendered.querySelectorAll(selector).length).toBeGreaterThan(0);
+    }
+  });
+
+  it('renders pie titles above the chart', () => {
+    const layout: LayoutResult = {
+      nodes: [],
+      edges: [],
+      dimensions: { width: 420, height: 320 },
+      pie_slices: [{ label: 'Pass', value: 80, start_angle: 0, end_angle: Math.PI }],
+      pie_title: 'Deployment',
+    };
+    const svg = new SVGRenderer().render(layout);
+    const texts = Array.from(svg.querySelectorAll('text')).map(text => text.textContent);
+    expect(texts).toContain('Deployment');
+  });
+});
+
 describe('SVGRenderer', () => {
   it('renders only validated Flowchart class colors', () => {
     const layout = createTestLayout();

@@ -212,14 +212,11 @@ function checkDocs() {
       passed: /entity[- ]code/i.test(readme)
         && /FontAwesome/i.test(readme),
     },
-    {
-      label: 'README documents quoted label limitation',
-      passed: /quoted labels/i.test(readme),
-    },
+
     {
       label: 'README documents safe Flowchart class style boundary',
       passed: /classDef <name>/i.test(readme)
-        && /three- or six-digit hexadecimal values/i.test(readme)
+        && /three- or six-digit hexadecimal/i.test(readme)
         && /Visual editing is read-only/i.test(readme),
     },
     {
@@ -229,12 +226,9 @@ function checkDocs() {
         && /可视化编辑.*只读/.test(chineseReadme),
     },
     {
-      label: 'README documents subgraph edge limitation',
-      passed: /edges?\s+to\s+subgraph/i.test(readme),
-    },
-    {
-      label: 'README documents hyphenated node id limitation',
-      passed: /hyphenated node ids/i.test(readme),
+      label: 'README documents subgraph container support',
+      passed: /subgraph containers?/i.test(readme)
+        && /accessibility directives|accTitle/i.test(readme),
     },
     {
       label: 'README documents strict security policy',

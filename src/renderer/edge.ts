@@ -10,6 +10,8 @@ export interface EdgePathResult {
   arrowAnchor?: Point; // Marker reference point; circle/cross use their center
   arrowAngle: number; // Angle in radians from path tangent at endpoint
   pathEnd?: Point; // Where the path line ends before the arrow tail
+  pathStart?: Point; // Where the path leaves the source node
+  startAngle?: number; // Angle in radians of the path tangent at the source
 }
 
 export interface ArrowPlacement {
@@ -554,6 +556,8 @@ export function computeBezierPath(
 
   // Arrow angle from bezier tangent at endpoint: direction from cp2 to end
   arrowAngle = Math.atan2(targetBoundary.y - lastCp2.y, targetBoundary.x - lastCp2.x);
+  const pathStart = start;
+  const startAngle = startTangentAngle(path, start, waypoints[1] ?? targetBoundary);
   const placement = arrowStyle
     ? computeArrowPlacement(targetBoundary, arrowAngle, arrowSize, gap, arrowStyle, strokeWidth)
     : { arrowTip: targetBoundary, arrowAnchor: targetBoundary, pathEnd: targetBoundary };
@@ -566,6 +570,8 @@ export function computeBezierPath(
     arrowAnchor: placement.arrowAnchor,
     arrowAngle,
     pathEnd: placement.pathEnd,
+    pathStart: start,
+    startAngle: startTangentAngle(path, start, waypoints[1] ?? targetBoundary),
   };
 }
 
@@ -614,6 +620,14 @@ function extractLastCp2(path: string, fallbackEnd: Point): Point {
     return { x: nums[2], y: nums[3] }; // cp2 is the 3rd and 4th numbers
   }
   return fallbackEnd;
+}
+
+/**
+ * Direction the path leaves its start point, derived from the first segment.
+ */
+function startTangentAngle(path: string, start: Point, next: Point): number {
+  void path;
+  return Math.atan2(next.y - start.y, next.x - start.x);
 }
 
 /**
@@ -707,6 +721,8 @@ export function computeStepPath(
     arrowAnchor: placement.arrowAnchor,
     arrowAngle,
     pathEnd: placement.pathEnd,
+    pathStart: start,
+    startAngle: startTangentAngle(path, start, waypoints[1] ?? targetBoundary),
   };
 }
 
@@ -758,12 +774,15 @@ export function computeStraightPath(
 
   parts.push(`L ${placement.pathEnd.x} ${placement.pathEnd.y}`);
 
+  const path = parts.join(' ');
   return {
-    path: parts.join(' '),
+    path,
     arrowTip: placement.arrowTip,
     arrowAnchor: placement.arrowAnchor,
     arrowAngle,
     pathEnd: placement.pathEnd,
+    pathStart: start,
+    startAngle: startTangentAngle(path, start, waypoints[1] ?? targetBoundary),
   };
 }
 
