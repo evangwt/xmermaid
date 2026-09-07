@@ -273,8 +273,15 @@ function writeConsumerProject(consumerDir, tarballPath) {
 }
 
 function installConsumer(consumerDir) {
+  // A nested npm must not inherit the parent lifecycle's npm_config_* env:
+  // injected values such as local_prefix redirect the install to the wrong
+  // project and loglevel=silent mutes it, so the install fails silently.
+  const env = Object.fromEntries(
+    Object.entries(process.env).filter(([key]) => !key.startsWith('npm_') && key !== 'INIT_CWD'),
+  );
   runChecked('npm', ['install', '--ignore-scripts', '--no-audit', '--no-fund'], {
     cwd: consumerDir,
+    env,
     label: 'consumer npm install',
   });
 }
