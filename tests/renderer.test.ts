@@ -350,12 +350,45 @@ describe('SVGRenderer', () => {
 
     const svg = new SVGRenderer(DARK_THEME).render(layout);
 
-    expect(svg.querySelectorAll('.radar-grid')).toHaveLength(4);
+    // Default graticule is five circle rings.
+    expect(svg.querySelectorAll('.radar-grid')).toHaveLength(5);
+    expect(svg.querySelectorAll('circle.radar-grid')).toHaveLength(5);
     expect(svg.querySelectorAll('.radar-axis')).toHaveLength(3);
     expect(svg.querySelectorAll('.radar-curve')).toHaveLength(1);
     expect(svg.querySelector('.radar-axis-label')?.textContent).toContain('Food Quality');
     expect(svg.querySelector('.radar-curve-title')?.textContent).toBe('Restaurant A');
     expect(svg.querySelectorAll('.node')).toHaveLength(0);
+  });
+
+  it('renders Radar polygon graticules with custom tick counts', () => {
+    const layout = {
+      nodes: [],
+      edges: [],
+      dimensions: { width: 600, height: 600 },
+      radar: {
+        title: 'Restaurant Comparison',
+        center: { x: 300, y: 300 },
+        radius: 172,
+        min: 0,
+        max: 5,
+        graticule: 'polygon',
+        ticks: 3,
+        axes: [
+          { label: 'Food Quality', end: { x: 300, y: 128 }, label_position: { x: 300, y: 88 } },
+          { label: 'Service', end: { x: 449, y: 386 }, label_position: { x: 484, y: 406 } },
+          { label: 'Price', end: { x: 151, y: 386 }, label_position: { x: 116, y: 406 } },
+        ],
+        curves: [
+          { label: 'Restaurant A', points: [{ x: 300, y: 162 }, { x: 389, y: 352 }, { x: 240, y: 334 }] },
+        ],
+      },
+    } as unknown as LayoutResult;
+
+    const svg = new SVGRenderer(DARK_THEME).render(layout);
+
+    expect(svg.querySelectorAll('.radar-grid')).toHaveLength(3);
+    expect(svg.querySelectorAll('polygon.radar-grid')).toHaveLength(3);
+    expect(svg.querySelectorAll('circle.radar-grid')).toHaveLength(0);
   });
 
   it('renders Packet bit fields as a native structured grid', () => {

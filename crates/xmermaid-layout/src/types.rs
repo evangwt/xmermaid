@@ -232,6 +232,17 @@ pub struct XyChartLayout {
     pub y_min: f64,
     pub y_max: f64,
     pub series: Vec<XyChartSeries>,
+    /// Horizontal orientation swaps the category axis to the left edge and
+    /// grows bars rightward from the value baseline.
+    #[serde(default)]
+    pub horizontal: bool,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub x_title: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub y_title: String,
+    /// Tick labels for the value axis in horizontal orientation.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub value_axis_labels: Vec<String>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SankeyNode {
@@ -258,6 +269,15 @@ pub struct SankeyLayout {
 pub struct QuadrantPointLayout {
     pub label: String,
     pub center: Point,
+    /// Direct or class-based `radius:` style; renderer default applies when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub radius: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fill_color: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stroke_color: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stroke_width: Option<f64>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QuadrantChartLayout {
@@ -320,6 +340,15 @@ pub struct RadarCurveLayout {
     pub label: String,
     pub points: Vec<Point>,
 }
+/// Graticule ring shape mirrored from the parsed radar AST.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum RadarGraticuleShape {
+    #[default]
+    Circle,
+    Polygon,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RadarLayout {
     pub title: String,
@@ -329,6 +358,14 @@ pub struct RadarLayout {
     pub curves: Vec<RadarCurveLayout>,
     pub min: f64,
     pub max: f64,
+    #[serde(default)]
+    pub graticule: RadarGraticuleShape,
+    #[serde(default = "default_radar_layout_ticks")]
+    pub ticks: u32,
+}
+
+fn default_radar_layout_ticks() -> u32 {
+    5
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PacketFieldLayout {

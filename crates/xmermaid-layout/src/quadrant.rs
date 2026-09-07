@@ -14,6 +14,10 @@ pub fn layout(chart: &QuadrantAst, config: &LayoutConfig) -> LayoutResult {
             x: plot.x + point.x * plot.width,
             y: plot.y + (1.0 - point.y) * plot.height,
         },
+        radius: point.radius,
+        fill_color: point.fill_color.clone(),
+        stroke_color: point.stroke_color.clone(),
+        stroke_width: point.stroke_width,
     }).collect();
     LayoutResult { pie_show_data: false, pie_title: None, subgraph_boxes: Vec::new(),
         nodes: vec![], edges: vec![],

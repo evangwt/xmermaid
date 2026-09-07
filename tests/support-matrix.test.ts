@@ -403,9 +403,9 @@ describe('support matrix production contract', () => {
     });
   });
 
-  it('reports sectioned user journey tasks as partial instead of planned', () => {
+  it('reports sectioned user journey tasks as fully supported', () => {
     expect(analyzeSupport('journey\n  section Explore\n    Find product: 5: Buyer')).toMatchObject({
-      diagramType: 'user-journey', status: 'partial', unsupportedFeatures: [],
+      diagramType: 'user-journey', status: 'supported', unsupportedFeatures: [],
     });
   });
 
@@ -413,27 +413,27 @@ describe('support matrix production contract', () => {
     expect(analyzeSupport('timeline\n  2025 : Global launch')).toMatchObject({ diagramType: 'timeline', status: 'partial', unsupportedFeatures: [] });
   });
 
-  it('reports dated Gantt tasks as partial instead of planned', () => {
+  it('reports dated Gantt tasks as fully supported', () => {
     expect(analyzeSupport('gantt\n  section Build\n  Compile : 2026-07-28, 2d')).toMatchObject({
-      diagramType: 'gantt', status: 'partial', unsupportedFeatures: [],
+      diagramType: 'gantt', status: 'supported', unsupportedFeatures: [],
     });
   });
 
-  it('reports numeric Pie slices as partial instead of planned', () => {
+  it('reports numeric Pie slices as fully supported', () => {
     expect(analyzeSupport('pie title Deployment\n  "Passed" : 80\n  "Failed" : 20')).toMatchObject({
-      diagramType: 'pie', status: 'partial', unsupportedFeatures: [],
+      diagramType: 'pie', status: 'supported', unsupportedFeatures: [],
     });
   });
-  it('reports categorical XY chart series as partial instead of planned', () => {
+  it('renders categorical XY chart series without support warnings', () => {
     expect(analyzeSupport('xychart-beta\n  title "Revenue"\n  x-axis [Q1, Q2]\n  y-axis "USD" 0 --> 100\n  bar [20, 40]\n  line [30, 50]')).toMatchObject({
       diagramType: 'xychart', status: 'partial', unsupportedFeatures: [],
     });
   });
-  it('surfaces numeric XY x-axes before the WASM render path', () => {
+  it('accepts numeric XY x-axes without support warnings', () => {
     expect(analyzeSupport('xychart-beta\n  x-axis 0 --> 100\n  y-axis 0 --> 100\n  line [20, 40]')).toMatchObject({
       diagramType: 'xychart',
       status: 'partial',
-      unsupportedFeatures: [expect.objectContaining({ id: 'xychart.numericXAxis', severity: 'error' })],
+      unsupportedFeatures: [],
     });
   });
   it('reports indented Mindmap nodes as partial instead of planned', () => {
@@ -543,12 +543,11 @@ describe('support matrix production contract', () => {
     });
   });
 
-  it('blocks Radar graticules and configuration outside the native curve subset', () => {
+  it('supports Radar graticule shapes while blocking configuration', () => {
     expect(analyzeSupport('radar-beta\n  axis A, B, C\n  curve c{1, 2, 3}\n  graticule polygon\n---\nconfig:\n  radar:\n    curveTension: 0.1')).toMatchObject({
       diagramType: 'radar',
       status: 'partial',
       unsupportedFeatures: expect.arrayContaining([
-        expect.objectContaining({ id: 'radar.advanced', severity: 'error', range: expect.objectContaining({ startLine: 4 }) }),
         expect.objectContaining({ id: 'radar.advanced', severity: 'error', range: expect.objectContaining({ startLine: 5 }) }),
       ]),
     });
@@ -649,7 +648,7 @@ describe('support matrix production contract', () => {
     });
   });
 
-  it('renders thick and extended edges while flagging expanded shapes and directives', () => {
+  it('renders thick and extended edges while flagging unsafe style directives', () => {
     const features = detectUnsupportedFeatures([
       'flowchart TD',
       '  A@{ shape: cloud }',
@@ -660,13 +659,14 @@ describe('support matrix production contract', () => {
       '  linkStyle 0 stroke:#ff3',
     ].join('\n'));
 
+    // Expanded shapes are validated by the parser itself; only the unsafe
+    // linkStyle color is flagged by the support analyzer.
     expect(features.map(feature => feature.id)).toEqual([
-      'flowchart.expandedShape',
       'flowchart.style',
     ]);
-    expect(features).toEqual(features.map((feature, index) => expect.objectContaining({
+    expect(features).toEqual(features.map(() => expect.objectContaining({
       severity: 'error',
-      range: expect.objectContaining({ startLine: [2, 7][index] }),
+      range: expect.objectContaining({ startLine: 7 }),
     })));
   });
 

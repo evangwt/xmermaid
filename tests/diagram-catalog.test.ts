@@ -18,6 +18,19 @@ describe('Mermaid 11.16.0 diagram catalog', () => {
   });
 
   it.each([
+    ['Pie\n  "a": 1', 'unknown'],
+    ['Gantt\n  section S\n  T : 2024-01-01, 1d', 'unknown'],
+    ['gitgraph\n  commit', 'unknown'],
+    ['pie\n  "a": 1', 'pie'],
+    ['\n\npie\n  "a": 1', 'pie'],
+    ['%%{init: {}}%%\npie\n  "a": 1', 'pie'],
+    ['---\ntitle: T\n---\npie\n  "a": 1', 'pie'],
+    ['eventModeling\n  tf 01 ui Cart', 'event-modeling'],
+  ])('detects %s as %s', (source, type) => {
+    expect(detectDiagramType(source)).toBe(type);
+  });
+
+  it.each([
     ['sequenceDiagram\nAlice->>Bob: ping', 'sequence'],
     ['classDiagram\nAnimal <|-- Duck', 'class'],
     ['stateDiagram-v2\n[*] --> Ready', 'state'],

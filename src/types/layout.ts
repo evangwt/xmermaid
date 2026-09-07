@@ -111,6 +111,12 @@ export interface XyChartLayout {
   y_min: number;
   y_max: number;
   series: XyChartSeries[];
+  /** Horizontal orientation swaps the category axis to the left edge. */
+  horizontal?: boolean;
+  x_title?: string;
+  y_title?: string;
+  /** Tick labels for the value axis in horizontal orientation. */
+  value_axis_labels?: string[];
 }
 
 export interface SankeyNode {
@@ -137,6 +143,10 @@ export interface SankeyLayout {
 export interface QuadrantPointLayout {
   label: string;
   center: Point;
+  radius?: number;
+  fill_color?: string;
+  stroke_color?: string;
+  stroke_width?: number;
 }
 
 export interface QuadrantChartLayout {
@@ -200,6 +210,8 @@ export interface RadarCurveLayout {
   points: Point[];
 }
 
+export type RadarGraticuleShape = 'circle' | 'polygon';
+
 export interface RadarLayout {
   title: string;
   center: Point;
@@ -208,6 +220,8 @@ export interface RadarLayout {
   curves: RadarCurveLayout[];
   min: number;
   max: number;
+  graticule?: RadarGraticuleShape;
+  ticks?: number;
 }
 
 export interface PacketFieldLayout {

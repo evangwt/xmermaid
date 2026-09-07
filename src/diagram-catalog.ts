@@ -1,42 +1,59 @@
 export const MERMAID_COMPATIBILITY_VERSION = '11.16.0' as const;
 
 export const DIAGRAM_CATALOG = [
-  ['flowchart', /^(?:graph|flowchart)\b/i],
-  ['swimlanes', /^swimlane(?:-beta)?\b/i],
-  ['sequence', /^sequenceDiagram\b/i],
-  ['class', /^classDiagram\b/i],
-  ['state', /^stateDiagram(?:-v2)?\b/i],
-  ['er', /^erDiagram\b/i],
-  ['user-journey', /^journey\b/i],
-  ['gantt', /^gantt\b/i],
-  ['pie', /^pie\b/i],
-  ['quadrant', /^quadrantChart\b/i],
-  ['requirement', /^requirementDiagram\b/i],
-  ['gitgraph', /^gitGraph\b/i],
-  ['c4', /^C4(?:Context|Container|Component|Dynamic|Deployment)\b/i],
-  ['mindmap', /^mindmap\b/i],
-  ['timeline', /^timeline\b/i],
-  ['zenuml', /^zenuml\b/i],
-  ['sankey', /^sankey(?:-beta)?\b/i],
-  ['xychart', /^xychart(?:-beta)?\b/i],
-  ['block', /^block(?:-beta)?\b/i],
-  ['packet', /^packet\b/i],
-  ['kanban', /^kanban\b/i],
-  ['architecture', /^architecture(?:-beta)?\b/i],
-  ['radar', /^radar(?:-beta)?\b/i],
+  ['flowchart', /^(?:graph|flowchart)\b/],
+  ['swimlanes', /^swimlane(?:-beta)?\b/],
+  ['sequence', /^sequenceDiagram\b/],
+  ['class', /^classDiagram\b/],
+  ['state', /^stateDiagram(?:-v2)?\b/],
+  ['er', /^erDiagram\b/],
+  ['user-journey', /^journey\b/],
+  ['gantt', /^gantt\b/],
+  ['pie', /^pie\b/],
+  ['quadrant', /^quadrantChart\b/],
+  ['requirement', /^requirementDiagram\b/],
+  ['gitgraph', /^gitGraph\b/],
+  ['c4', /^C4(?:Context|Container|Component|Dynamic|Deployment)\b/],
+  ['mindmap', /^mindmap\b/],
+  ['timeline', /^timeline\b/],
+  ['zenuml', /^zenuml\b/],
+  ['sankey', /^sankey(?:-beta)?\b/],
+  ['xychart', /^xychart(?:-beta)?\b/],
+  ['block', /^block(?:-beta)?\b/],
+  ['packet', /^packet\b/],
+  ['kanban', /^kanban\b/],
+  ['architecture', /^architecture(?:-beta)?\b/],
+  ['radar', /^radar(?:-beta)?\b/],
   ['event-modeling', /^eventModeling\b/i],
-  ['treemap', /^treemap(?:-beta)?\b/i],
-  ['venn', /^venn(?:-beta)?\b/i],
-  ['ishikawa', /^ishikawa(?:-beta)?\b/i],
-  ['wardley', /^wardley\b/i],
-  ['cynefin', /^cynefin\b/i],
-  ['treeview', /^tree\b/i],
+  ['treemap', /^treemap(?:-beta)?\b/],
+  ['venn', /^venn(?:-beta)?\b/],
+  ['ishikawa', /^ishikawa(?:-beta)?\b/],
+  ['wardley', /^wardley\b/],
+  ['cynefin', /^cynefin\b/],
+  ['treeview', /^tree\b/],
 ] as const satisfies readonly (readonly [string, RegExp])[];
 
 export type DiagramType = typeof DIAGRAM_CATALOG[number][0];
 export type DetectedDiagramType = DiagramType | 'unknown';
 
 export function detectDiagramType(source: string): DetectedDiagramType {
-  const firstLine = source.trimStart().split(/\r?\n/, 1)[0]?.trim() ?? '';
+  // Leading blank lines, `%%` comment/init-directive lines, and one leading
+  // front-matter block are all consumed before the diagram header; none of
+  // them change the diagram type. Header keywords are case-sensitive,
+  // matching the Rust parser dispatch exactly.
+  const lines = source.trimStart().split(/\r?\n/).map(line => line.trim());
+  const skipIgnorable = (index: number): number => {
+    while (index < lines.length && (lines[index] === '' || lines[index]!.startsWith('%%'))) index += 1;
+    return index;
+  };
+  let index = skipIgnorable(0);
+  if (lines[index] === '---') {
+    let closing = index + 1;
+    while (closing < lines.length && lines[closing] !== '---') closing += 1;
+    if (closing < lines.length) {
+      index = skipIgnorable(closing + 1);
+    }
+  }
+  const firstLine = lines[index] ?? '';
   return DIAGRAM_CATALOG.find(([, pattern]) => pattern.test(firstLine))?.[0] ?? 'unknown';
 }

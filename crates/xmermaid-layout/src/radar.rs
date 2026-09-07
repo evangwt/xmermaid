@@ -1,5 +1,5 @@
-use crate::types::{Dimensions, LayoutConfig, LayoutResult, Point, RadarAxisLayout, RadarCurveLayout, RadarLayout};
-use xmermaid_parser::ast::RadarAst;
+use crate::types::{Dimensions, LayoutConfig, LayoutResult, Point, RadarAxisLayout, RadarCurveLayout, RadarGraticuleShape, RadarLayout};
+use xmermaid_parser::ast::{RadarAst, RadarGraticule};
 
 const CHART_SIZE: f64 = 520.0;
 const CHART_RADIUS: f64 = 172.0;
@@ -26,7 +26,20 @@ pub fn layout(chart: &RadarAst, config: &LayoutConfig) -> LayoutResult {
         dimensions: Dimensions { width: CHART_SIZE + config.padding * 2.0, height: CHART_SIZE + config.padding * 2.0 },
         pie_slices: vec![], xy_chart: None, sankey: None, quadrant_chart: None,
         block_diagram: None, kanban_board: None, treemap: None,
-        radar: Some(RadarLayout { title: chart.title.clone(), center, radius: CHART_RADIUS, axes, curves, min: chart.min, max: chart.max }),
+        radar: Some(RadarLayout {
+            title: chart.title.clone(),
+            center,
+            radius: CHART_RADIUS,
+            axes,
+            curves,
+            min: chart.min,
+            max: chart.max,
+            graticule: match chart.graticule {
+                RadarGraticule::Circle => RadarGraticuleShape::Circle,
+                RadarGraticule::Polygon => RadarGraticuleShape::Polygon,
+            },
+            ticks: chart.ticks.max(1),
+        }),
         packet: None, venn: None, swimlanes: None, sequence: None, ishikawa: None, wardley: None, cynefin: None,
     }
 }

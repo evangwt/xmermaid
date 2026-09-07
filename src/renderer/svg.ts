@@ -274,6 +274,7 @@ export class SVGRenderer {
 
   private renderXyChart(svg: SVGSVGElement, layout: LayoutResult): void {
     const chart = layout.xy_chart!;
+    const horizontal = chart.horizontal === true;
     const plotRight = chart.plot.x + chart.plot.width;
     const plotBottom = chart.plot.y + chart.plot.height;
     const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
@@ -293,6 +294,8 @@ export class SVGRenderer {
       line.setAttribute('stroke-width', '1.5');
       group.appendChild(line);
     };
+    // Vertical charts: value axis left, category axis bottom. Horizontal
+    // charts swap them: category axis left, value axis bottom.
     axis(chart.plot.x, plotBottom, plotRight, plotBottom);
     axis(chart.plot.x, chart.plot.y, chart.plot.x, plotBottom);
 
@@ -308,12 +311,30 @@ export class SVGRenderer {
       group.appendChild(text);
     };
     if (chart.title) addText(chart.title, chart.plot.x, chart.plot.y - 18, 'start');
-    addText(String(chart.y_max), chart.plot.x - 10, chart.plot.y + 4, 'end');
-    addText(String(chart.y_min), chart.plot.x - 10, plotBottom + 4, 'end');
-    const categoryWidth = chart.plot.width / chart.x_labels.length;
-    chart.x_labels.forEach((label, index) => {
-      addText(label, chart.plot.x + categoryWidth * (index + .5), plotBottom + 22, 'middle');
-    });
+    if (horizontal) {
+      const slotHeight = chart.plot.height / Math.max(1, chart.x_labels.length);
+      chart.x_labels.forEach((label, index) => {
+        addText(label, chart.plot.x - 10, chart.plot.y + slotHeight * (index + .5) + 4, 'end');
+      });
+      const valueRange = chart.y_max - chart.y_min;
+      (chart.value_axis_labels ?? []).forEach(raw => {
+        const value = Number.parseFloat(raw);
+        if (!Number.isFinite(value) || valueRange <= 0) return;
+        const ratio = (value - chart.y_min) / valueRange;
+        addText(raw, chart.plot.x + chart.plot.width * ratio, plotBottom + 22, 'middle');
+      });
+      if (chart.x_title) addText(chart.x_title, chart.plot.x - 10, chart.plot.y - 6, 'end');
+      if (chart.y_title) addText(chart.y_title, plotRight, plotBottom + 40, 'end');
+    } else {
+      addText(String(chart.y_max), chart.plot.x - 10, chart.plot.y + 4, 'end');
+      addText(String(chart.y_min), chart.plot.x - 10, plotBottom + 4, 'end');
+      const categoryWidth = chart.plot.width / chart.x_labels.length;
+      chart.x_labels.forEach((label, index) => {
+        addText(label, chart.plot.x + categoryWidth * (index + .5), plotBottom + 22, 'middle');
+      });
+      if (chart.x_title) addText(chart.x_title, chart.plot.x, plotBottom + 40, 'start');
+      if (chart.y_title) addText(chart.y_title, chart.plot.x - 10, chart.plot.y - 6, 'end');
+    }
 
     chart.series.forEach(series => {
       if (series.kind === 'bar') {
@@ -477,10 +498,10 @@ export class SVGRenderer {
       circle.classList.add('quadrant-point');
       circle.setAttribute('cx', String(point.center.x));
       circle.setAttribute('cy', String(point.center.y));
-      circle.setAttribute('r', '5.5');
-      circle.setAttribute('fill', this.theme.colors.arrowFill);
-      circle.setAttribute('stroke', this.theme.colors.background);
-      circle.setAttribute('stroke-width', '2');
+      circle.setAttribute('r', String(point.radius ?? 5.5));
+      circle.setAttribute('fill', point.fill_color ?? this.theme.colors.arrowFill);
+      circle.setAttribute('stroke', point.stroke_color ?? this.theme.colors.background);
+      circle.setAttribute('stroke-width', String(point.stroke_width ?? 2));
       const description = document.createElementNS('http://www.w3.org/2000/svg', 'title');
       description.textContent = point.label;
       circle.appendChild(description);
@@ -635,19 +656,35 @@ export class SVGRenderer {
     accessibleTitle.textContent = chart.title || 'Radar chart';
     group.appendChild(accessibleTitle);
     const point = (x: number, y: number) => `${x},${y}`;
+    const graticuleShape = chart.graticule ?? 'circle';
+    const rings = Math.max(1, Math.round(chart.ticks ?? 5));
 
-    for (const scale of [.25, .5, .75, 1]) {
-      const grid = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-      grid.classList.add('radar-grid');
-      grid.setAttribute('points', chart.axes.map(axis => point(
-        chart.center.x + (axis.end.x - chart.center.x) * scale,
-        chart.center.y + (axis.end.y - chart.center.y) * scale,
-      )).join(' '));
-      grid.setAttribute('fill', 'none');
-      grid.setAttribute('stroke', this.theme.colors.edgeStroke);
-      grid.setAttribute('stroke-opacity', scale === 1 ? '.72' : '.32');
-      grid.setAttribute('stroke-width', scale === 1 ? '1.4' : '1');
-      group.appendChild(grid);
+    for (let ring = 1; ring <= rings; ring += 1) {
+      const scale = ring / rings;
+      if (graticuleShape === 'circle') {
+        const grid = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        grid.classList.add('radar-grid');
+        grid.setAttribute('cx', String(chart.center.x));
+        grid.setAttribute('cy', String(chart.center.y));
+        grid.setAttribute('r', String(chart.radius * scale));
+        grid.setAttribute('fill', 'none');
+        grid.setAttribute('stroke', this.theme.colors.edgeStroke);
+        grid.setAttribute('stroke-opacity', scale === 1 ? '.72' : '.32');
+        grid.setAttribute('stroke-width', scale === 1 ? '1.4' : '1');
+        group.appendChild(grid);
+      } else {
+        const grid = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+        grid.classList.add('radar-grid');
+        grid.setAttribute('points', chart.axes.map(axis => point(
+          chart.center.x + (axis.end.x - chart.center.x) * scale,
+          chart.center.y + (axis.end.y - chart.center.y) * scale,
+        )).join(' '));
+        grid.setAttribute('fill', 'none');
+        grid.setAttribute('stroke', this.theme.colors.edgeStroke);
+        grid.setAttribute('stroke-opacity', scale === 1 ? '.72' : '.32');
+        grid.setAttribute('stroke-width', scale === 1 ? '1.4' : '1');
+        group.appendChild(grid);
+      }
     }
 
     for (const axis of chart.axes) {

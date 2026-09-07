@@ -1,5 +1,5 @@
 import type { XMermaidOptions, LayoutConfig, RenderOptions, RenderResult, RenderTheme } from './types';
-import { DEFAULT_THEME } from './types/theme';
+import { DEFAULT_THEME, DARK_THEME, LIGHT_THEME, MINIMAL_THEME } from './types/theme';
 import { SVGRenderer } from './renderer/svg';
 import { initWasm, getWasm } from './wasm';
 import type { LayoutResult, EdgeStyle, NodeShape } from './types/layout';
@@ -63,7 +63,10 @@ export class XMermaid {
     }
 
     const layout = await this.renderLayout(input, options.layoutConfig ?? this.layoutConfig, options.wasm);
-    const renderer = options.theme ? new SVGRenderer(options.theme) : this.renderer;
+    // The source-level %%{init}%% directive wins over an explicit theme,
+    // matching Mermaid's directive-over-config precedence.
+    const themeOverride = resolveSourceTheme(input) ?? options.theme;
+    const renderer = themeOverride ? new SVGRenderer(themeOverride) : this.renderer;
     const svg = renderer.render(layout);
     if (securityPolicy.sanitizeSvg) {
       sanitizeSvgElement(svg);
@@ -170,6 +173,36 @@ function renderOptionsFrom(options: RenderOptions): RenderOptions {
     securityPolicy: options.securityPolicy,
     wasm: options.wasm,
   };
+}
+
+/**
+ * Resolve the `%%{init: {'theme': 'name'}}%%` directive from the diagram
+ * source into a render theme. The directive takes precedence over an explicit
+ * `options.theme` (Mermaid treats source directives as strongest); an
+ * unrecognized or missing directive leaves the ambient theme untouched.
+ */
+export function resolveSourceTheme(input: string): RenderTheme | undefined {
+  const match = /%%\{\s*init\s*:\s*(\{[\s\S]*?)\}\s*\}%%/i.exec(input);
+  if (!match) return undefined;
+  // Anchor the theme key to the start of an object entry so keys merely
+  // ending in "theme" (e.g. `footheme`) cannot match.
+  const rawTheme = /[{,]\s*['"]?theme['"]?\s*:\s*['"]?([A-Za-z0-9_-]+)['"]?/.exec(match[1]);
+  if (!rawTheme) return undefined;
+  switch (rawTheme[1].toLowerCase()) {
+    case 'dark':
+      return DARK_THEME;
+    case 'neutral':
+    case 'light':
+      return LIGHT_THEME;
+    case 'forest':
+    case 'base':
+    case 'minimal':
+      return MINIMAL_THEME;
+    case 'default':
+      return DEFAULT_THEME;
+    default:
+      return undefined;
+  }
 }
 
 function clearDomRunDiagnostics(element: HTMLElement): void {

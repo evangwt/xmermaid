@@ -662,6 +662,10 @@ pub struct XyChartAst {
     pub x_range: Option<(f64, f64)>,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub x_title: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub y_title: String,
+    #[serde(default)]
+    pub horizontal: bool,
     pub y_min: f64,
     pub y_max: f64,
     pub series: Vec<XySeries>,
@@ -699,6 +703,18 @@ pub struct QuadrantPoint {
     pub label: String,
     pub x: f64,
     pub y: f64,
+    /// Direct `radius:` style in pixels.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub radius: Option<f64>,
+    /// Direct `color:` fill; safe hexadecimal value.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fill_color: Option<String>,
+    /// Direct `stroke-color:`; safe hexadecimal value.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stroke_color: Option<String>,
+    /// Direct `stroke-width:` in pixels.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stroke_width: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -801,6 +817,20 @@ pub struct TreemapNode {
   pub parent: Option<String>,
 }
 
+/// Graticule ring shape behind the radar web.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum RadarGraticule {
+    Circle,
+    Polygon,
+}
+
+impl Default for RadarGraticule {
+    fn default() -> Self {
+        RadarGraticule::Circle
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RadarAst {
     pub title: String,
@@ -808,6 +838,16 @@ pub struct RadarAst {
     pub curves: Vec<RadarCurve>,
     pub min: f64,
     pub max: f64,
+    /// `graticule circle|polygon` ring shape; defaults to circle.
+    #[serde(default)]
+    pub graticule: RadarGraticule,
+    /// Number of graticule rings (`ticks N`); defaults to Mermaid's five.
+    #[serde(default = "default_radar_ticks")]
+    pub ticks: u32,
+}
+
+pub(crate) fn default_radar_ticks() -> u32 {
+    5
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

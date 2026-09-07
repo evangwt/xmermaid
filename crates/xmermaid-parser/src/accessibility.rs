@@ -31,6 +31,10 @@ pub fn strip_accessibility(input: &str) -> String {
     let mut in_frontmatter = false;
     let mut frontmatter_closed = false;
     let mut in_description_block = false;
+    // Front matter is only recognized before the first meaningful line, so a
+    // `---` divider inside a diagram body passes through untouched instead of
+    // silently swallowing the rest of the source.
+    let mut seen_content = false;
 
     for line in input.lines() {
         let trimmed = line.trim();
@@ -41,6 +45,10 @@ pub fn strip_accessibility(input: &str) -> String {
                 if in_frontmatter {
                     in_frontmatter = false;
                     frontmatter_closed = true;
+                } else if seen_content {
+                    output.push_str(line);
+                    output.push('\n');
+                    continue;
                 } else {
                     in_frontmatter = true;
                 }
@@ -83,6 +91,9 @@ pub fn strip_accessibility(input: &str) -> String {
             continue;
         }
 
+        if !trimmed.is_empty() && !trimmed.starts_with("%%") {
+            seen_content = true;
+        }
         output.push_str(line);
         output.push('\n');
     }

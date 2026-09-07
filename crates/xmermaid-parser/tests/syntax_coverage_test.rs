@@ -957,13 +957,24 @@ fn test_subgraphs_empty_when_absent() {
 }
 
 // ============================================================
-//  16. YAML FRONT MATTER / CONFIG (not supported)
+//  16. YAML FRONT MATTER / CONFIG (metadata consumed, config ignored)
 // ============================================================
 
+// The accessibility layer consumes leading front matter (title and accDescr)
+// and blanks it out, so the diagram body parses and renders; front-matter
+// config values are deliberately ignored rather than applied.
 #[test]
-fn test_falsify_yaml_front_matter_unsupported() {
+fn test_yaml_front_matter_is_consumed_and_ignored() {
     let result = parse("---\nconfig:\n  flowchart:\n    curve: stepBefore\n---\ngraph TD\n  A-->B");
-    assert!(result.is_err(), "YAML front matter not supported");
+    assert!(result.is_ok(), "front matter config must be consumed and ignored: {:?}", result.err());
+}
+
+#[test]
+fn test_front_matter_title_before_line_based_diagrams() {
+    // skip(1)-style family parsers must land on the real header after the
+    // front matter block is blanked out.
+    let gantt = parse("---\ntitle: T\n---\ngantt\n  section S\n  T : 2024-01-01, 1d");
+    assert!(gantt.is_ok(), "front matter before gantt must parse: {:?}", gantt.err());
 }
 
 // ============================================================

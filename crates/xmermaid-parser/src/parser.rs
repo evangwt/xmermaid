@@ -105,7 +105,28 @@ impl<'a> Parser<'a> {
         if self.input.trim_start().lines().next().map(str::trim).is_some_and(|line| line.eq_ignore_ascii_case("eventmodeling")) { return self.parse_event_modeling(); }
         if self.input.trim_start().starts_with("wardley") { return self.parse_wardley(); }
         if self.input.trim_start().starts_with("cynefin") { return self.parse_cynefin(); }
-        let keyword = self.expect(TokenType::Keyword)?;
+        let keyword = loop {
+            let ty = self.current().ty.clone();
+            let value = self.current().value.clone();
+            let line = self.current().line;
+            if ty == TokenType::Keyword {
+                self.advance();
+                break value;
+            }
+            // Leading newlines (blank or front-matter-blanked lines) precede
+            // the flowchart header here; skip them before expecting Keyword.
+            if ty == TokenType::Newline {
+                self.advance();
+                continue;
+            }
+            return Err(ParseError::UnexpectedToken(format!(
+                "Expected {:?}, got {:?} ('{}') at line {}",
+                TokenType::Keyword,
+                ty,
+                value,
+                line
+            )));
+        };
 
         match keyword.as_str() {
             "graph" | "flowchart" => self.parse_flowchart(),
@@ -120,7 +141,7 @@ impl<'a> Parser<'a> {
         let mut blocks = Vec::new();
         let mut boxes = Vec::<SequenceBox>::new();
         let mut open_activations = std::collections::HashMap::<String, usize>::new();
-        for line in self.input.lines().skip(1) {
+        for line in body_lines(self.input) {
             let statement = line.trim();
             if statement.is_empty() || statement.starts_with("%%") {
                 continue;
@@ -251,7 +272,7 @@ impl<'a> Parser<'a> {
         let mut styles = Vec::new();
         let mut member_target: Option<String> = None;
 
-        let mut lines = self.input.lines().skip(1).peekable();
+        let mut lines = body_lines(self.input).peekable();
         while let Some(line) = lines.next() {
             let statement = line.trim();
             if statement.is_empty() || statement.starts_with("%%") || statement == "{" || statement == "}" {
@@ -436,7 +457,7 @@ impl<'a> Parser<'a> {
             }
         };
 
-        let mut lines = self.input.lines().skip(1).peekable();
+        let mut lines = body_lines(self.input).peekable();
         while let Some(line) = lines.next() {
             let statement = line.trim();
             if statement.is_empty() || statement.starts_with("%%") {
@@ -628,7 +649,7 @@ impl<'a> Parser<'a> {
             }
         };
 
-        let mut lines = self.input.lines().skip(1).peekable();
+        let mut lines = body_lines(self.input).peekable();
         while let Some(line) = lines.next() {
             let statement = line.trim();
             if statement.is_empty() || statement.starts_with("%%") {
@@ -692,7 +713,7 @@ impl<'a> Parser<'a> {
         let mut excludes = Vec::new();
         let mut tasks = Vec::new();
 
-        for line in self.input.lines().skip(1) {
+        for line in body_lines(self.input) {
             let statement = line.trim();
             if statement.is_empty() || statement.starts_with("%%") {
                 continue;
@@ -739,10 +760,32 @@ impl<'a> Parser<'a> {
         for line in self.input.lines() {
             let statement = line.trim();
             if statement.is_empty() || statement.starts_with("%%") { continue; }
-            if let Some(value) = statement.strip_prefix("pie title ") { title = value.trim().to_string(); continue; }
             if statement.eq_ignore_ascii_case("pie") { continue; }
-            if statement.eq_ignore_ascii_case("pie showdata") { show_data = true; continue; }
             if statement.eq_ignore_ascii_case("showdata") { show_data = true; continue; }
+            // Mermaid header forms: `pie showData [title <text>]` or a standalone
+            // `title <text>` line, all case-insensitive. Keyword matching is
+            // byte-based so non-ASCII suffixes can never slice mid-character.
+            if let Some(rest) = statement.strip_prefix("pie ") {
+                let mut rest = rest.trim();
+                if takes_ascii_keyword(rest, b"showdata") {
+                    show_data = true;
+                    rest = rest[8..].trim_start();
+                }
+                if takes_ascii_keyword(rest, b"title") {
+                    let value = rest[5..].trim().trim_matches('"').trim();
+                    if value.is_empty() { return Err(ParseError::UnexpectedToken("Pie titles cannot be empty.".to_string())); }
+                    title = value.to_string();
+                    continue;
+                }
+                if !rest.is_empty() { return Err(ParseError::UnexpectedToken(format!("Unsupported Pie header: {}", statement))); }
+                continue;
+            }
+            if let Some(value) = statement.strip_prefix("title ") {
+                let value = value.trim().trim_matches('"').trim();
+                if value.is_empty() { return Err(ParseError::UnexpectedToken("Pie titles cannot be empty.".to_string())); }
+                title = value.to_string();
+                continue;
+            }
             let (label, value) = statement.split_once(':').ok_or_else(|| ParseError::UnexpectedToken(format!("Invalid Pie slice: {}", statement)))?;
             let label = label.trim().trim_matches('"');
             let value = value.trim().parse::<f64>().map_err(|_| ParseError::UnexpectedToken(format!("Pie values must be numeric: {}", statement)))?;
@@ -754,7 +797,7 @@ impl<'a> Parser<'a> {
     }
     fn parse_user_journey(&self) -> Result<DiagramAst, ParseError> {
         let mut title = String::new(); let mut section = String::new(); let mut tasks = Vec::new();
-        for line in self.input.lines().skip(1) {
+        for line in body_lines(self.input) {
             let statement = line.trim();
             if statement.is_empty() || statement.starts_with("%%") { continue; }
             if let Some(value) = statement.strip_prefix("title ") { title = value.trim().to_string(); continue; }
@@ -771,7 +814,7 @@ impl<'a> Parser<'a> {
     }
     fn parse_timeline(&self) -> Result<DiagramAst, ParseError> {
         let mut title = String::new(); let mut section = String::new(); let mut entries: Vec<TimelineEntry> = Vec::new();
-        for line in self.input.lines().skip(1) {
+        for line in body_lines(self.input) {
             let statement = line.trim();
             if statement.is_empty() || statement.starts_with("%%") { continue; }
             if let Some(value) = statement.strip_prefix("title ") { title = value.trim().to_string(); continue; }
@@ -786,7 +829,7 @@ impl<'a> Parser<'a> {
     }
     fn parse_mindmap(&self) -> Result<DiagramAst, ParseError> {
         let mut nodes: Vec<MindmapNode> = Vec::new(); let mut parents: Vec<String> = Vec::new(); let mut base_indent = None;
-        for line in self.input.lines().skip(1) { let raw = line.trim_end(); if raw.trim().is_empty() { continue; }
+        for line in body_lines(self.input) { let raw = line.trim_end(); if raw.trim().is_empty() { continue; }
             let trimmed = raw.trim();
             // Icon declarations attach to the previous node.
             if let Some(icon) = trimmed.strip_prefix("::icon(").and_then(|rest| rest.strip_suffix(')')) {
@@ -812,7 +855,7 @@ impl<'a> Parser<'a> {
     }
     fn parse_treeview(&self) -> Result<DiagramAst, ParseError> {
         let mut nodes = Vec::new(); let mut parents: Vec<String> = Vec::new(); let mut base_indent = None;
-        for line in self.input.lines().skip(1) { let raw = line.trim_end(); if raw.trim().is_empty() { continue; }
+        for line in body_lines(self.input) { let raw = line.trim_end(); if raw.trim().is_empty() { continue; }
             let depth = raw.len() - raw.trim_start().len(); let base = *base_indent.get_or_insert(depth); let level = (depth.saturating_sub(base)) / 2; let label = raw.trim();
             if level > parents.len() || label.is_empty() { return Err(ParseError::UnexpectedToken(format!("Invalid Treeview indentation: {}", raw))); }
             if label.contains(['(', ')', '[', ']', '{', '}']) { return Err(ParseError::UnexpectedToken(format!("Treeview node shapes are not supported: {}", label))); }
@@ -823,7 +866,7 @@ impl<'a> Parser<'a> {
     fn parse_requirement(&self) -> Result<DiagramAst, ParseError> {
         let mut requirements = Vec::new();
         let mut relationships = Vec::new();
-        let mut lines = self.input.lines().skip(1).peekable();
+        let mut lines = body_lines(self.input).peekable();
 
         while let Some(line) = lines.next() {
             let statement = line.trim();
@@ -879,7 +922,7 @@ impl<'a> Parser<'a> {
         heads.insert("main".to_string(), None);
         let mut current_branch = "main".to_string();
 
-        for line in self.input.lines().skip(1) {
+        for line in body_lines(self.input) {
             let statement = line.trim();
             if statement.is_empty() || statement.starts_with("%%") { continue; }
             if let Some(name) = statement.strip_prefix("branch ") {
@@ -1037,7 +1080,7 @@ impl<'a> Parser<'a> {
     fn parse_zenuml(&self) -> Result<DiagramAst, ParseError> {
         let mut participants = Vec::new();
         let mut messages = Vec::new();
-        for line in self.input.lines().skip(1) {
+        for line in body_lines(self.input) {
             let statement = line.trim();
             if statement.is_empty() || statement.starts_with("%%") {
                 continue;
@@ -1102,33 +1145,68 @@ impl<'a> Parser<'a> {
     fn parse_xychart(&self) -> Result<DiagramAst, ParseError> {
         let mut lines = self.input.lines().map(str::trim).filter(|line| !line.is_empty() && !line.starts_with("%%"));
         let header = lines.next().unwrap_or_default();
-        if !matches!(header, "xychart" | "xychart-beta") { return Err(ParseError::UnexpectedToken(format!("Unsupported XY chart declaration: {}", header))); }
-        let mut title = String::new(); let mut x_labels = None; let mut x_range = None; let mut x_title = String::new(); let mut y_range = None; let mut series = Vec::new();
+        // Mermaid orientation suffix: `xychart horizontal` / `xychart-beta horizontal`.
+        let (declaration, horizontal) = match header.strip_suffix(" horizontal") {
+            Some(declaration) => (declaration.trim(), true),
+            None => (header, false),
+        };
+        if !matches!(declaration, "xychart" | "xychart-beta") { return Err(ParseError::UnexpectedToken(format!("Unsupported XY chart declaration: {}", header))); }
+        let mut title = String::new(); let mut x_labels: Option<Vec<String>> = None; let mut x_range = None; let mut x_title = String::new(); let mut y_range: Option<(f64, f64)> = None; let mut y_title = String::new(); let mut series = Vec::new();
         for statement in lines {
             if let Some(value) = statement.strip_prefix("title ") { if !title.is_empty() { return Err(ParseError::UnexpectedToken("XY chart title may only be declared once.".to_string())); } title = parse_xy_quoted(value, "XY chart titles must be quoted")?; continue; }
             if let Some(value) = statement.strip_prefix("x-axis ") {
                 if x_labels.is_some() || x_range.is_some() { return Err(ParseError::UnexpectedToken("XY chart x-axis may only be declared once.".to_string())); }
                 match parse_xy_axis_declaration(value)? {
-                    XyAxisDeclaration::Labels(labels) => x_labels = Some(labels),
+                    XyAxisDeclaration::Labels(labels, axis_title) => { x_labels = Some(labels); x_title = axis_title; }
                     XyAxisDeclaration::Numeric(range, axis_title) => { x_range = Some(range); x_title = axis_title; }
                 }
                 continue;
             }
-            if let Some(value) = statement.strip_prefix("y-axis ") { if y_range.is_some() { return Err(ParseError::UnexpectedToken("XY chart y-axis may only be declared once.".to_string())); } y_range = Some(parse_xy_range(value)?); continue; }
+            if let Some(value) = statement.strip_prefix("y-axis ") {
+                if y_range.is_some() || !y_title.is_empty() { return Err(ParseError::UnexpectedToken("XY chart y-axis may only be declared once.".to_string())); }
+                let (axis_title, range) = parse_xy_y_axis(value)?;
+                y_title = axis_title;
+                y_range = range;
+                continue;
+            }
             let (kind, values) = if let Some(value) = statement.strip_prefix("bar ") { (XySeriesKind::Bar, parse_xy_values(value)?) } else if let Some(value) = statement.strip_prefix("line ") { (XySeriesKind::Line, parse_xy_values(value)?) } else { return Err(ParseError::UnexpectedToken(format!("Unsupported XY chart statement: {}", statement))); };
             series.push(XySeries { kind, values });
         }
+        // Both axes are optional in Mermaid; missing axes derive from the data.
+        let series_max_length = series.iter().map(|item| item.values.len()).max().unwrap_or(0);
+        if series.is_empty() { return Err(ParseError::EmptyInput); }
         let (x_labels, x_range) = match (x_labels, x_range) {
-            (Some(labels), None) => (labels, None),
+            (Some(labels), None) => {
+                if series.iter().any(|item| item.values.len() != labels.len()) {
+                    return Err(ParseError::UnexpectedToken("Each XY chart series must contain one value per x-axis label.".to_string()));
+                }
+                (labels, None)
+            }
             (None, Some(range)) => (Vec::new(), Some(range)),
+            (None, None) => ((1..=series_max_length).map(|index| index.to_string()).collect::<Vec<_>>(), None),
             _ => return Err(ParseError::UnexpectedToken("XY charts require exactly one x-axis declaration.".to_string())),
         };
-        let (y_min, y_max) = y_range.ok_or_else(|| ParseError::UnexpectedToken("XY charts require a numeric y-axis range.".to_string()))?;
-        if series.is_empty() { return Err(ParseError::EmptyInput); }
-        if x_range.is_none() && series.iter().any(|item| item.values.len() != x_labels.len()) {
-            return Err(ParseError::UnexpectedToken("Each XY chart series must contain one value per x-axis label.".to_string()));
+        let mut data_min = f64::INFINITY;
+        let mut data_max = f64::NEG_INFINITY;
+        for item in &series {
+            for value in &item.values {
+                data_min = data_min.min(*value);
+                data_max = data_max.max(*value);
+            }
         }
-        Ok(DiagramAst::XyChart(XyChartAst { title, x_labels, x_range, x_title, y_min, y_max, series }))
+        if !data_min.is_finite() { data_min = 0.0; data_max = 0.0; }
+        let (y_min, y_max) = match y_range {
+            // Series length against categorical labels is validated in the
+            // x-axis match above; here only the range sanity matters.
+            Some((minimum, maximum)) => (minimum, maximum),
+            // Auto range anchors at zero like Mermaid's generated scale.
+            None => {
+                let maximum = data_max.max(0.0);
+                let minimum = data_min.min(0.0);
+                if maximum <= minimum { (minimum, minimum + 1.0) } else { (minimum, maximum) }
+            }
+        };
+        Ok(DiagramAst::XyChart(XyChartAst { title, x_labels, x_range, x_title, y_title, horizontal, y_min, y_max, series }))
     }
 
     fn parse_sankey(&self) -> Result<DiagramAst, ParseError> {
@@ -1186,7 +1264,22 @@ impl<'a> Parser<'a> {
         let mut y_axis = None;
         let mut quadrants: [String; 4] = std::array::from_fn(|_| String::new());
         let mut points = Vec::new();
-        for statement in lines {
+        let mut class_defs: std::collections::HashMap<String, QuadrantPointStyle> = std::collections::HashMap::new();
+        // First pass: collect every classDef so points may reference classes
+        // declared later in the source.
+        for statement in lines.clone() {
+            if let Some(rest) = statement.strip_prefix("classDef ") {
+                let (name, style_text) = rest.split_once(char::is_whitespace)
+                    .ok_or_else(|| ParseError::UnexpectedToken(format!("Quadrant classDef requires a name and properties: {}", statement)))?;
+                let name = name.trim();
+                if name.is_empty() || !class_style_name(name) {
+                    return Err(ParseError::UnexpectedToken(format!("Invalid Quadrant classDef name: {}", statement)));
+                }
+                let style = parse_quadrant_style(style_text, statement)?;
+                class_defs.insert(name.to_string(), style);
+            }
+        }
+        for statement in lines.filter(|statement| !statement.starts_with("classDef ")) {
             if let Some(value) = statement.strip_prefix("title ") {
                 if !title.is_empty() || value.trim().is_empty() { return Err(ParseError::UnexpectedToken("Quadrant charts allow one non-empty title.".to_string())); }
                 title = value.trim().to_string();
@@ -1202,7 +1295,7 @@ impl<'a> Parser<'a> {
                 if !quadrants[index].is_empty() || label.trim().is_empty() { return Err(ParseError::UnexpectedToken(format!("Duplicate or empty quadrant label: {}", statement))); }
                 quadrants[index] = label.trim().to_string();
             } else {
-                points.push(parse_quadrant_point(statement)?);
+                points.push(parse_quadrant_point(statement, &class_defs)?);
             }
         }
         Ok(DiagramAst::Quadrant(QuadrantAst { title, x_axis, y_axis, quadrants, points }))
@@ -1382,6 +1475,8 @@ impl<'a> Parser<'a> {
         let mut curves = Vec::new();
         let mut min = 0.0;
         let mut max: Option<f64> = None;
+        let mut graticule = RadarGraticule::default();
+        let mut ticks = default_radar_ticks();
 
         for line in lines {
             let statement = line.trim();
@@ -1418,6 +1513,18 @@ impl<'a> Parser<'a> {
                 min = parse_radar_bound(value, "min")?;
             } else if let Some(value) = statement.strip_prefix("max ") {
                 max = Some(parse_radar_bound(value, "max")?);
+            } else if let Some(value) = statement.strip_prefix("graticule ") {
+                let shape = value.trim().to_ascii_lowercase();
+                graticule = match shape.as_str() {
+                    "circle" => RadarGraticule::Circle,
+                    "polygon" => RadarGraticule::Polygon,
+                    other => return Err(ParseError::UnexpectedToken(format!(
+                        "Radar graticule must be circle or polygon: {}", other
+                    ))),
+                };
+            } else if let Some(value) = statement.strip_prefix("ticks ") {
+                ticks = value.trim().parse::<u32>().ok().filter(|count| (1..=20).contains(count))
+                    .ok_or_else(|| ParseError::UnexpectedToken(format!("Radar ticks must be an integer from 1 to 20: {}", statement)))?;
             } else {
                 return Err(ParseError::UnexpectedToken(format!("Unsupported Radar statement: {}", statement)));
             }
@@ -1436,7 +1543,7 @@ impl<'a> Parser<'a> {
         if max <= min {
             return Err(ParseError::UnexpectedToken("Radar max must be greater than min.".to_string()));
         }
-        Ok(DiagramAst::Radar(RadarAst { title, axes, curves, min, max }))
+        Ok(DiagramAst::Radar(RadarAst { title, axes, curves, min, max, graticule, ticks }))
     }
 
     fn parse_packet(&self) -> Result<DiagramAst, ParseError> {
@@ -3567,6 +3674,23 @@ fn parse_er_attributes(body: &str) -> Result<Vec<ErAttribute>, ParseError> {
 
 
 /// Parse one `excludes` entry: `weekends`, a weekday name, or a date.
+/// Case-insensitive ASCII keyword match at the front of `text`. Returns true
+/// only when the keyword occupies whole bytes followed by whitespace or the
+/// end of input, so any subsequent slicing at `keyword.len()` stays on a char
+/// boundary even for non-ASCII input.
+fn takes_ascii_keyword(text: &str, keyword: &[u8]) -> bool {
+    if text.len() < keyword.len() {
+        return false;
+    }
+    if !text.as_bytes()[..keyword.len()].eq_ignore_ascii_case(keyword) {
+        return false;
+    }
+    match text.as_bytes().get(keyword.len()) {
+        None => true,
+        Some(byte) => *byte == b' ' || *byte == b'\t',
+    }
+}
+
 fn parse_gantt_exclusion(token: &str, date_format: &str) -> Result<GanttExclusion, ParseError> {
     let lowered = token.to_ascii_lowercase();
     if lowered == "weekends" {
@@ -3589,11 +3713,16 @@ fn parse_gantt_exclusion(token: &str, date_format: &str) -> Result<GanttExclusio
 
 /// Validate a Gantt `dateFormat` directive. Supported tokens are YYYY, MM, and
 /// DD joined by `-`, `/`, or `.`; the normalized pattern is used to parse dates.
+/// Unix timestamps use Mermaid's day.js tokens `X` (seconds) and `x`
+/// (milliseconds), plus the historical `unix` alias for seconds.
 fn parse_gantt_date_format(value: &str) -> Result<String, ParseError> {
-    if value == "unix" {
-        return Err(ParseError::UnexpectedToken(
-            "Gantt unix dateFormat is not supported yet.".to_string(),
-        ));
+    // Mermaid uses day.js tokens: `X` for unix seconds and `x` for unix
+    // milliseconds; `unix` is the historical seconds alias.
+    if value == "unix" || value == "X" {
+        return Ok("unix".to_string());
+    }
+    if value == "x" {
+        return Ok("unix-ms".to_string());
     }
     let mut separator = None;
     let mut tokens = Vec::new();
@@ -3615,14 +3744,46 @@ fn parse_gantt_date_format(value: &str) -> Result<String, ParseError> {
     tokens.push(current);
     if tokens.iter().any(|token| !matches!(token.as_str(), "YYYY" | "MM" | "DD")) {
         return Err(ParseError::UnexpectedToken(format!(
-            "Gantt dateFormat supports YYYY, MM, and DD tokens: {}", value
+            "Gantt dateFormat supports YYYY, MM, DD, X (unix seconds), and x (unix milliseconds): {}", value
         )));
     }
     Ok(tokens.join("-"))
 }
 
+/// Convert days since the Unix epoch to an ISO `yyyy-mm-dd` (UTC civil date).
+fn epoch_days_to_iso_date(days: i64) -> String {
+    // Howard Hinnant's civil-from-days algorithm.
+    let shifted = days + 719_468;
+    let era = if shifted >= 0 { shifted } else { shifted - 146_096 } / 146_097;
+    let day_of_era = shifted - era * 146_097;
+    let year_of_era = (day_of_era - day_of_era / 1460 + day_of_era / 36_524 - day_of_era / 146_096) / 365;
+    let year = year_of_era + era * 400;
+    let day_of_year = day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
+    let month_prime = (5 * day_of_year + 2) / 153;
+    let day = day_of_year - (153 * month_prime + 2) / 5 + 1;
+    let month = if month_prime < 10 { month_prime + 3 } else { month_prime - 9 };
+    let year = if month <= 2 { year + 1 } else { year };
+    format!("{:04}-{:02}-{:02}", year, month, day)
+}
+
 /// Parse a date according to a normalized pattern and return an ISO `yyyy-mm-dd`.
 fn parse_gantt_date(value: &str, pattern: &str) -> Option<String> {
+    let value = value.trim();
+    if pattern == "unix" || pattern == "unix-ms" {
+        let timestamp: f64 = value.parse().ok()?;
+        if !timestamp.is_finite() {
+            return None;
+        }
+        let seconds = if pattern == "unix-ms" { timestamp / 1000.0 } else { timestamp };
+        let days = seconds.div_euclid(86_400.0);
+        if !days.is_finite() || days.abs() > 9_000_000_000.0 {
+            return None;
+        }
+        // Timestamps outside the four-digit ISO year range are rejected so the
+        // normalized date stays consumable by the layout pipeline.
+        let iso = epoch_days_to_iso_date(days as i64);
+        return if is_iso_date(&iso) { Some(iso) } else { None };
+    }
     let separator = pattern.chars().find(|c| *c == '-' || *c == '/' || *c == '.');
     let parts: Vec<&str> = match separator {
         Some(sep) => value.split(sep).collect(),
@@ -3838,26 +3999,94 @@ fn is_iso_date(value: &str) -> bool {
 
 fn parse_xy_quoted(value: &str, message: &str) -> Result<String, ParseError> { value.trim().strip_prefix('"').and_then(|text| text.strip_suffix('"')).map(str::trim).filter(|text| !text.is_empty()).map(ToString::to_string).ok_or_else(|| ParseError::UnexpectedToken(message.to_string())) }
 enum XyAxisDeclaration {
-    Labels(Vec<String>),
+    Labels(Vec<String>, String),
     Numeric((f64, f64), String),
 }
 
+/// Split an optional axis title off the front of an axis declaration. Titles
+/// may be quoted (`"Title" rest`) or unquoted single/multi words that precede
+/// a recognizable remainder (`Months 0 --> 10`, `Months [a, b]`).
+fn split_xy_axis_title(value: &str) -> (String, String) {
+    let value = value.trim();
+    if value.len() >= 2 && value.starts_with('"') {
+        if let Some(end) = value[1..].find('"').map(|index| index + 2) {
+            let title = value[1..end - 1].trim().to_string();
+            return (title, value[end..].trim().to_string());
+        }
+    }
+    (String::new(), value.to_string())
+}
+
+/// For unquoted declarations, separate trailing title words from the numeric
+/// minimum: `Revenue 0 --> 100` keeps `Revenue` and `0 --> 100`.
+fn split_unquoted_numeric_title(value: &str) -> (String, String) {
+    let value = value.trim();
+    let Some((left, _right)) = value.split_once("-->") else { return (String::new(), value.to_string()); };
+    let left = left.trim();
+    match left.rsplit_once(char::is_whitespace) {
+        Some((title, minimum)) if !title.is_empty() && minimum.parse::<f64>().is_ok() => {
+            (title.trim().trim_matches('"').trim().to_string(), value[title.len()..].trim().to_string())
+        }
+        _ => (String::new(), value.to_string()),
+    }
+}
+
 /// Parse an `x-axis` declaration: categorical `[a, b]`, numeric `min --> max`,
-/// or numeric with a quoted title: `"Title" min --> max`.
+/// or either form with a quoted or unquoted axis title.
 fn parse_xy_axis_declaration(value: &str) -> Result<XyAxisDeclaration, ParseError> {
     let value = value.trim();
     if value.starts_with('[') {
-        return Ok(XyAxisDeclaration::Labels(parse_xy_labels(value)?));
+        return Ok(XyAxisDeclaration::Labels(parse_xy_labels(value)?, String::new()));
     }
-    let (title, rest) = if value.starts_with('"') {
-        let end = value[1..].find('"').ok_or_else(|| {
-            ParseError::UnexpectedToken("XY chart x-axis title must close its quote.".to_string())
-        })? + 2;
-        (value[1..end - 1].trim().to_string(), value[end..].trim())
-    } else {
-        (String::new(), value)
-    };
-    Ok(XyAxisDeclaration::Numeric(parse_xy_range(rest)?, title))
+    let (mut title, rest) = split_xy_axis_title(value);
+    if title.is_empty() && !rest.starts_with('[') {
+        if let Some(bracket_index) = rest.find('[') {
+            // Categorical labels with an unquoted title: `x-axis Months [a, b]`.
+            let labels = parse_xy_labels(rest[bracket_index..].trim())?;
+            let title = rest[..bracket_index].trim().trim_matches('"').trim().to_string();
+            return Ok(XyAxisDeclaration::Labels(labels, title));
+        }
+        let (unquoted_title, numeric_rest) = split_unquoted_numeric_title(&rest);
+        if !unquoted_title.is_empty() {
+            return Ok(XyAxisDeclaration::Numeric(parse_xy_range(&numeric_rest)?, unquoted_title));
+        }
+    }
+    if rest.starts_with('[') {
+        return Ok(XyAxisDeclaration::Labels(parse_xy_labels(&rest)?, title));
+    }
+    Ok(XyAxisDeclaration::Numeric(parse_xy_range(&rest)?, title))
+}
+
+/// Parse a `y-axis` declaration into an optional title and numeric range.
+/// `y-axis "Money" 0 --> 10`, `y-axis 0 --> 10`, and `y-axis "Money"` (auto
+/// range) are all valid; the range is omitted for auto scales.
+fn parse_xy_y_axis(value: &str) -> Result<(String, Option<(f64, f64)>), ParseError> {
+    let value = value.trim();
+    let (mut title, rest) = split_xy_axis_title(value);
+    if title.is_empty() {
+        let (unquoted_title, numeric_rest) = split_unquoted_numeric_title(&rest);
+        if !unquoted_title.is_empty() {
+            return Ok((unquoted_title, Some(parse_xy_range(&numeric_rest)?)));
+        }
+    if !rest.contains("-->") {
+        // A bare number is a malformed range, not an axis title.
+        if rest.parse::<f64>().is_ok() {
+            return Err(ParseError::UnexpectedToken(
+                "XY chart y-axis must use min --> max, a quoted title, or an axis title.".to_string(),
+            ));
+        }
+        // Bare unquoted title with an auto range: `y-axis Money`.
+        let title = rest.trim().trim_matches('"').trim().to_string();
+        if title.is_empty() {
+            return Err(ParseError::UnexpectedToken("XY chart y-axis declaration cannot be empty.".to_string()));
+        }
+        return Ok((title, None));
+    }
+    }
+    if rest.is_empty() {
+        return Ok((title, None));
+    }
+    Ok((title, Some(parse_xy_range(&rest)?)))
 }
 
 fn parse_xy_labels(value: &str) -> Result<Vec<String>, ParseError> { let content = value.trim().strip_prefix('[').and_then(|text| text.strip_suffix(']')).ok_or_else(|| ParseError::UnexpectedToken("XY chart x-axis must use [label, ...] syntax.".to_string()))?; let labels = content.split(',').map(str::trim).map(|label| label.trim_matches('"').trim().to_string()).collect::<Vec<_>>(); if labels.is_empty() || labels.iter().any(|label| label.is_empty()) { return Err(ParseError::UnexpectedToken("XY chart x-axis labels cannot be empty.".to_string())); } Ok(labels) }
@@ -3922,15 +4151,116 @@ fn parse_quadrant_axis(value: &str, axis: &str) -> Result<(String, String), Pars
     Ok((first.to_string(), second.to_string()))
 }
 
-fn parse_quadrant_point(statement: &str) -> Result<QuadrantPoint, ParseError> {
+/// A resolved set of quadrant point style overrides (direct or class-based).
+#[derive(Debug, Clone, Default)]
+struct QuadrantPointStyle {
+    radius: Option<f64>,
+    fill_color: Option<String>,
+    stroke_color: Option<String>,
+    stroke_width: Option<f64>,
+}
+
+fn class_style_name(value: &str) -> bool {
+    !value.is_empty() && value.chars().all(|character| character.is_ascii_alphanumeric() || character == '_' || character == '-')
+}
+
+/// Validate a safe hexadecimal paint value (`#rgb` or `#rrggbb`).
+fn quadrant_safe_color(value: &str) -> Option<String> {
+    let hex = value.strip_prefix('#')?;
+    if matches!(hex.len(), 3 | 6) && hex.bytes().all(|character| character.is_ascii_hexdigit()) {
+        Some(format!("#{}", hex.to_ascii_lowercase()))
+    } else {
+        None
+    }
+}
+
+/// Parse `radius: 12, color: #ff3300, stroke-color: #10f0f0, stroke-width: 5px`.
+fn parse_quadrant_style(text: &str, statement: &str) -> Result<QuadrantPointStyle, ParseError> {
+    let mut style = QuadrantPointStyle::default();
+    for part in text.split(',') {
+        let part = part.trim();
+        if part.is_empty() {
+            continue;
+        }
+        let (key, value) = part.split_once(':').ok_or_else(|| ParseError::UnexpectedToken(format!("Quadrant point styles require key: value pairs: {}", statement)))?;
+        let key = key.trim().to_ascii_lowercase().replace('_', "-");
+        let value = value.trim();
+        match key.as_str() {
+            "radius" => {
+                let radius = value.parse::<f64>().ok().filter(|value| value.is_finite() && *value > 0.0)
+                    .ok_or_else(|| ParseError::UnexpectedToken(format!("Quadrant radius must be a positive number: {}", statement)))?;
+                style.radius = Some(radius);
+            }
+            "color" => {
+                style.fill_color = Some(quadrant_safe_color(value).ok_or_else(|| ParseError::UnexpectedToken(format!("Quadrant colors must be #rgb or #rrggbb hexadecimal values: {}", statement)))?);
+            }
+            "stroke-color" | "strokecolor" => {
+                style.stroke_color = Some(quadrant_safe_color(value).ok_or_else(|| ParseError::UnexpectedToken(format!("Quadrant colors must be #rgb or #rrggbb hexadecimal values: {}", statement)))?);
+            }
+            "stroke-width" | "strokewidth" => {
+                let width = value.trim().trim_end_matches("px").trim();
+                let width = width.parse::<f64>().ok().filter(|value| value.is_finite() && *value >= 0.0)
+                    .ok_or_else(|| ParseError::UnexpectedToken(format!("Quadrant stroke-width must be a non-negative pixel value: {}", statement)))?;
+                style.stroke_width = Some(width);
+            }
+            other => {
+                return Err(ParseError::UnexpectedToken(format!("Unsupported Quadrant style property '{}': {}", other, statement)));
+            }
+        }
+    }
+    Ok(style)
+}
+
+fn parse_quadrant_point(statement: &str, class_defs: &std::collections::HashMap<String, QuadrantPointStyle>) -> Result<QuadrantPoint, ParseError> {
     let (label, value) = statement.split_once(':').ok_or_else(|| ParseError::UnexpectedToken(format!("Invalid quadrant point: {}", statement)))?;
     let label = label.trim();
-    let values = value.trim().strip_prefix('[').and_then(|value| value.strip_suffix(']')).ok_or_else(|| ParseError::UnexpectedToken(format!("Quadrant points require [x, y] coordinates: {}", statement)))?;
+    let mut value = value.trim();
+    // `Point A:::class1: [0.9, 0.0]` — the first split consumed the first
+    // colon, so the class reference appears as a leading `::name:` here.
+    let mut class_name: Option<String> = None;
+    if let Some(rest) = value.strip_prefix("::") {
+        let (name, remainder) = rest.split_once(':').ok_or_else(|| ParseError::UnexpectedToken(format!("Invalid quadrant point class reference: {}", statement)))?;
+        let name = name.trim();
+        if !class_style_name(name) {
+            return Err(ParseError::UnexpectedToken(format!("Invalid quadrant point class reference: {}", statement)));
+        }
+        class_name = Some(name.to_string());
+        value = remainder.trim();
+    }
+    let (coordinates_text, style_text) = match value.split_once(']') {
+        Some((inside, after)) => (
+            format!("{}]", inside),
+            after.trim().trim_start_matches(',').trim(),
+        ),
+        None => (value.to_string(), ""),
+    };
+    let values = coordinates_text.trim().strip_prefix('[').and_then(|value| value.strip_suffix(']')).ok_or_else(|| ParseError::UnexpectedToken(format!("Quadrant points require [x, y] coordinates: {}", statement)))?;
     let coordinates = values.split(',').map(str::trim).collect::<Vec<_>>();
     if label.is_empty() || coordinates.len() != 2 { return Err(ParseError::UnexpectedToken(format!("Invalid quadrant point: {}", statement))); }
     let x = coordinates[0].parse::<f64>().ok().filter(|value| value.is_finite() && (0.0..=1.0).contains(value)).ok_or_else(|| ParseError::UnexpectedToken(format!("Quadrant point x must be between 0 and 1: {}", statement)))?;
     let y = coordinates[1].parse::<f64>().ok().filter(|value| value.is_finite() && (0.0..=1.0).contains(value)).ok_or_else(|| ParseError::UnexpectedToken(format!("Quadrant point y must be between 0 and 1: {}", statement)))?;
-    Ok(QuadrantPoint { label: label.to_string(), x, y })
+    // Precedence: direct styles first, then class styles, then theme defaults.
+    let mut style = match class_name.map(|name| class_defs.get(&name).cloned().ok_or(name)) {
+        Some(Ok(style)) => style,
+        Some(Err(name)) => return Err(ParseError::UnexpectedToken(format!("Quadrant point references an undefined class: {}", name))),
+        None => QuadrantPointStyle::default(),
+    };
+    if !style_text.is_empty() {
+        let direct = parse_quadrant_style(style_text, statement)?;
+        if direct.radius.is_some() { style.radius = direct.radius; }
+        if direct.fill_color.is_some() { style.fill_color = direct.fill_color; }
+        if direct.stroke_color.is_some() { style.stroke_color = direct.stroke_color; }
+        if direct.stroke_width.is_some() { style.stroke_width = direct.stroke_width; }
+    }
+    Ok(QuadrantPoint {
+        label: label.to_string(),
+        x,
+        y,
+        radius: style.radius,
+        fill_color: style.fill_color,
+        stroke_color: style.stroke_color,
+        stroke_width: style.stroke_width,
+    })
 }
 
 fn parse_architecture_service(value: &str) -> Result<ArchitectureService, ParseError> {
@@ -4197,10 +4527,53 @@ fn parse_kanban_item(statement: &str, prefix: &str, index: usize) -> Result<(Str
     Ok((format!("{}-{}", prefix, index), statement.trim().to_string()))
 }
 
+/// Iterate the body lines after the diagram header: skips leading blank and
+/// `%%` lines, then the header line itself. Family parsers use this instead
+/// of a blind `lines().skip(1)` so front-matter-blanked, directive-prefixed,
+/// or blank-prefixed sources land on the real body. On sources whose first
+/// meaningful line is not the header the behavior is unchanged from before
+/// only when the header is that first meaningful line — which the dispatch
+/// in [`Parser::parse`] guarantees.
+fn body_lines(input: &str) -> impl Iterator<Item = &str> {
+    let mut lines = input.lines().peekable();
+    while let Some(line) = lines.peek() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with("%%") {
+            lines.next();
+            continue;
+        }
+        break;
+    }
+    lines.next();
+    lines
+}
+
 pub fn parse_input(input: &str) -> Result<DiagramAst, ParseError> {
     let stripped = crate::accessibility::strip_accessibility(input);
-    let mut parser = Parser::new(&stripped);
+    let input = strip_leading_comment_lines(&stripped);
+    let mut parser = Parser::new(&input);
     parser.parse()
+}
+
+/// Remove leading blank and `%%` comment/directive lines so the diagram
+/// header is the first line. Mermaid allows front matter and `%%{init}%%`
+/// before the header, but the header dispatch and family parsers require the
+/// header up front. Sources with leading directives report parse-error line
+/// numbers relative to the stripped header.
+fn strip_leading_comment_lines(input: &str) -> String {
+    let mut consumed = 0_usize;
+    for chunk in input.split_inclusive('\n') {
+        let trimmed = chunk.trim();
+        if trimmed.is_empty() || trimmed.starts_with("%%") {
+            consumed += chunk.len();
+        } else {
+            break;
+        }
+    }
+    if consumed == 0 {
+        return input.to_string();
+    }
+    input[consumed..].to_string()
 }
 
 #[cfg(test)]
@@ -4270,6 +4643,205 @@ mod tests {
                 assert_eq!(fc_lr.direction, FlowDirection::LR);
             }
             _ => panic!("Expected Flowchart"),
+        }
+    }
+
+    #[test]
+    fn test_parse_directives_and_front_matter_in_both_orders() {
+        // Directive first, front matter second.
+        let a = parse("%%{init: {}}%%\n---\ntitle: T\n---\npie\n  \"a\": 1\n  \"b\": 2").unwrap();
+        assert!(matches!(a, DiagramAst::Pie(_)));
+        // Front matter first, directive second.
+        let b = parse("---\ntitle: T\n---\n%%{init: {}}%%\npie\n  \"a\": 1\n  \"b\": 2").unwrap();
+        assert!(matches!(b, DiagramAst::Pie(_)));
+    }
+
+    #[test]
+    fn test_mid_document_front_matter_delimiter_is_not_swallowed() {
+        // A `---` line after real content must reach the diagram parser
+        // instead of being consumed as front matter by accessibility.
+        let result = parse("pie\n---\n  \"a\": 1");
+        assert!(result.is_err());
+        let message = format!("{}", result.err().unwrap());
+        assert!(message.contains("Invalid Pie slice"), "unexpected error: {message}");
+    }
+
+    #[test]
+    fn test_parse_leading_blank_lines_and_front_matter() {
+        // Leading blank lines must not break the flowchart keyword fallback.
+        let flowchart = parse("\n\ngraph TD\n  A-->B").unwrap();
+        assert!(matches!(flowchart, DiagramAst::Flowchart(_)));
+        // Front matter + line-based families: body parsers land on the header.
+        let journey = parse("---\ntitle: T\n---\njourney\n  section S\n  Task: 5: A").unwrap();
+        assert!(matches!(journey, DiagramAst::UserJourney(_)));
+        let timeline = parse("---\ntitle: T\n---\ntimeline\n  2020: A").unwrap();
+        assert!(matches!(timeline, DiagramAst::Timeline(_)));
+    }
+
+    #[test]
+    fn test_parse_sequence_rect_rejects_signed_channels() {
+        assert!(parse("sequenceDiagram\n  A->>B: hi\n  rect rgb(+10, 20, 30)\n    A->>B: x\n  end").is_err());
+        assert!(parse("sequenceDiagram\n  A->>B: hi\n  rect rgba(+0, 0, 255, .5)\n    A->>B: x\n  end").is_err());
+        assert!(parse("sequenceDiagram\n  A->>B: hi\n  rect rgba(0, 0, 255, 1e0)\n    A->>B: x\n  end").is_err());
+        // Plain decimal alpha stays supported.
+        let ok = parse("sequenceDiagram\n  A->>B: hi\n  rect rgba(0, 0, 255, .5)\n    A->>B: x\n  end").unwrap();
+        assert!(matches!(ok, DiagramAst::Sequence(_)));
+    }
+
+    #[test]
+    fn test_parse_leading_init_directives() {
+        // %%{init}%% directives and comments before the header must not break
+        // dispatch or the `lines().skip(1)` family parsers.
+        let pie = parse("%%{init: {'theme': 'dark'}}%%\npie\n  \"A\" : 1\n  \"B\" : 2").unwrap();
+        assert!(matches!(pie, DiagramAst::Pie(_)));
+        let gantt = parse("%% note\n%%{init: {}}%%\ngantt\n  dateFormat X\n  section S\n  T : 0, 1d").unwrap();
+        assert!(matches!(gantt, DiagramAst::Gantt(_)));
+        let flowchart = parse("%%{init}%%\ngraph TD\n  A-->B").unwrap();
+        assert!(matches!(flowchart, DiagramAst::Flowchart(_)));
+    }
+
+    #[test]
+    fn test_parse_pie_header_forms() {
+        let show_data = parse("pie showData\n  \"A\" : 2\n  \"B\" : 3").unwrap();
+        match show_data {
+            DiagramAst::Pie(pie) => {
+                assert!(pie.show_data);
+                assert_eq!(pie.slices.len(), 2);
+            }
+            _ => panic!("Expected Pie"),
+        }
+        let combined = parse("pie showData title Migration\n  \"Done\" : 6\n  \"Todo\" : 4").unwrap();
+        match combined {
+            DiagramAst::Pie(pie) => {
+                assert!(pie.show_data);
+                assert_eq!(pie.title, "Migration");
+            }
+            _ => panic!("Expected Pie"),
+        }
+        let standalone = parse("pie\n  title Migration\n  \"Done\" : 6\n  \"Todo\" : 4").unwrap();
+        match standalone {
+            DiagramAst::Pie(pie) => assert_eq!(pie.title, "Migration"),
+            _ => panic!("Expected Pie"),
+        }
+    }
+
+    #[test]
+    fn test_parse_gantt_unix_date_formats() {
+        let seconds = parse("gantt\n  dateFormat X\n  section S\n  Task : 1700000000, 2d").unwrap();
+        match seconds {
+            DiagramAst::Gantt(gantt) => {
+                assert!(matches!(gantt.tasks[0].start, GanttStart::Date { ref date } if date == "2023-11-14"));
+            }
+            _ => panic!("Expected Gantt"),
+        }
+        let millis = parse("gantt\n  dateFormat x\n  section S\n  Task : 1700000000000, 1d").unwrap();
+        match millis {
+            DiagramAst::Gantt(gantt) => {
+                assert!(matches!(gantt.tasks[0].start, GanttStart::Date { ref date } if date == "2023-11-14"));
+            }
+            _ => panic!("Expected Gantt"),
+        }
+        let alias = parse("gantt\n  dateFormat unix\n  section S\n  Task : 0, 1d").unwrap();
+        match alias {
+            DiagramAst::Gantt(gantt) => {
+                assert!(matches!(gantt.tasks[0].start, GanttStart::Date { ref date } if date == "1970-01-01"));
+            }
+            _ => panic!("Expected Gantt"),
+        }
+        assert!(parse("gantt\n  dateFormat X\n  section S\n  Task : not-a-number, 1d").is_err());
+    }
+
+    #[test]
+    fn test_parse_sequence_rect_rgba() {
+        let ast = parse("sequenceDiagram\n  A->>B: hi\n  rect rgba(0, 0, 255, 0.2)\n    A->>B: inside\n  end").unwrap();
+        match ast {
+            DiagramAst::Sequence(seq) => {
+                assert!(seq.events.iter().any(|event| matches!(event, SequenceEvent::BlockStart { color: Some(color), .. } if color == "rgba(0, 0, 255, 0.2)")));
+            }
+            _ => panic!("Expected Sequence"),
+        }
+        assert!(parse("sequenceDiagram\n  A->>B: hi\n  rect rgba(0, 0, 300, 0.2)\n    A->>B: x\n  end").is_err());
+        assert!(parse("sequenceDiagram\n  A->>B: hi\n  rect rgba(0, 0, 255, 2)\n    A->>B: x\n  end").is_err());
+    }
+
+    #[test]
+    fn test_parse_quadrant_point_styles() {
+        let direct = parse("quadrantChart\n  x-axis L --> H\n  y-axis L --> H\n  Point D: [0.6, 0.3] radius: 15, color: #00ff0f, stroke-color: #10f0f0, stroke-width: 5px").unwrap();
+        match direct {
+            DiagramAst::Quadrant(chart) => {
+                assert_eq!(chart.points[0].radius, Some(15.0));
+                assert_eq!(chart.points[0].fill_color.as_deref(), Some("#00ff0f"));
+                assert_eq!(chart.points[0].stroke_color.as_deref(), Some("#10f0f0"));
+                assert_eq!(chart.points[0].stroke_width, Some(5.0));
+            }
+            _ => panic!("Expected Quadrant"),
+        }
+        let classes = parse("quadrantChart\n  x-axis L --> H\n  y-axis L --> H\n  Point A:::c1: [0.9, 0.0]\n  Point B:::c1: [0.8, 0.1] radius: 7\n  classDef c1 color: #109060, radius: 10").unwrap();
+        match classes {
+            DiagramAst::Quadrant(chart) => {
+                assert_eq!(chart.points[0].fill_color.as_deref(), Some("#109060"));
+                assert_eq!(chart.points[0].radius, Some(10.0));
+                // Direct radius overrides the class radius.
+                assert_eq!(chart.points[1].radius, Some(7.0));
+                assert_eq!(chart.points[1].fill_color.as_deref(), Some("#109060"));
+            }
+            _ => panic!("Expected Quadrant"),
+        }
+        assert!(parse("quadrantChart\n  x-axis L --> H\n  y-axis L --> H\n  Point A:::missing: [0.9, 0.0]").is_err());
+    }
+
+    #[test]
+    fn test_parse_radar_graticule_and_ticks() {
+        let shaped = parse("radar-beta\n  graticule polygon\n  ticks 3\n  axis a, b, c\n  curve k { 1, 2, 3 }").unwrap();
+        match shaped {
+            DiagramAst::Radar(radar) => {
+                assert_eq!(radar.graticule, RadarGraticule::Polygon);
+                assert_eq!(radar.ticks, 3);
+            }
+            _ => panic!("Expected Radar"),
+        }
+        let defaults = parse("radar-beta\n  axis a, b, c\n  curve k { 1, 2, 3 }").unwrap();
+        match defaults {
+            DiagramAst::Radar(radar) => {
+                assert_eq!(radar.graticule, RadarGraticule::Circle);
+                assert_eq!(radar.ticks, 5);
+            }
+            _ => panic!("Expected Radar"),
+        }
+        assert!(parse("radar-beta\n  graticule spiral\n  axis a, b, c\n  curve k { 1, 2, 3 }").is_err());
+    }
+
+    #[test]
+    fn test_parse_xychart_horizontal_titles_and_auto_ranges() {
+        let horizontal = parse("xychart-beta horizontal\n  x-axis [a, b]\n  y-axis 0 --> 10\n  bar [4, 8]").unwrap();
+        match horizontal {
+            DiagramAst::XyChart(chart) => assert!(chart.horizontal),
+            _ => panic!("Expected XyChart"),
+        }
+        let titled = parse("xychart-beta\n  x-axis \"Months\" [a, b]\n  y-axis \"Money\" 0 --> 10\n  bar [1, 2]").unwrap();
+        match titled {
+            DiagramAst::XyChart(chart) => {
+                assert_eq!(chart.x_title, "Months");
+                assert_eq!(chart.y_title, "Money");
+            }
+            _ => panic!("Expected XyChart"),
+        }
+        let unquoted = parse("xychart-beta\n  x-axis Months 0 --> 10\n  y-axis Money 0 --> 10\n  bar [1, 2]").unwrap();
+        match unquoted {
+            DiagramAst::XyChart(chart) => {
+                assert_eq!(chart.x_title, "Months");
+                assert_eq!(chart.y_title, "Money");
+            }
+            _ => panic!("Expected XyChart"),
+        }
+        let auto = parse("xychart-beta\n  line [2.3, 45, .98]").unwrap();
+        match auto {
+            DiagramAst::XyChart(chart) => {
+                assert_eq!(chart.x_labels, vec!["1".to_string(), "2".to_string(), "3".to_string()]);
+                assert_eq!(chart.y_min, 0.0);
+                assert_eq!(chart.y_max, 45.0);
+            }
+            _ => panic!("Expected XyChart"),
         }
     }
 }
@@ -4516,15 +5088,83 @@ fn parse_sequence_rect_color(statement: &str) -> Result<Option<String>, ParseErr
             statement
         )));
     }
-    if remainder.is_empty() || !remainder.to_ascii_lowercase().starts_with("rgb(") || !remainder.ends_with(')') {
+    let lowered_remainder = remainder.to_ascii_lowercase();
+    // `rect rgba(r, g, b, a)` with an alpha channel between 0 and 1.
+    if lowered_remainder.starts_with("rgba(") {
+        if !remainder.ends_with(')') {
+            return Err(ParseError::UnexpectedToken(format!(
+                "Sequence rect requires a closing parenthesis: {}",
+                statement
+            )));
+        }
+        let raw_channels: Vec<&str> = remainder[5..remainder.len() - 1]
+            .split(',')
+            .map(str::trim)
+            .collect();
+        let plain_decimal = |value: &str| {
+            let mut parts = value.split('.');
+            let integer = parts.next().unwrap_or_default();
+            let valid = !value.is_empty()
+                && parts.next().map_or_else(|| integer.bytes().all(|b| b.is_ascii_digit()), |fraction| {
+                    !fraction.is_empty()
+                        && integer.bytes().all(|b| b.is_ascii_digit())
+                        && fraction.bytes().all(|b| b.is_ascii_digit())
+                });
+            valid
+        };
+        let valid_shape = raw_channels.len() == 4
+            && raw_channels[..3].iter().all(|channel| plain_decimal(channel))
+            && plain_decimal(raw_channels[3]);
+        if !valid_shape {
+            return Err(ParseError::UnexpectedToken(format!(
+                "Sequence rect requires plain decimal RGBA channels: {}",
+                statement
+            )));
+        }
+        let channels: Vec<f64> = raw_channels
+            .iter()
+            .map(|channel| channel.parse::<f64>())
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|_| ParseError::UnexpectedToken(format!(
+                "Sequence rect requires numeric RGBA channels: {}",
+                statement
+            )))?;
+        let [red, green, blue, alpha] = channels.as_slice() else {
+            return Err(ParseError::UnexpectedToken(format!(
+                "Sequence rect requires exactly four RGBA values: {}",
+                statement
+            )));
+        };
+        let valid = [*red, *green, *blue].iter().all(|channel| (0.0..=255.0).contains(channel) && channel.fract() == 0.0)
+            && (0.0..=1.0).contains(alpha);
+        if !valid {
+            return Err(ParseError::UnexpectedToken(format!(
+                "Sequence rect requires RGB channels from 0 to 255 and alpha from 0 to 1: {}",
+                statement
+            )));
+        }
+        return Ok(Some(format!("rgba({}, {}, {}, {})", red, green, blue, alpha)));
+    }
+    if remainder.is_empty() || !lowered_remainder.starts_with("rgb(") || !remainder.ends_with(')') {
         return Err(ParseError::UnexpectedToken(format!(
-            "Sequence rect requires an rgb(red, green, blue) or hex color: {}",
+            "Sequence rect requires an rgb(red, green, blue), rgba(r, g, b, a), or hex color: {}",
             statement
         )));
     }
-    let channels = remainder[4..remainder.len() - 1]
+    let raw_channels = remainder[4..remainder.len() - 1]
         .split(',')
         .map(str::trim)
+        .collect::<Vec<_>>();
+    // Digits only: signed and exponent forms are rejected to keep the
+    // accepted surface aligned with the support analyzer.
+    if raw_channels.iter().any(|channel| channel.is_empty() || !channel.bytes().all(|b| b.is_ascii_digit())) {
+        return Err(ParseError::UnexpectedToken(format!(
+            "Sequence rect requires plain decimal RGB values from 0 to 255: {}",
+            statement
+        )));
+    }
+    let channels = raw_channels
+        .iter()
         .map(|channel| channel.parse::<u8>())
         .collect::<Result<Vec<_>, _>>()
         .map_err(|_| ParseError::UnexpectedToken(format!(
