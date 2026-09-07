@@ -90,23 +90,25 @@ xmermaid 专注于 Mermaid 流程图的浏览器端 SVG 渲染，提供较为完
 
 子图容器会渲染为带标签的容器框，边可以连接到容器 ID。安全的 `classDef`、`class`、`style`、`linkStyle` 语句接受十六进制与 CSS 命名颜色以及数值 `stroke-width` / `stroke-dasharray`；内联 `A:::className` 分配、带连字符的节点 ID、实体编码标签解码（`#9829;`）以及 `A@{ shape: stadium, label: "..." }` 扩展形状均可渲染。FontAwesome 4 标签以 SVG 图标嵌入。
 
-它还为 Sequence、Class、State、ER、User Journey、Gantt、Pie、Mindmap、Timeline、Requirement、GitGraph、C4、ZenUML、XY Chart、Sankey、Quadrant、Architecture、Block、Kanban、Treemap、Radar、Packet、Venn、Swimlane、Ishikawa、Event Modeling、Wardley Map 和 Cynefin 提供了精心限定的原生子集。
+它还为 Sequence、Class、State、ER、User Journey、Gantt、Pie、Mindmap、Timeline、Requirement、GitGraph、C4、ZenUML、XY Chart（分类与数值 x 轴、横向布局、轴标题）、Sankey、Quadrant（含点的直接样式与 classDef）、Architecture、Block、Kanban、Treemap、Radar（graticule 形状与 ticks 圈数）、Packet、Venn、Swimlane、Ishikawa、Event Modeling、Wardley Map 和 Cynefin 提供了精心限定的原生子集。User Journey、Gantt 与 Pie 当前为完全支持。
+
+任意图表源都可以通过 Mermaid 的 `%%{init: {'theme': 'dark'}}%%` 指令选择主题；指令优先于程序传入的主题，与 Mermaid 的优先级一致。可识别的名称包括 `default`、`dark`、`neutral`、`light`、`forest`、`base` 和 `minimal`。
 
 所有图表族都接受 `accTitle` / `accDescr` 指令与 `---` frontmatter，并作为 SVG 的可访问名称与描述呈现。
 
 这不是完整的 Mermaid 兼容实现。其余 Mermaid 图表族会在 `getSupportMatrix()` 中明确标记为 `planned`，并在 WASM 渲染前拒绝。请使用 `getSupportMatrix()` 或 `analyzeSupport(source)` 查询当前生产支持边界。
 
-`sequenceDiagram` 为部分支持：显式 `participant` / `actor` 声明（含 `as` 别名）、实线/虚线/交叉（`-x`、`--x`）与异步开放箭头（`-)`、`--)`) 消息、双向 `<->` 链接、`create` / `destroy` 生命周期（销毁的生命寿命以 ✕ 截止）、`box` 参与者分组、带起始与步进的 `autonumber`、`activate` / `deactivate`（含 `+` / `-` 后缀）、单行 `Note left/right/over`、`rgb()` 或十六进制颜色的 `rect` 框，以及嵌套的 `loop`、`alt` / `else`、`opt`、`par` / `and`、`critical` / `option`、`break` 块。多行备注尚不支持。
+`sequenceDiagram` 为部分支持：显式 `participant` / `actor` 声明（含 `as` 别名）、实线/虚线/交叉（`-x`、`--x`）与异步开放箭头（`-)`、`--)`) 消息、双向 `<->` 链接、`create` / `destroy` 生命周期（销毁的生命寿命以 ✕ 截止）、`box` 参与者分组、带起始与步进的 `autonumber`、`activate` / `deactivate`（含 `+` / `-` 后缀）、单行 `Note left/right/over`、`rgb()`、`rgba()` 或十六进制颜色的 `rect` 框，以及嵌套的 `loop`、`alt` / `else`、`opt`、`par` / `and`、`critical` / `option`、`break` 块。多行备注尚不支持。
 
-`classDiagram` 为部分支持：完整关系语法原生渲染——继承（`<|--`、`--|>`）、组合（`*--`）、聚合（`o--`）、关联（`-->`、`<--`）、连接（`--`）、依赖（`..>`、`..`）与实现（`..|>`、`<|..`），支持关系标签与带引号的基数。类成员块（`class Foo { ... }`）、成员简写（`Foo : +int size`）与分类注解（`<<interface>>`）会渲染在类框内。命名空间与样式指令尚不支持。
+`classDiagram` 为部分支持：完整关系语法原生渲染——继承（`<|--`、`--|>`）、组合（`*--`）、聚合（`o--`）、关联（`-->`、`<--`）、连接（`--`）、依赖（`..>`、`..`）与实现（`..|>`、`<|..`），支持关系标签与带引号的基数。类成员块（`class Foo { ... }`）、成员简写（`Foo : +int size`）与分类注解（`<<interface>>`）会渲染在类框内。`namespace` 命名空间容器渲染为带标签的容器框；`style` 指令（安全十六进制或 CSS 命名颜色、`stroke-width`、`stroke-dasharray`）可为类框着色。`classDef`、`cssClass` 与 `click` 指令尚不支持。
 
 `stateDiagram` 为部分支持：命名状态、带标签转换、以圆点渲染的起止 `[*]` 伪状态、`<<choice>>` 菱形与 `<<fork>>`/`<<join>>` 条形、状态别名、渲染为附加备注框的左右备注，以及内部转换被扁平化为带标签容器的复合状态块。并发区可解析但渲染为单一合并图，并以警告诊断提示。
 
 `erDiagram` 为部分支持：完整的鸦脚基数语法（左侧 `|o`、`||`、`}o`、`}|`；右侧 `o|`、`||`、`o{`、`|{`）以原生鸦脚图形在两端渲染，配合标识（`--`）与非标识（`..`）连接；实体属性块连同键标记（PK/FK/UK）与注释渲染在实体框内。
 
-`gantt` 为部分支持：基于 `YYYY`、`MM`、`DD` 组合的 `dateFormat` 指令、ISO 开始日期、`Nd` / `Nw` / `Nh` 时长、显式结束日期、以颜色渲染的 `done` / `active` / `crit` 任务状态、以菱形渲染的里程碑、`after <task...>` 依赖（多重锚点在全部完成后开始），以及 `excludes weekends` / 星期 / 日期指令——时长会按工作日历展开。unix `dateFormat` 尚不支持。
+`gantt` 为完全支持：基于 `YYYY`、`MM`、`DD` 组合的 `dateFormat` 指令、ISO 开始日期、`Nd` / `Nw` / `Nh` 时长、显式结束日期、以颜色渲染的 `done` / `active` / `crit` 任务状态、以菱形渲染的里程碑、`after <task...>` 依赖（多重锚点在全部完成后开始），以及 `excludes weekends` / 星期 / 日期指令——时长会按工作日历展开。unix 时间戳通过 `dateFormat X`（秒）、`dateFormat x`（毫秒）与历史别名 `dateFormat unix` 支持。
 
-`pie` 为部分支持：数值扇区、标题与 `showData` 数值表格渲染为饼图；自定义主题尚不支持。
+`pie` 为完全支持：数值扇区、标题（独立 `title` 行或 `pie showData title ...` 组合头）、`showData` 数值表格与 `%%{init: {'theme': ...}}%%` 主题指令渲染为饼图。
 
 `mindmap` 为部分支持：带方括号、圆角、圆形、体育场、圆柱、六边形与非对称形状的缩进层级，`::icon(fa fa-*)` 声明会渲染为 FontAwesome 图标（未知图标名会提前报错）。Markdown 字符串尚不支持。
 
