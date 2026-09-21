@@ -192,10 +192,17 @@ describe('Class diagram style directives and namespaces', () => {
     expect(layout.nodes.map((node: any) => node.id)).toContain('Invoice');
   });
 
-  it('still flags classDef, cssClass, and click directives', () => {
-    expect(detectUnsupportedFeatures('classDiagram\n  class Foo\n  classDef red fill:#f00')).toEqual([
-      expect.objectContaining({ id: 'class.advanced', severity: 'error' }),
+  it('accepts classDef and cssClass and downgrades click to a warning', () => {
+    expect(detectUnsupportedFeatures('classDiagram\n  class Foo\n  classDef red fill:#f00')).toEqual([]);
+    expect(detectUnsupportedFeatures('classDiagram\n  class Foo\n  cssClass foo red')).toEqual([
+      expect.objectContaining({ id: 'class.advanced', severity: 'warning' }),
     ]);
+    expect(detectUnsupportedFeatures('classDiagram\n  class Foo\n  click Foo callback')).toEqual([
+      expect.objectContaining({ id: 'class.advanced', severity: 'warning' }),
+    ]);
+    // classDef resolves into applied styles through the real parser.
+    const ast = JSON.parse(parseDsl('classDiagram\n  class Foo\n  classDef red fill:#f00\n  class Foo red'));
+    expect(ast.styles).toEqual([expect.objectContaining({ class: 'Foo', style: expect.objectContaining({ fill: '#f00' }) })]);
   });
 });
 

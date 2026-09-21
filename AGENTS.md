@@ -126,7 +126,7 @@ Do not collapse those paths.
 
 Default security posture is strict.
 
-Strict mode blocks before rendering when it sees risky click callbacks, HTML labels, or disallowed URL protocols. Loose mode only relaxes click and HTML blocking; dangerous URLs remain blocked.
+Strict mode blocks before rendering when it sees risky click callbacks or disallowed URL protocols. Loose mode only relaxes click blocking; dangerous URLs remain blocked. HTML labels are not gated: the parser sanitizes them to plain text and line breaks, and labels are never rendered as trusted HTML at any security level.
 
 Do not add behavior that executes Mermaid click callbacks or renders HTML labels as trusted HTML.
 

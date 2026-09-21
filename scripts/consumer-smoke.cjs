@@ -209,7 +209,7 @@ function writeConsumerProject(consumerDir, tarballPath) {
     'const options: XMermaidOptions = { container };',
     "const editorOptions: XMermaidLiveEditorOptions = { root: document.createElement('div'), initialText: 'flowchart TD\\n  A --> B' };",
     "const securityLevel: SecurityLevel = 'loose';",
-    'const securityPolicy: SecurityPolicy = { ...DEFAULT_SECURITY_POLICY, securityLevel, allowClickCallbacks: true, allowHtmlLabels: true };',
+    'const securityPolicy: SecurityPolicy = { ...DEFAULT_SECURITY_POLICY, securityLevel, allowClickCallbacks: true };',
     'const presetTheme: RenderTheme = DARK_THEME;',
     "const markerPlacement = computeArrowPlacement({ x: 100, y: 50 }, 0, presetTheme.arrowSize, presetTheme.edgeGap, presetTheme.arrowStyle);",
     'const renderOptions: RenderOptions = { layoutConfig: { direction: \'LR\' }, securityPolicy, theme: LIGHT_THEME };',

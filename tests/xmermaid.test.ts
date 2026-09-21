@@ -275,36 +275,24 @@ describe('XMermaid', () => {
     }
   });
 
-  it('blocks HTML labels by default with security diagnostics', async () => {
+  it('renders HTML labels as sanitized plain text in every security level', async () => {
     const container = document.createElement('div');
     const xm = new XMermaid({ container });
 
-    await expect(xm.renderToSVGElement('graph TD\n  A[<b>Hi</b>]'))
-      .rejects.toMatchObject<XMermaidError>({
-        code: 'RENDER_ERROR',
-        diagnostics: expect.arrayContaining([
-          expect.objectContaining({
-            code: 'security_blocked_html',
-            severity: 'error',
-            featureId: 'flowchart.htmlLabel',
-            range: expect.objectContaining({ startLine: 2 }),
-          }),
-        ]),
-      });
+    for (const securityLevel of ['strict', 'loose'] as const) {
+      const result = await xm.renderToSVGElement('graph TD\n  A[<b>Hi</b>]', { securityLevel });
+      expect(result.diagnostics).not.toContainEqual(expect.objectContaining({
+        code: 'security_blocked_html',
+      }));
+      expect(result.diagnostics).not.toContainEqual(expect.objectContaining({
+        code: 'unsupported_syntax',
+      }));
+    }
   });
 
-  it('keeps click and HTML as unsupported warnings in loose mode while still blocking dangerous URLs', async () => {
+  it('keeps click as a warning in loose mode while still blocking dangerous URLs', async () => {
     const container = document.createElement('div');
     const xm = new XMermaid({ container });
-
-    const looseHtml = await xm.renderToSVGElement('graph TD\n  A[<b>Hi</b>]', { securityLevel: 'loose' });
-    expect(looseHtml.diagnostics).toContainEqual(expect.objectContaining({
-      code: 'unsupported_syntax',
-      featureId: 'flowchart.htmlLabel',
-    }));
-    expect(looseHtml.diagnostics).not.toContainEqual(expect.objectContaining({
-      code: 'security_blocked_html',
-    }));
 
     const looseClick = await xm.renderToSVGElement('graph TD\n  A-->B\n  click A "https://example.com"', { securityLevel: 'loose' });
     expect(looseClick.diagnostics).toContainEqual(expect.objectContaining({

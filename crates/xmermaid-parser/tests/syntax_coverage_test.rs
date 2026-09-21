@@ -1,4 +1,4 @@
-use xmermaid_parser::{parse, DiagramAst, EdgeMarker, EdgeStyle, FlowDirection, NodeShape};
+use xmermaid_parser::{parse, DiagramAst, EdgeMarker, EdgeStyle, FlowDirection, NodeShape, SequenceEvent};
 
 /// Helper: parse input and return the FlowchartAst (panics on error or non-flowchart).
 fn fc(input: &str) -> xmermaid_parser::FlowchartAst {
@@ -393,30 +393,32 @@ fn test_cross_edge_is_supported() {
 
 #[test]
 fn test_inline_edge_label_is_supported() {
-    let fc = fc("graph TD\n  A-- text -->B");
-    assert_eq!(fc.edges.len(), 1, "inline labels attach to a single edge");
-    assert_eq!(fc.edges[0].label.as_deref(), Some("text"));
-    assert_eq!(fc.edges[0].from, "A");
-    assert_eq!(fc.edges[0].to, "B");
+    let base = fc("graph TD\n  A-- text -->B");
+    assert_eq!(base.edges.len(), 1, "inline labels attach to a single edge");
+    assert_eq!(base.edges[0].label.as_deref(), Some("text"));
+    assert_eq!(base.edges[0].from, "A");
+    assert_eq!(base.edges[0].to, "B");
+    let quoted = fc("graph TD\n  A -- \"yes ok\" --> B");
+    assert_eq!(quoted.edges[0].label.as_deref(), Some("yes ok"));
+    assert_eq!(quoted.nodes.len(), 2, "quoted label words stay a label, not a node");
 }
 
 #[test]
-fn test_falsify_edge_id_syntax_unsupported() {
-    // Edge ID syntax (e1@-->) is not yet supported.
-    // The @ token is Unknown and causes "e1" to be parsed as a NodeId,
-    // leading to spurious nodes or an error.
-    let result = parse("graph TD\n  A e1@-->B");
-    if let Ok(DiagramAst::Flowchart(fc)) = result {
-        // Not a clean A-->B single-edge parse
-        let clean_parse = fc.edges.len() == 1
-            && fc.edges[0].from == "A"
-            && fc.edges[0].to == "B"
-            && fc.nodes.len() == 2;
-        assert!(
-            !clean_parse,
-            "edge ID syntax should not produce a clean parse"
-        );
+fn test_edge_id_syntax_is_accepted_and_ignored() {
+    // Edge ID syntax (`e1@-->`) parses cleanly; the id carries no render
+    // semantics in static output, so the edge is A-->B with no spurious node.
+    for source in ["graph TD\n  A e1@-->B", "graph TD\n  A e1@--> B", "graph TD\n  A e2@-- label --> B"] {
+        let result = parse(source);
+        let Ok(DiagramAst::Flowchart(fc)) = result else {
+            panic!("edge ID source should parse: {}", source);
+        };
+        assert_eq!(fc.edges.len(), 1, "single edge for: {}", source);
+        assert_eq!(fc.edges[0].from, "A");
+        assert_eq!(fc.edges[0].to, "B");
+        assert_eq!(fc.nodes.len(), 2, "no spurious node for: {}", source);
     }
+    let labeled = fc("graph TD\n  A e2@-- label --> B");
+    assert_eq!(labeled.edges[0].label.as_deref(), Some("label"));
 }
 
 // ============================================================
@@ -605,15 +607,12 @@ fn test_falsify_unicode_quotes_in_label() {
 }
 
 #[test]
-fn test_falsify_markdown_labels_unsupported() {
-    // A["`**Bold**`"] — backtick is part of label text, not markdown
+fn test_markdown_string_labels_are_sanitized_to_text() {
+    // A["`**Bold**`"] — markdown strings are sanitized to their plain text:
+    // the fence and emphasis markers are dropped, the words remain.
     let fc = fc("graph TD\n  A[\"`**Bold**`\"]");
-    // Markdown syntax is preserved as-is, not rendered
     let label = fc.nodes[0].label.as_ref().unwrap();
-    assert!(
-        label.contains("**"),
-        "Markdown not rendered, preserved as text"
-    );
+    assert_eq!(label, "Bold");
 }
 
 #[test]
@@ -622,6 +621,40 @@ fn test_entity_codes_are_decoded() {
     assert_eq!(first.nodes[0].label.as_deref(), Some("#"));
     let second = fc("graph TD\n  A[heart #9829;]");
     assert_eq!(second.nodes[0].label.as_deref(), Some("heart \u{2665}"));
+}
+
+#[test]
+fn test_html_labels_are_sanitized_to_text() {
+    // <br> variants become line breaks; markup tags are stripped; escaped
+    // entities stay literal text.
+    let br = fc("graph TD\n  A[\"Line one<br/>Line two\"]");
+    assert_eq!(br.nodes[0].label.as_deref(), Some("Line one\nLine two"));
+    let br_variants = fc("graph TD\n  A[\"a<br>b<br />c<BR>d\"]");
+    assert_eq!(br_variants.nodes[0].label.as_deref(), Some("a\nb\nc\nd"));
+    let bold = fc("graph TD\n  A[\"<b>Bold</b> title\"]");
+    assert_eq!(bold.nodes[0].label.as_deref(), Some("Bold title"));
+    let span = fc("graph TD\n  A[\"<span style=\\\"color:red\\\">red</span>\"]");
+    assert_eq!(span.nodes[0].label.as_deref(), Some("red"));
+    let escaped = fc("graph TD\n  A[\"use &lt;b&gt; carefully\"]");
+    assert_eq!(escaped.nodes[0].label.as_deref(), Some("use <b> carefully"));
+    let stray = fc("graph TD\n  A[\"a < b and c > d\"]");
+    assert_eq!(stray.nodes[0].label.as_deref(), Some("a < b and c > d"));
+    let edge = fc("graph TD\n  A -->|\"yes<br/>ok\"| B");
+    assert_eq!(edge.edges[0].label.as_deref(), Some("yes\nok"));
+}
+
+#[test]
+fn test_flowchart_style_statements_accept_common_cosmetic_properties() {
+    // font-size, text-align, etc. are accepted (value-validated) and ignored.
+    let styled = fc(
+        "graph TD\n  A --> B\n  classDef green fill:#9f6,stroke:#333,font-size:14px\n  class A green",
+    );
+    assert_eq!(styled.nodes.len(), 2);
+    let inline = fc("graph TD\n  A --> B\n  style A fill:#f9f,stroke:#333,text-align:center,font-weight:bold");
+    assert_eq!(inline.nodes.len(), 2);
+    // Values that could smuggle non-style shapes still fail closed.
+    let bad = parse("graph TD\n  A --> B\n  classDef green fill:#9f6,font-family:expression(alert(1))");
+    assert!(bad.is_err(), "unsafe font-family value must fail");
 }
 
 #[test]
@@ -995,6 +1028,37 @@ fn test_class_diagram_is_parsed() {
         parse("classDiagram\n  class A"),
         Ok(DiagramAst::Class(_))
     ));
+}
+
+#[test]
+fn test_class_diagram_classdef_and_class_assignment_apply_styles() {
+    let Ok(DiagramAst::Class(ast)) = parse(
+        "classDiagram\n  class Foo\n  Foo : +int size\n  classDef green fill:#9f6,stroke:#333,font-size:14px\n  class Foo green",
+    ) else {
+        panic!("classDef sources must parse");
+    };
+    assert_eq!(ast.styles.len(), 1, "assignment resolves the classDef to one style");
+    assert_eq!(ast.styles[0].class, "Foo");
+    assert_eq!(ast.styles[0].style.fill.as_deref(), Some("#9f6"));
+    // Assignments referencing an unknown classDef are tolerated (no style).
+    let unknown = parse("classDiagram\n  class Foo\n  class Foo missing");
+    assert!(matches!(unknown, Ok(DiagramAst::Class(_))));
+    // cssClass and click are accepted no-ops.
+    let noops = parse("classDiagram\n  class Foo\n  cssClass foo green\n  click Foo callback \"tooltip\"");
+    assert!(matches!(noops, Ok(DiagramAst::Class(_))));
+}
+
+#[test]
+fn test_sequence_labels_are_sanitized() {
+    let Ok(DiagramAst::Sequence(ast)) = parse("sequenceDiagram\n  A->>B: step 1<br/>step 2\n  Note over A: <b>warn</b>") else {
+        panic!("sequence source must parse");
+    };
+    assert_eq!(ast.messages[0].label, "step 1\nstep 2");
+    let note = ast.events.iter().find_map(|event| match event {
+        SequenceEvent::Note { text, .. } => Some(text.clone()),
+        _ => None,
+    });
+    assert_eq!(note.as_deref(), Some("warn"));
 }
 
 #[test]

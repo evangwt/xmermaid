@@ -21,6 +21,19 @@ export function getFontAwesomeIcon(name: string): FontAwesomeIcon | undefined {
   return fontAwesomeIcons.icons[LEGACY_ALIASES[name] ?? name] as FontAwesomeIcon | undefined;
 }
 
+const ICON_TOKEN_PATTERN = /\bfa:fa-([A-Za-z0-9-]+)\b[ \t]*/g;
+
+/**
+ * Drop `fa:fa-name` icon tokens whose icon is outside the supported
+ * FontAwesome 4 set, so unknown names degrade to the remaining label text
+ * instead of leaking the raw token into the drawing.
+ */
+export function stripUnknownFontAwesomeToken(line: string): string {
+  const stripped = line.replace(ICON_TOKEN_PATTERN, (token, name: string) =>
+    getFontAwesomeIcon(name) ? token : '');
+  return stripped.trim() === '' ? line : stripped;
+}
+
 export function parseFontAwesomeLabel(label: string): FontAwesomeLabel | undefined {
   const match = TOKEN_PATTERN.exec(label);
   if (!match) return undefined;

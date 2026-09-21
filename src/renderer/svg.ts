@@ -8,7 +8,7 @@ import {
   terminalAngleAtTargetBoundary,
   type EdgePathResult,
 } from './edge';
-import { parseFontAwesomeLabel, type FontAwesomeLabel } from './fontawesome';
+import { parseFontAwesomeLabel, stripUnknownFontAwesomeToken, type FontAwesomeLabel } from './fontawesome';
 
 function sameCoordinate(a: number, b: number): boolean {
   return Math.abs(a - b) < 1e-6;
@@ -1261,7 +1261,7 @@ export class SVGRenderer {
       text.setAttribute('fill', fill);
       text.setAttribute('font-family', this.theme.fontFamily);
       text.setAttribute('font-size', String(this.theme.fontSize));
-      this.setTextLines(text, labelLines, node.center, this.theme.fontSize);
+      this.setTextLines(text, labelLines.map(stripUnknownFontAwesomeToken), node.center, this.theme.fontSize);
       g.appendChild(text);
     }
 

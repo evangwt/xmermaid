@@ -216,13 +216,15 @@ function checkDocs() {
     {
       label: 'README documents safe Flowchart class style boundary',
       passed: /classDef <name>/i.test(readme)
-        && /three- or six-digit hexadecimal/i.test(readme)
+        && /safe color values/i.test(readme)
+        && /accepted-and-ignored/i.test(readme)
         && /Visual editing is read-only/i.test(readme),
     },
     {
       label: 'Chinese README documents safe Flowchart class style boundary',
       passed: /classDef <名称>/.test(chineseReadme)
-        && /三位或六位十六进制颜色/.test(chineseReadme)
+        && /安全颜色值/.test(chineseReadme)
+        && /解析后忽略/.test(chineseReadme)
         && /可视化编辑.*只读/.test(chineseReadme),
     },
     {
@@ -236,8 +238,8 @@ function checkDocs() {
         && /strict/i.test(readme)
         && /sanitizeSvg/.test(readme)
         && /security_blocked_url/.test(readme)
-        && /security_blocked_html/.test(readme)
-        && /security_blocked_click/.test(readme),
+        && /security_blocked_click/.test(readme)
+        && /never rendered as trusted HTML/.test(readme),
     },
     {
       label: 'README documents editor subpath and custom WASM fetch',

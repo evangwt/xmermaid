@@ -213,14 +213,15 @@ describe('support matrix production contract', () => {
     });
     expect(flowchart?.unsupportedSyntax.map(item => item.id)).toEqual(expect.arrayContaining([
       'flowchart.click',
-      'flowchart.htmlLabel',
-      'flowchart.edgeId',
     ]));
     expect(flowchart?.supportedSyntax.map(item => item.id)).toEqual(expect.arrayContaining([
       'flowchart.subgraph-containers',
       'flowchart.inlineClass',
       'flowchart.linkStyle',
       'flowchart.expandedShape',
+      'flowchart.htmlLabel',
+      'flowchart.markdownLabel',
+      'flowchart.edgeId',
     ]));
     expect(flowchart?.supportedSyntax.map(item => item.id)).toContain('flowchart.fontAwesomeLabel');
     expect(matrix.entries).toHaveLength(30);
@@ -595,13 +596,13 @@ describe('support matrix production contract', () => {
       '  D["`Markdown`"]',
     ].join('\n'));
 
+    // HTML and Markdown labels sanitize to plain text and are no longer
+    // flagged; unsafe styling and click callbacks still are.
     expect(features.map(feature => feature.id)).toEqual([
       'flowchart.class',
       'flowchart.classDef',
       'flowchart.style',
       'flowchart.click',
-      'flowchart.htmlLabel',
-      'flowchart.markdownLabel',
     ]);
     expect(features[0]).toMatchObject({
       id: 'flowchart.class',
@@ -613,9 +614,13 @@ describe('support matrix production contract', () => {
         endColumn: 26,
       },
     });
-    expect(features[4].range).toMatchObject({
-      startLine: 8,
-      startColumn: 3,
+    expect(features[3]).toMatchObject({
+      id: 'flowchart.click',
+      severity: 'warning',
+      range: {
+        startLine: 7,
+        startColumn: 3,
+      },
     });
   });
 
@@ -629,7 +634,7 @@ describe('support matrix production contract', () => {
     expect(features).toEqual([]);
   });
 
-  it('renders edge endings and inline labels while flagging edge IDs', () => {
+  it('renders edge endings and inline labels while accepting edge IDs', () => {
     const features = detectUnsupportedFeatures([
       'flowchart TD',
       '  A<-->B',
@@ -639,13 +644,8 @@ describe('support matrix production contract', () => {
       '  I e1@-->J',
     ].join('\n'));
 
-    expect(features.map(feature => feature.id)).toEqual([
-      'flowchart.edgeId',
-    ]);
-    expect(features[0]).toMatchObject({
-      severity: 'error',
-      range: expect.objectContaining({ startLine: 6 }),
-    });
+    // Edge IDs parse and are dropped; the whole source is now flag-free.
+    expect(features).toEqual([]);
   });
 
   it('renders thick and extended edges while flagging unsafe style directives', () => {

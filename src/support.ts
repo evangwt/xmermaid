@@ -20,8 +20,6 @@ export type UnsupportedFeatureId =
   | 'flowchart.classDef'
   | 'flowchart.style'
   | 'flowchart.click'
-  | 'flowchart.htmlLabel'
-  | 'flowchart.markdownLabel'
   | 'flowchart.quotedLabel'
   | 'flowchart.entityCodeLabel'
   | 'flowchart.fontAwesomeLabel'
@@ -37,7 +35,6 @@ export type UnsupportedFeatureId =
   | 'flowchart.circleEdge'
   | 'flowchart.crossEdge'
   | 'flowchart.inlineEdgeLabel'
-  | 'flowchart.edgeId'
   | 'flowchart.edgeToSubgraph'
   | 'flowchart.hyphenatedNodeId'
   | 'flowchart.inlineClass'
@@ -123,10 +120,14 @@ const SUPPORT_MATRIX: SupportMatrix = {
         { id: 'flowchart.basic-labels', label: 'square-bracket node labels and pipe edge labels', status: 'supported' },
         { id: 'flowchart.basic-shapes', label: 'rectangle, rounded, stadium, cylinder/database, circle, double-circle, diamond, hexagon, parallelogram, trapezoid, subroutine, and asymmetric shapes', status: 'supported' },
         { id: 'flowchart.subgraph-parse', label: 'subgraph parsing', status: 'partial' },
-        { id: 'flowchart.classDef', label: 'safe hexadecimal fill, stroke, and color class definitions', status: 'supported' },
+        { id: 'flowchart.classDef', label: 'safe hexadecimal fill, stroke, and color class definitions, plus accepted-and-ignored cosmetic properties such as font-size', status: 'supported' },
         { id: 'flowchart.class', label: 'class assignments to declared nodes', status: 'supported' },
-        { id: 'flowchart.style', label: 'inline style statements with safe hexadecimal fill, stroke, and color values', status: 'supported' },
-        { id: 'flowchart.fontAwesomeLabel', label: 'FontAwesome 4 icon labels embedded as SVG', status: 'supported' },
+        { id: 'flowchart.style', label: 'inline style statements with safe hexadecimal fill, stroke, and color values, plus accepted-and-ignored cosmetic properties', status: 'supported' },
+        { id: 'flowchart.fontAwesomeLabel', label: 'FontAwesome 4 icon labels embedded as SVG; unknown icon names degrade to plain text', status: 'supported' },
+        { id: 'flowchart.htmlLabel', label: 'HTML labels sanitized to plain text with <br> line breaks (never rendered as markup)', status: 'supported' },
+        { id: 'flowchart.markdownLabel', label: 'Markdown string labels sanitized to plain text', status: 'supported' },
+        { id: 'flowchart.edgeId', label: 'edge IDs (A e1@--> B) parsed and dropped', status: 'supported' },
+        { id: 'flowchart.quoted-edge-labels', label: 'quoted inline edge labels such as A -- "text" --> B', status: 'supported' },
         { id: 'flowchart.edge-endings', label: 'circle (o), cross (x), and bidirectional edge endings on both endpoints', status: 'supported' },
         { id: 'flowchart.inline-edge-labels', label: 'inline edge labels such as A -- text --> B and A -. text .-> B', status: 'supported' },
         { id: 'flowchart.extended-length', label: 'extended edge lengths via extra dashes or equals signs', status: 'supported' },
@@ -141,13 +142,10 @@ const SUPPORT_MATRIX: SupportMatrix = {
       ],
       unsupportedSyntax: [
         { id: 'flowchart.style', label: 'style or linkStyle statements with unsafe or unsupported property values', status: 'unsupported' },
-        { id: 'flowchart.click', label: 'click callbacks and links', status: 'unsupported' },
-        { id: 'flowchart.htmlLabel', label: 'HTML labels', status: 'unsupported' },
-        { id: 'flowchart.markdownLabel', label: 'Markdown labels', status: 'unsupported' },
+        { id: 'flowchart.click', label: 'click callbacks and links (accepted, no effect in static output)', status: 'unsupported' },
         { id: 'flowchart.invalidDirection', label: 'invalid graph/flowchart directions', status: 'unsupported' },
         { id: 'flowchart.unterminatedLabel', label: 'unterminated node or edge labels', status: 'unsupported' },
         { id: 'flowchart.expandedShapeUnsupported', label: 'expanded shape declarations with unsupported shape names or properties', status: 'unsupported' },
-        { id: 'flowchart.edgeId', label: 'edge IDs', status: 'unsupported' },
         { id: 'flowchart.subgraph-direction', label: 'direction statements inside subgraphs (parsed, layout ignores them)', status: 'unsupported' },
       ],
     },
@@ -349,8 +347,8 @@ export function detectUnsupportedFeatures(source: string): UnsupportedFeature[] 
           features.push(unsupportedSyntax(
             'mindmap.advanced',
             line,
-            `Mindmap icon "${raw}" is not in the supported FontAwesome 4 set.`,
-            'error',
+            `Mindmap icon "${raw}" is not in the supported FontAwesome 4 set; it is rendered as plain text.`,
+            'warning',
           ));
         }
       }
@@ -397,28 +395,13 @@ export function detectUnsupportedFeatures(source: string): UnsupportedFeature[] 
       ));
     }
 
-    // Expanded shape declarations (A@{ shape: ... }) are parsed and validated
-    // by the Rust parser itself; unsupported shape names or properties fail
-    // there with a precise parse diagnostic instead of a blanket flag here.
-
-    if (/\b[A-Za-z0-9_]+@\s*(?:--|==|-\.)[->=.~]*/.test(line.text)) {
-      features.push(unsupportedSyntax(
-        'flowchart.edgeId',
-        line,
-        'Flowchart edge IDs are not supported yet.',
-        'error',
-      ));
-    }
-    if (/<\/?[A-Za-z][^>]*>/.test(line.text)) {
-      features.push(unsupportedSyntax('flowchart.htmlLabel', line, 'Flowchart HTML labels are not supported yet.'));
-    }
-    if (/`[^`]+`/.test(line.text)) {
-      features.push(unsupportedSyntax('flowchart.markdownLabel', line, 'Flowchart Markdown labels are not supported yet.'));
-    }
+    // Deliberately not flagged here: expanded shapes are validated by the
+    // parser itself, edge IDs are parsed and dropped, and HTML and Markdown
+    // labels are sanitized to plain text by the parser.
 
     const fontAwesomeMatch = /\[[^\]\r\n]*\bfa:fa-([A-Za-z0-9-]+)[^\]\r\n]*\]/.exec(line.text);
     if (fontAwesomeMatch && !getFontAwesomeIcon(fontAwesomeMatch[1]!)) {
-      features.push(unsupportedSyntax('flowchart.fontAwesomeLabel', line, 'Flowchart FontAwesome icon labels are not supported yet.'));
+      features.push(unsupportedSyntax('flowchart.fontAwesomeLabel', line, `FontAwesome icon "fa:fa-${fontAwesomeMatch[1]}" is outside the supported FontAwesome 4 set; it is rendered as plain text.`, 'warning'));
     }
 
     for (const statement of statementsByLine.get(line.lineNumber) ?? []) {
@@ -426,7 +409,7 @@ export function detectUnsupportedFeatures(source: string): UnsupportedFeature[] 
       const classKeyword = flowchartClassStyleKeyword(statementTrimmed);
       if (classKeyword === 'classDef') {
         if (!isSafeFlowchartClassDefinition(statementTrimmed)) {
-          features.push(unsupportedSyntax('flowchart.classDef', statement, 'Flowchart classDef statements only support fill, stroke, color, stroke-width, and stroke-dasharray properties with safe color values.', 'error'));
+          features.push(unsupportedSyntax('flowchart.classDef', statement, 'Flowchart classDef statements support fill, stroke, color, stroke-width, stroke-dasharray, and cosmetic properties with valid values.', 'error'));
         }
         previousWasClassDefinition = statement;
         continue;
@@ -442,10 +425,10 @@ export function detectUnsupportedFeatures(source: string): UnsupportedFeature[] 
         }
       } else if (/^style\b/.test(statementTrimmed)) {
         if (!isSafeFlowchartStyleStatement(statementTrimmed)) {
-          features.push(unsupportedSyntax('flowchart.style', statement, 'Flowchart style statements only support fill, stroke, and color properties with three- or six-digit hexadecimal values.', 'error'));
+          features.push(unsupportedSyntax('flowchart.style', statement, 'Flowchart style statements only support fill, stroke, and color with safe color values plus numeric stroke-width and stroke-dasharray.', 'error'));
         }
       } else if (/^click\b/.test(statementTrimmed)) {
-        features.push(unsupportedSyntax('flowchart.click', statement, 'Flowchart click callbacks and links are not supported yet.', 'warning'));
+        features.push(unsupportedSyntax('flowchart.click', statement, 'Flowchart click callbacks and links have no effect in static output.', 'warning'));
       } else if (/^linkStyle\b/.test(statementTrimmed)) {
         if (!isSafeFlowchartLinkStyleStatement(statementTrimmed)) {
           features.push(unsupportedSyntax('flowchart.style', statement, 'Flowchart linkStyle statements only support fill, stroke, and color properties with safe color values plus numeric stroke-width and stroke-dasharray.', 'error'));
@@ -489,6 +472,19 @@ const CSS_NAMED_COLORS = [
   'whitesmoke','yellow','yellowgreen',
 ];
 const SAFE_FLOWCHART_COLOR = `(?:${HEX_COLOR}|transparent|none|currentColor|${CSS_NAMED_COLORS.join('|')})`;
+// Cosmetic properties accepted for source compatibility: the Rust parser
+// validates their values and ignores them until per-node text styling exists.
+const EXTENDED_FLOWCHART_STYLE_PROPERTIES = new Set([
+  'font-size', 'font-weight', 'text-align', 'font-family',
+  'letter-spacing', 'opacity', 'rx', 'ry',
+]);
+
+/** The extended property name when `property` is `name: value`, else null. */
+function extendedFlowchartStyleProperty(property: string): string | null {
+  const match = /^(.+?):[^:]*$/.exec(property);
+  const name = match?.[1]?.trim();
+  return name && EXTENDED_FLOWCHART_STYLE_PROPERTIES.has(name) ? name : null;
+}
 const FLOWCHART_CLASS_RESERVED_WORDS = new Set([
   'graph', 'flowchart', 'subgraph', 'end', 'classDef', 'class', 'style', 'click', 'direction',
 ]);
@@ -513,6 +509,12 @@ function isSafeFlowchartClassDefinition(source: string): boolean {
       const name = property.split(':')[0].trim();
       if (seen.has(name)) return false;
       seen.add(name);
+      return true;
+    }
+    const extended = extendedFlowchartStyleProperty(property);
+    if (extended) {
+      if (seen.has(extended)) return false;
+      seen.add(extended);
       return true;
     }
     return false;
@@ -541,6 +543,12 @@ function isSafeFlowchartStyleStatement(source: string): boolean {
       seen.add(name);
       return true;
     }
+    const extended = extendedFlowchartStyleProperty(property);
+    if (extended) {
+      if (seen.has(extended)) return false;
+      seen.add(extended);
+      return true;
+    }
     return false;
   });
 }
@@ -563,6 +571,12 @@ function isSafeFlowchartLinkStyleStatement(source: string): boolean {
       const name = property.split(':')[0].trim();
       if (seen.has(name)) return false;
       seen.add(name);
+      return true;
+    }
+    const extended = extendedFlowchartStyleProperty(property);
+    if (extended) {
+      if (seen.has(extended)) return false;
+      seen.add(extended);
       return true;
     }
     return false;
@@ -724,12 +738,19 @@ function isSupportedSequenceRect(source: string): boolean {
 function detectUnsupportedClassFeatures(source: string): UnsupportedFeature[] {
   const features: UnsupportedFeature[] = [];
   for (const line of linesWithRanges(source)) {
-    if (/^\s*classDef\b|^\s*(?:cssClass|click)\b/i.test(line.text)) {
+    if (/^\s*click\b/i.test(line.text)) {
       features.push(unsupportedSyntax(
         'class.advanced',
         line,
-        'Class classDef, cssClass, and click directives are not supported yet.',
-        'error',
+        'Class click callbacks and links are ignored in static output.',
+        'warning',
+      ));
+    } else if (/^\s*cssClass\b/i.test(line.text)) {
+      features.push(unsupportedSyntax(
+        'class.advanced',
+        line,
+        'Class cssClass directives are accepted but have no visual effect.',
+        'warning',
       ));
     }
   }
@@ -1054,10 +1075,10 @@ function partialClass(): DiagramSupportEntry {
       { id: 'class.members', label: 'member blocks, member shorthand lines, and classifier annotations rendered inside class boxes', status: 'supported' },
       { id: 'class.relations', label: 'inheritance, composition, aggregation, association, link, dependency, and realization relations with labels and quoted cardinalities', status: 'supported' },
       { id: 'class.namespaces', label: 'namespace containers rendered as labeled boxes', status: 'supported' },
-      { id: 'class.style', label: 'style directives with safe hexadecimal or CSS named colors, stroke-width, and stroke-dasharray', status: 'supported' },
+      { id: 'class.style', label: 'style directives and classDef definitions with safe hexadecimal or CSS named colors, stroke-width, and stroke-dasharray', status: 'supported' },
     ],
     unsupportedSyntax: [
-      { id: 'class.advanced', label: 'classDef, cssClass, and click directives', status: 'unsupported' },
+      { id: 'class.advanced', label: 'click callbacks, and cssClass directives without visual effect', status: 'unsupported' },
     ],
   };
 }
@@ -1093,7 +1114,7 @@ function partialTimeline(): DiagramSupportEntry {
   ] };
 }
 
-function partialMindmap(): DiagramSupportEntry { return { diagramType: 'mindmap', status: 'partial', supportedSyntax: [{ id: 'mindmap.indent', label: 'space-indented hierarchy', status: 'supported' }, { id: 'mindmap.shapes', label: 'square, rounded, circle, stadium, cylinder, hexagon, and asymmetric node shapes', status: 'supported' }, { id: 'mindmap.icons', label: 'FontAwesome 4 icons rendered from ::icon() declarations', status: 'supported' }], unsupportedSyntax: [{ id: 'mindmap.advanced', label: 'markdown strings and icon packs outside FontAwesome 4', status: 'unsupported' }] }; }
+function partialMindmap(): DiagramSupportEntry { return { diagramType: 'mindmap', status: 'partial', supportedSyntax: [{ id: 'mindmap.indent', label: 'space-indented hierarchy', status: 'supported' }, { id: 'mindmap.shapes', label: 'square, rounded, circle, stadium, cylinder, hexagon, and asymmetric node shapes', status: 'supported' }, { id: 'mindmap.icons', label: 'FontAwesome 4 icons rendered from ::icon() declarations; unknown icons degrade to plain text', status: 'supported' }], unsupportedSyntax: [{ id: 'mindmap.advanced', label: 'markdown strings and icon packs outside FontAwesome 4 (warned, rendered as text)', status: 'unsupported' }] }; }
 function partialRequirement(): DiagramSupportEntry { return { diagramType: 'requirement', status: 'partial', supportedSyntax: [{ id: 'requirement.block', label: 'typed requirement blocks with id, text, risk, and verification method', status: 'supported' }, { id: 'requirement.relationship', label: 'labeled semantic relationships', status: 'supported' }], unsupportedSyntax: [{ id: 'requirement.advanced', label: 'custom requirement styling and advanced relation syntax', status: 'unsupported' }] }; }
 function partialGitGraph(): DiagramSupportEntry { return { diagramType: 'gitgraph', status: 'partial', supportedSyntax: [{ id: 'gitgraph.commit', label: 'commits with ids, tags, and types including HIGHLIGHT coloring', status: 'supported' }, { id: 'gitgraph.branch-merge', label: 'branch, checkout, and merge history', status: 'supported' }, { id: 'gitgraph.cherry-pick', label: 'cherry-pick commits across branches', status: 'supported' }], unsupportedSyntax: [{ id: 'gitgraph.advanced', label: 'custom branch ordering and reverse commit rendering', status: 'unsupported' }] }; }
 function partialC4(): DiagramSupportEntry { return { diagramType: 'c4', status: 'partial', supportedSyntax: [{ id: 'c4.element', label: 'people, systems, containers, components, and external elements', status: 'supported' }, { id: 'c4.relationship', label: 'labeled directional relationships', status: 'supported' }, { id: 'c4.relationship-directions', label: 'Rel_Left/Right/Up/Down/Neighbor and BiRel', status: 'supported' }, { id: 'c4.boundaries', label: 'system, container, and enterprise boundaries plus deployment nodes rendered as containers', status: 'supported' }], unsupportedSyntax: [{ id: 'c4.advanced', label: 'custom element styling and relationship index macros', status: 'unsupported' }] }; }

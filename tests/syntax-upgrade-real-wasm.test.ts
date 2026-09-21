@@ -346,3 +346,45 @@ describe('Syntax upgrade real WASM contract', () => {
     expect(layout.pie_title).toBe('Deployment');
   });
 });
+
+describe('AI-written source compatibility real WASM contract', () => {
+  it('sanitizes HTML labels to plain text with line breaks', () => {
+    const layout = layoutFor('graph TD\n  A["Line one<br/>Line two"] --> B\n  C["<b>Bold</b> title"]');
+    const br = layout.nodes.find(node => node.id === 'A');
+    const bold = layout.nodes.find(node => node.id === 'C');
+    expect(br!.label).toBe('Line one\nLine two');
+    expect(bold!.label).toBe('Bold title');
+  });
+
+  it('sanitizes markdown string labels to plain text', () => {
+    const layout = layoutFor('graph TD\n  A["`**bold** plan`"] --> B');
+    expect(layout.nodes.find(node => node.id === 'A')!.label).toBe('bold plan');
+  });
+
+  it('accepts edge IDs and drops them from the layout', () => {
+    const layout = layoutFor('flowchart LR\n  A e1@-->|pipe| B');
+    expect(layout.edges).toEqual([expect.objectContaining({ from: 'A', to: 'B', label: 'pipe' })]);
+    expect(layout.nodes.map(node => node.id).sort()).toEqual(['A', 'B']);
+  });
+
+  it('parses classDef and style statements with common cosmetic properties', () => {
+    expect(() => layoutFor(
+      'graph TD\n  A --> B\n  classDef green fill:#9f6,stroke:#333,font-size:14px\n  class A green',
+    )).not.toThrow();
+    expect(() => layoutFor(
+      'graph TD\n  A --> B\n  style A fill:#f9f,stroke:#333,text-align:center',
+    )).not.toThrow();
+  });
+
+  it('applies class-diagram classDef definitions through class assignments', () => {
+    const layout = layoutFor('classDiagram\n  class Foo\n  classDef green fill:#9f6\n  class Foo green');
+    const foo = layout.nodes.find(node => node.id === 'Foo');
+    expect(foo).toBeDefined();
+    expect(foo!.style?.fill).toBe('#9f6');
+  });
+
+  it('keeps quoted inline edge labels with their spacing', () => {
+    const layout = layoutFor('graph TD\n  A -- "yes ok" --> B');
+    expect(layout.edges[0]!.label).toBe('yes ok');
+  });
+});

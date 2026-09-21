@@ -3,7 +3,7 @@ doc_type: requirement
 slug: production-support-contract
 pitch: 让用户在安装前就知道 xmermaid 当前支持什么、不支持什么
 status: current
-last_reviewed: 2026-07-29
+last_reviewed: 2026-09-21
 implemented_by:
   - ARCHITECTURE
   - 2026-06-02-release-support-matrix
@@ -33,7 +33,7 @@ tags: [production, support, release]
 - 作为 live editor 可视化编辑用户，我希望遇到当前明确 unsupported 的语法时系统阻断 visual rewrite 并告诉我原因，而不是把不认识的语法悄悄删掉。
 - 作为 live editor 可视化编辑用户，我希望编辑后的源码在提交前通过 parse 和 render/layout validation，而不是 parse 过了但渲染炸了才污染文档。
 - 作为维护者，我希望 visual edit 的回归测试使用真实 Rust/WASM parse/render 证明源码能闭环，而不是只相信 mock AST helper。
-- 作为把 Mermaid 输入嵌入同源应用的开发者，我希望默认安全策略把 click callback、HTML label 和危险 URL 明确阻断，而不是默认信任输入。
+- 作为把 Mermaid 输入嵌入同源应用的开发者，我希望默认安全策略把 click callback 和危险 URL 明确阻断，HTML label 被清洗成纯文本，而不是默认信任输入。
 - 作为发布维护者，我希望 release gate 用真实 packed tarball 证明安装、类型解析、WASM 加载和浏览器最小渲染路径能跑，而不是只相信仓库内测试。
 - 作为发布维护者，我希望 README、package 描述、support matrix、安全说明和 release checklist 不同步时发布失败，而不是靠人工记忆发现漂移。
 - 作为 SDK 使用者，我希望能拿到 SVG element 或 SVG string，而不是必须把渲染结果写进某个 DOM container 后再反查。
@@ -44,12 +44,12 @@ tags: [production, support, release]
 
 ## 怎么解决
 
-把当前支持范围做成公开合同：README 讲清楚，package 描述不夸大，代码提供可查询的支持矩阵。用户可以在渲染前判断一个图大概属于支持、部分支持还是不支持。Flowchart 的 `classDef` / `class` 仅支持 `fill`、`stroke`、`color` 三或六位十六进制颜色，按字段级最后赋值覆盖；视觉编辑在尚不能无损重写这类声明前必须只读。发布前还必须跑真实消费者 smoke：packed tarball 安装进临时项目，消费者 TypeScript 解析 root public API，浏览器加载 installed package 的 ESM bundle 与 WASM asset 并渲染最小 flowchart。SDK 同时提供容器替换 API、SVG element API 和 SVG string API，方便应用层选择自己的挂载、序列化或存储方式。支持分析器提供 `detectUnsupportedFeatures(source)`，把 unsupported diagram family 和已知 unsupported flowchart syntax 转成 feature id + range；render API 会把这些结果转为结构化 diagnostics，unsupported diagram 预先失败，unsupported flowchart syntax 作为 warning 随成功 SVG 返回，live editor 也消费同一诊断合同。安全策略默认 strict，在调用 WASM 前用 `security_blocked_*` diagnostics 阻断 click、HTML label 和危险 URL；loose 只放宽 click/HTML 的 security blocking，不放开危险 URL。发布门禁包含 docs support matrix sync，README、package 描述、release checklist 和关键生产事实不同步时直接失败。
+把当前支持范围做成公开合同：README 讲清楚，package 描述不夸大，代码提供可查询的支持矩阵。用户可以在渲染前判断一个图大概属于支持、部分支持还是不支持。Flowchart 的 `classDef` / `class` / `style` 支持 `fill`、`stroke`、`color` 安全颜色值加 `stroke-width`、`stroke-dasharray`，`font-size` 等常见外观属性校验后接受并忽略（暂不渲染），按字段级最后赋值覆盖；视觉编辑在尚不能无损重写这类声明前必须只读。HTML 标签与 Markdown 字符串标签在 parser 层清洗为纯文本和换行，永远不作为可信 HTML 渲染。发布前还必须跑真实消费者 smoke：packed tarball 安装进临时项目，消费者 TypeScript 解析 root public API，浏览器加载 installed package 的 ESM bundle 与 WASM asset 并渲染最小 flowchart。SDK 同时提供容器替换 API、SVG element API 和 SVG string API，方便应用层选择自己的挂载、序列化或存储方式。支持分析器提供 `detectUnsupportedFeatures(source)`，把 unsupported diagram family 和已知 unsupported flowchart syntax 转成 feature id + range；render API 会把这些结果转为结构化 diagnostics，unsupported diagram 预先失败，unsupported flowchart syntax 作为 warning 随成功 SVG 返回，live editor 也消费同一诊断合同。安全策略默认 strict，在调用 WASM 前用 `security_blocked_*` diagnostics 阻断 click 和危险 URL；HTML label 不做 security gating；loose 只放宽 click 的 security blocking，不放开危险 URL。发布门禁包含 docs support matrix sync，README、package 描述、release checklist 和关键生产事实不同步时直接失败。
 
 ## 边界
 
 - 它不新增任何图表渲染能力，只说明当前能力。
-- support analyzer 是轻量扫描器，不替代完整 parser；v1 只覆盖当前 support matrix 声明的 unsupported diagram family 和常见 flowchart syntax，包括当前按 literal text 降级的 quoted/entity-code/FontAwesome label，当前没有 compound edge 语义的 edges to subgraph ids，以及会被 parser 拆成错误节点的 hyphenated node ids。
+- support analyzer 是轻量扫描器，不替代完整 parser；v1 只覆盖当前 support matrix 声明的 unsupported diagram family 和常见 flowchart syntax。HTML/Markdown 标签清洗、边 ID 丢弃和实体解码发生在 parser 层，不在 analyzer 报告范围。
 - structured diagnostics 不替代 Rust parser 的完整错误定位；当前 parser 未输出结构化 offset/column 时，WASM parse error 的 range 保持 `null`。
 - security policy v1 只做 source-level diagnostics，不执行 click callback、不渲染 HTML label、不实现 sanitizer/CSP/sandbox。
 - consumer smoke 只承诺 browser SDK 最小路径；root ESM 可被 Node/SSR/构建工具解析，但不承诺 Node DOM 渲染。
@@ -73,3 +73,4 @@ tags: [production, support, release]
 - 2026-06-08：补齐 hyphenated node ids 的 support analyzer error diagnostics 和 README docs-sync gate；当前 parser 会把 `my-node` 拆成错误节点，不承诺该 id 语义。
 - 2026-07-29：`sequenceDiagram` 新增原生 timeline 路径，支持 activation/deactivation（含消息 `+` / `-`）、单行 note 和嵌套 control block；support analyzer 继续 fail-closed `create` / `destroy`、`box`、link 等未实现语法。
 - 2026-07-29：以 live browser 文档复现为输入，补齐 bare `autonumber`、已校验的 `rect rgb(red, green, blue)` frame 与虚线 `--x` 交叉终止；advanced autonumber 或 rect 形式仍 fail-closed。
+- 2026-09-21：AI 高频语法从阻断改为支持——HTML/Markdown 标签由 parser 清洗为纯文本与换行，边 ID 解析后丢弃，引号内联边标签保留空格，flowchart 样式与 classDef 的常见外观属性校验后接受并忽略，class diagram 新增 classDef/class 赋值着色（cssClass/click 为无操作）；security policy 移除 HTML label gating，strict 只阻断 click 与危险 URL，`security_blocked_html` 保留为预留 diagnostic code。

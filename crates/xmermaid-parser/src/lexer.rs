@@ -456,6 +456,32 @@ impl<'a> Iterator for Lexer<'a> {
                             line,
                         })
                     }
+                    // Quoted words outside labels: `A -- "yes ok" --> B` reads
+                    // the quoted span as one word token so inline edge labels
+                    // keep their spacing. Unterminated quotes stop at the line
+                    // end instead of swallowing following statements.
+                    Some(&'"') => {
+                        self.advance();
+                        let mut word = String::new();
+                        loop {
+                            match self.peek() {
+                                Some(&'"') => {
+                                    self.advance();
+                                    break;
+                                }
+                                Some(&'\n') | Some(&'\r') => break,
+                                Some(&c) => {
+                                    word.push(self.advance().unwrap());
+                                }
+                                None => break,
+                            }
+                        }
+                        Some(Token {
+                            ty: TokenType::NodeId,
+                            value: word.trim().to_string(),
+                            line,
+                        })
+                    }
                     Some(_) => {
                         self.advance();
                         Some(Token {

@@ -5,7 +5,6 @@ export type SecurityLevel = 'strict' | 'loose';
 export interface SecurityPolicy {
   securityLevel: SecurityLevel;
   allowedUrlProtocols: string[];
-  allowHtmlLabels: boolean;
   allowClickCallbacks: boolean;
   sanitizeSvg: boolean;
 }
@@ -18,7 +17,6 @@ export interface SecurityPolicyOptions {
 export const DEFAULT_SECURITY_POLICY: SecurityPolicy = {
   securityLevel: 'strict',
   allowedUrlProtocols: ['http:', 'https:', 'mailto:'],
-  allowHtmlLabels: false,
   allowClickCallbacks: false,
   sanitizeSvg: true,
 };
@@ -57,15 +55,9 @@ export function detectSecurityDiagnostics(source: string, policy: SecurityPolicy
       });
     }
 
-    if (!policy.allowHtmlLabels && /<\/?[A-Za-z][^>]*>/.test(line.text)) {
-      diagnostics.push({
-        code: 'security_blocked_html',
-        message: 'Flowchart HTML labels are blocked by the active security policy.',
-        severity: 'error',
-        range: lineContentRange(line),
-        featureId: 'flowchart.htmlLabel',
-      });
-    }
+    // HTML labels are not gated here: the parser sanitizes them to plain text
+    // and line breaks before rendering, and labels are never rendered as
+    // trusted HTML, so markup in a label cannot inject anything.
 
     for (const url of unsafeUrls(line, policy)) {
       diagnostics.push({
@@ -86,7 +78,6 @@ function policyDefaultsForLevel(securityLevel: SecurityLevel): SecurityPolicy {
       ...DEFAULT_SECURITY_POLICY,
       securityLevel,
       allowClickCallbacks: true,
-      allowHtmlLabels: true,
     };
   }
 
@@ -94,7 +85,6 @@ function policyDefaultsForLevel(securityLevel: SecurityLevel): SecurityPolicy {
     ...DEFAULT_SECURITY_POLICY,
     securityLevel,
     allowClickCallbacks: false,
-    allowHtmlLabels: false,
   };
 }
 

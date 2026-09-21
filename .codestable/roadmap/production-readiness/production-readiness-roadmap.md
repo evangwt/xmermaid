@@ -319,7 +319,6 @@ interface ThreatModel {
 interface SecurityPolicy {
   securityLevel: 'strict' | 'loose';
   allowedUrlProtocols: string[];
-  allowHtmlLabels: boolean;
   allowClickCallbacks: boolean;
   sanitizeSvg: boolean;
 }
@@ -327,7 +326,6 @@ interface SecurityPolicy {
 const DEFAULT_SECURITY_POLICY: SecurityPolicy = {
   securityLevel: 'strict',
   allowedUrlProtocols: ['http:', 'https:', 'mailto:'],
-  allowHtmlLabels: false,
   allowClickCallbacks: false,
   sanitizeSvg: true
 };
@@ -338,7 +336,7 @@ const DEFAULT_SECURITY_POLICY: SecurityPolicy = {
 - 默认 threat model 是 untrusted Mermaid input embedded in a same-origin app.
 - strict 模式下不执行 click callback。
 - URL protocol 不在 allowlist 时生成 `security_blocked_url` diagnostic。
-- HTML label 在 strict 模式下按纯文本处理或报 `security_blocked_html`。
+- HTML label 在任何 security level 都由 parser 清洗为纯文本，不产生 security diagnostic；`security_blocked_html` 保留为预留 diagnostic code。
 - share hash 只保存本地状态，不代表云端权限或隐私保护。
 
 ### 4.7 Production Release Verification Extension

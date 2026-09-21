@@ -156,7 +156,7 @@ describe('visual flowchart real WASM roundtrip contract', () => {
     expect(analysis.diagnostics).toEqual([
       expect.objectContaining({
         code: 'visual_unsupported_syntax',
-        message: expect.stringContaining('safe color values'),
+        message: expect.stringContaining('valid values'),
       }),
     ]);
   });

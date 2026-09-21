@@ -271,6 +271,8 @@ impl<'a> Parser<'a> {
         let mut namespaces = Vec::new();
         let mut styles = Vec::new();
         let mut member_target: Option<String> = None;
+        let mut class_definitions: std::collections::HashMap<String, NodeStyle> = std::collections::HashMap::new();
+        let mut class_assignments: Vec<(Vec<String>, String)> = Vec::new();
 
         let mut lines = body_lines(self.input).peekable();
         while let Some(line) = lines.next() {
@@ -293,7 +295,8 @@ impl<'a> Parser<'a> {
                 continue;
             }
 
-            // `class Foo {` opens a member block; `class Foo` declares an empty class.
+            // `class Foo {` opens a member block; `class Foo` declares an empty class;
+            // `class A,B className` assigns a classDef to classes.
             if let Some(rest) = statement.strip_prefix("class ") {
                 let rest = rest.trim();
                 if rest.ends_with('{') {
@@ -305,11 +308,47 @@ impl<'a> Parser<'a> {
                     member_target = Some(id.to_string());
                     continue;
                 }
-                let id = rest.split_whitespace().next().unwrap_or("");
-                if id.is_empty() {
+                let mut words = rest.split_whitespace();
+                let first = words.next().unwrap_or("");
+                if first.is_empty() {
                     return Err(ParseError::UnexpectedToken("Class declarations require a name.".to_string()));
                 }
-                Self::upsert_class(&mut classes, id);
+                if let Some(class_name) = words.next() {
+                    let ids: Vec<String> = first
+                        .split(',')
+                        .map(str::trim)
+                        .filter(|id| !id.is_empty())
+                        .map(ToOwned::to_owned)
+                        .collect();
+                    if ids.is_empty() || words.next().is_some() {
+                        return Err(ParseError::UnexpectedToken(format!("Invalid class statement: {}", statement)));
+                    }
+                    class_assignments.push((ids, class_name.to_string()));
+                    continue;
+                }
+                Self::upsert_class(&mut classes, first);
+                continue;
+            }
+
+            // classDef definitions: `classDef green fill:#9f6,stroke:#333`
+            if let Some(rest) = statement.strip_prefix("classDef ") {
+                let (name, properties) = rest.trim().split_once(char::is_whitespace).ok_or_else(|| {
+                    ParseError::UnexpectedToken(format!("classDef requires properties: {}", statement))
+                })?;
+                let name = name.trim();
+                if name.is_empty()
+                    || !name.chars().all(|character| character.is_alphanumeric() || character == '_' || character == '-')
+                {
+                    return Err(ParseError::UnexpectedToken(format!("Invalid classDef name: {}", statement)));
+                }
+                let style = parse_class_style_properties(properties.trim())?;
+                class_definitions.insert(name.to_string(), style);
+                continue;
+            }
+
+            // `cssClass` and `click` have no effect on static SVG output;
+            // accepted as no-ops so they stop failing the whole diagram.
+            if statement.starts_with("cssClass ") || statement.starts_with("click ") {
                 continue;
             }
 
@@ -425,6 +464,12 @@ impl<'a> Parser<'a> {
             }
 
             return Err(ParseError::UnexpectedToken(format!("Invalid class statement: {}", statement)));
+        }
+        for (ids, name) in class_assignments {
+            let Some(style) = class_definitions.get(&name) else { continue };
+            for id in ids {
+                styles.push(ClassStyleAssignment { class: id, style: style.clone() });
+            }
         }
         if classes.is_empty() {
             return Err(ParseError::EmptyInput);
@@ -2065,6 +2110,11 @@ impl<'a> Parser<'a> {
 
     /// Parse `property: value` pairs until the statement boundary, validating
     /// colors (hexadecimal or CSS names) and length properties.
+    ///
+    /// Cosmetic properties (`font-size`, `text-align`, ...) are validated for
+    /// value shape and then dropped: nothing applies them yet, and dropping
+    /// keeps AI-written style statements rendering instead of failing the
+    /// whole source. A `None` slot marks an accepted-and-ignored property.
     fn parse_flowchart_style_properties(&mut self, context: &str) -> Result<NodeStyle, ParseError> {
         let mut style = NodeStyle::default();
         loop {
@@ -2102,11 +2152,11 @@ impl<'a> Parser<'a> {
                             context, value
                         )));
                     }
-                    match property.as_str() {
+                    Some(match property.as_str() {
                         "fill" => &mut style.fill,
                         "stroke" => &mut style.stroke,
                         _ => &mut style.color,
-                    }
+                    })
                 }
                 "stroke-width" => {
                     if !is_safe_length(&value) {
@@ -2115,7 +2165,7 @@ impl<'a> Parser<'a> {
                             context, value
                         )));
                     }
-                    &mut style.stroke_width
+                    Some(&mut style.stroke_width)
                 }
                 "stroke-dasharray" => {
                     if !is_safe_dasharray(&value) {
@@ -2124,7 +2174,43 @@ impl<'a> Parser<'a> {
                             context, value
                         )));
                     }
-                    &mut style.stroke_dasharray
+                    Some(&mut style.stroke_dasharray)
+                }
+                "font-size" | "letter-spacing" | "opacity" | "rx" | "ry" => {
+                    if !is_safe_scalar_property(&value) {
+                        return Err(ParseError::UnexpectedToken(format!(
+                            "Flowchart {} property {} must be a number with an optional unit: {}",
+                            context, property, value
+                        )));
+                    }
+                    None
+                }
+                "font-weight" => {
+                    if !is_safe_font_weight(&value) {
+                        return Err(ParseError::UnexpectedToken(format!(
+                            "Flowchart {} font-weight must be a number, normal, or bold: {}",
+                            context, value
+                        )));
+                    }
+                    None
+                }
+                "text-align" => {
+                    if !matches!(value.as_str(), "left" | "center" | "right" | "justify") {
+                        return Err(ParseError::UnexpectedToken(format!(
+                            "Flowchart {} text-align must be left, center, right, or justify: {}",
+                            context, value
+                        )));
+                    }
+                    None
+                }
+                "font-family" => {
+                    if !is_safe_font_family(&value) {
+                        return Err(ParseError::UnexpectedToken(format!(
+                            "Flowchart {} font-family supports plain font names only: {}",
+                            context, value
+                        )));
+                    }
+                    None
                 }
                 unsupported => {
                     return Err(ParseError::UnexpectedToken(format!(
@@ -2132,10 +2218,12 @@ impl<'a> Parser<'a> {
                     )));
                 }
             };
-            if slot.replace(value).is_some() {
-                return Err(ParseError::UnexpectedToken(format!(
-                    "Duplicate flowchart {} property: {}", context, property
-                )));
+            if let Some(slot) = slot {
+                if slot.replace(value).is_some() {
+                    return Err(ParseError::UnexpectedToken(format!(
+                        "Duplicate flowchart {} property: {}", context, property
+                    )));
+                }
             }
 
             if self.current().ty == TokenType::Comma {
@@ -2382,7 +2470,7 @@ impl<'a> Parser<'a> {
         }
 
         Ok(Subgraph {
-            title,
+            title: sanitize_label_text(&title),
             id: declared_id,
             nodes: sg_nodes,
             subgraphs: sg_subgraphs,
@@ -2664,7 +2752,7 @@ impl<'a> Parser<'a> {
             if self.current().ty == TokenType::Pipe {
                 self.advance(); // consume closing |
             }
-            let label = decode_label_entities(&label_parts.join(" "));
+            let label = sanitize_label_text(&label_parts.join(" "));
             let label = label.trim().to_string();
             if label.is_empty() {
                 None
@@ -2718,7 +2806,7 @@ impl<'a> Parser<'a> {
         }
 
         let (shape, label) = self.parse_node_shape_and_label();
-        let label = label.map(|text| decode_label_entities(&text));
+        let label = label.map(|text| sanitize_label_text(&text));
         Self::add_node_if_new(nodes, seen_nodes, node_id.clone(), label, shape);
         self.parse_inline_class_assignment(&node_id, class_assignments)?;
         Ok(node_id)
@@ -2789,7 +2877,7 @@ impl<'a> Parser<'a> {
                             "Expanded shape labels cannot be empty".to_string(),
                         ));
                     }
-                    label = Some(decode_label_entities(value));
+                    label = Some(sanitize_label_text(value));
                 }
                 other => {
                     return Err(ParseError::UnexpectedToken(format!(
@@ -2873,6 +2961,21 @@ impl<'a> Parser<'a> {
         let mut sources = referenced.clone();
 
         loop {
+            // Edge IDs: `A e1@--> B` — accepted and ignored; the id carries no
+            // render semantics in static SVG output, and dropping it keeps
+            // Mermaid 11 sources parsing instead of failing the whole edge.
+            if self.current().ty == TokenType::NodeId
+                && self.tokens.get(self.pos + 1).is_some_and(|token| {
+                    token.ty == TokenType::Unknown && token.value == "@"
+                })
+                && self.tokens.get(self.pos + 2).is_some_and(|token| {
+                    matches!(token.ty, TokenType::Arrow | TokenType::AngleOpen)
+                })
+            {
+                self.advance();
+                self.advance();
+            }
+
             // Optional start marker between the source list and the arrow: `A o-- B`.
             let start_marker = if self.peek_edge_marker().is_some() && self.marker_starts_edge() {
                 let marker = self.peek_edge_marker();
@@ -2942,7 +3045,7 @@ impl<'a> Parser<'a> {
                     .is_some_and(|token| token.ty == TokenType::Arrow)
                 && Self::is_inline_edge_label(&arrow, &self.tokens[self.pos + 1].value)
             {
-                let text = decode_label_entities(self.current().value.trim());
+                let text = sanitize_label_text(self.current().value.trim());
                 self.advance(); // consume label word
                 let closing_arrow = self.current().value.clone();
                 self.advance(); // consume closing arrow run
@@ -3272,6 +3375,195 @@ fn expanded_shape_name(name: &str) -> Option<NodeShape> {
     }
 }
 
+/// Normalize Mermaid label text into the plain-text form this renderer draws:
+/// explicit line breaks plus literal characters.
+///
+/// Order matters. `<br>` variants become line breaks while they are still raw
+/// tag text; remaining markup tags are stripped because labels are never
+/// rendered as trusted HTML; markdown string fences lose their emphasis
+/// markers; Mermaid entity codes decode last so escaped forms such as
+/// `&lt;b&gt;` stay literal text instead of turning back into markup.
+fn sanitize_label_text(text: &str) -> String {
+    let plain = strip_markdown_string_wrapper(strip_markup_tags(&convert_br_line_breaks(text)).trim());
+    let decoded = decode_label_entities(&decode_standard_entities(&plain));
+    decoded.trim().to_string()
+}
+
+/// Decode the standard HTML entities labels use (`&lt;`, `&gt;`, `&amp;`,
+/// `&quot;`, `&#39;`, numeric forms). Safe here because markup stripping
+/// already ran, so decoding cannot resurrect a tag into rendered markup —
+/// the result is always drawn as literal text.
+fn decode_standard_entities(text: &str) -> String {
+    // Longest reference scanned as an entity; real ones are far shorter.
+    const MAX_ENTITY_LENGTH: usize = 16;
+    if !text.contains('&') {
+        return text.to_string();
+    }
+    let bytes = text.as_bytes();
+    let mut output = String::with_capacity(text.len());
+    let mut cursor = 0;
+    while let Some(offset) = text[cursor..].find('&') {
+        let start = cursor + offset;
+        let mut close = None;
+        for (index, byte) in bytes[start + 1..].iter().enumerate() {
+            if *byte == b';' {
+                close = Some(start + 1 + index);
+                break;
+            }
+            if *byte == b'&' || *byte == b'\n' || index >= MAX_ENTITY_LENGTH {
+                break;
+            }
+        }
+        let Some(close) = close else {
+            output.push_str(&text[cursor..start + 1]);
+            cursor = start + 1;
+            continue;
+        };
+        let code = &text[start + 1..close];
+        let decoded = if let Some(hex) = code.strip_prefix("#x").or_else(|| code.strip_prefix("#X")) {
+            u32::from_str_radix(hex, 16).ok().and_then(char::from_u32)
+        } else if let Some(decimal) = code.strip_prefix('#') {
+            decimal.parse::<u32>().ok().and_then(char::from_u32)
+        } else {
+            match code {
+                "lt" => Some('<'),
+                "gt" => Some('>'),
+                "amp" => Some('&'),
+                "quot" => Some('"'),
+                "apos" => Some('\''),
+                "nbsp" => Some('\u{00a0}'),
+                _ => None,
+            }
+        };
+        match decoded {
+            Some(character) => {
+                output.push_str(&text[cursor..start]);
+                output.push(character);
+                cursor = close + 1;
+            }
+            None => {
+                output.push_str(&text[cursor..start + 1]);
+                cursor = start + 1;
+            }
+        }
+    }
+    output.push_str(&text[cursor..]);
+    output
+}
+
+/// Convert `<br>`, `<br/>`, and `<br />` (any casing) into line breaks.
+fn convert_br_line_breaks(text: &str) -> String {
+    let lower = text.to_ascii_lowercase();
+    let bytes = lower.as_bytes();
+    let mut output = String::with_capacity(text.len());
+    let mut cursor = 0;
+    while let Some(offset) = lower[cursor..].find("<br") {
+        let start = cursor + offset;
+        let mut index = start + 3;
+        while bytes.get(index).is_some_and(|byte| byte.is_ascii_whitespace()) {
+            index += 1;
+        }
+        if bytes.get(index) == Some(&b'/') {
+            index += 1;
+        }
+        if bytes.get(index) == Some(&b'>') {
+            output.push_str(&text[cursor..start]);
+            output.push('\n');
+            cursor = index + 1;
+        } else {
+            output.push_str(&text[cursor..start + 3]);
+            cursor = start + 3;
+        }
+    }
+    output.push_str(&text[cursor..]);
+    output
+}
+
+/// Remove markup tags (`<b>`, `</b>`, `<span style="...">`) from label text.
+/// A tag must close within a bounded span and on the same line, so a stray
+/// `<` stays visible instead of swallowing the rest of the label.
+fn strip_markup_tags(text: &str) -> String {
+    const MAX_TAG_SPAN: usize = 128;
+    let bytes = text.as_bytes();
+    let mut output = String::with_capacity(text.len());
+    let mut cursor = 0;
+    while let Some(offset) = text[cursor..].find('<') {
+        let start = cursor + offset;
+        let Some(&next) = bytes.get(start + 1) else { break };
+        let mut close = None;
+        if next.is_ascii_alphabetic() || next == b'/' {
+            let limit = (start + 1 + MAX_TAG_SPAN).min(bytes.len());
+            for (index, byte) in bytes[start + 1..limit].iter().enumerate() {
+                if *byte == b'>' {
+                    close = Some(start + 1 + index);
+                    break;
+                }
+                if *byte == b'\n' || *byte == b'<' {
+                    break;
+                }
+            }
+        }
+        match close {
+            Some(close) => {
+                output.push_str(&text[cursor..start]);
+                cursor = close + 1;
+            }
+            None => {
+                output.push_str(&text[cursor..start + 1]);
+                cursor = start + 1;
+            }
+        }
+    }
+    output.push_str(&text[cursor..]);
+    output
+}
+
+/// Unwrap a Mermaid markdown string label (`` `text` ``) and drop emphasis
+/// markers, keeping the words themselves. Underscores stay literal so
+/// snake_case names survive; only labels fenced in backticks are treated as
+/// markdown, matching Mermaid's markdown-string behavior.
+fn strip_markdown_string_wrapper(text: &str) -> String {
+    let trimmed = text.trim();
+    if trimmed.len() >= 2 && trimmed.starts_with('`') && trimmed.ends_with('`') {
+        let inner = &trimmed[1..trimmed.len() - 1];
+        return inner
+            .replace("**", "")
+            .replace("~~", "")
+            .replace('`', "")
+            .replace('*', "");
+    }
+    trimmed.to_string()
+}
+
+/// A scalar style value: a finite number with an optional unit
+/// (`4`, `4px`, `0.5`), for accepted-and-ignored cosmetic properties.
+fn is_safe_scalar_property(value: &str) -> bool {
+    let core = value
+        .strip_suffix("px")
+        .or_else(|| value.strip_suffix("em"))
+        .or_else(|| value.strip_suffix("rem"))
+        .unwrap_or(value);
+    !core.is_empty()
+        && core.chars().all(|character| character.is_ascii_digit() || character == '.')
+        && core.parse::<f64>().map(|number| number.is_finite()).unwrap_or(false)
+}
+
+/// `font-weight` values that keep statements parsing: numeric weights and the
+/// named forms AI-written sources emit.
+fn is_safe_font_weight(value: &str) -> bool {
+    matches!(value, "normal" | "bold") || is_safe_scalar_property(value)
+}
+
+/// Plain font names for accepted-and-ignored `font-family` values: letters,
+/// digits, and separators. Anything that could smuggle a URL or expression
+/// shape (parens, semicolons) is rejected.
+fn is_safe_font_family(value: &str) -> bool {
+    !value.is_empty()
+        && value
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || matches!(character, ' ' | ',' | '.' | '\'' | '-' | '_'))
+}
+
 /// Decode Mermaid entity codes in labels: `#9829;`, `#x2665;`, and the named
 /// forms `#quot;`, `#amp;`, `#lt;`, `#gt;`, `#apos;`.
 fn decode_label_entities(text: &str) -> String {
@@ -3365,6 +3657,41 @@ fn parse_class_style_properties(value: &str) -> Result<NodeStyle, ParseError> {
                     )));
                 }
                 &mut style.stroke_dasharray
+            }
+            // Common cosmetic properties are accepted-and-ignored: validated
+            // for shape, then dropped so AI-written style statements keep the
+            // diagram rendering instead of failing the whole source.
+            "font-weight" => {
+                if !is_safe_font_weight(raw_value) {
+                    return Err(ParseError::UnexpectedToken(format!(
+                        "Class style font-weight must be a number, normal, or bold: {}", raw_value
+                    )));
+                }
+                continue;
+            }
+            "font-size" | "letter-spacing" | "opacity" | "rx" | "ry" => {
+                if !is_safe_scalar_property(raw_value) {
+                    return Err(ParseError::UnexpectedToken(format!(
+                        "Class style property must be a number with an optional unit: {}", property
+                    )));
+                }
+                continue;
+            }
+            "text-align" => {
+                if !matches!(raw_value, "left" | "center" | "right" | "justify") {
+                    return Err(ParseError::UnexpectedToken(format!(
+                        "Class style text-align must be left, center, right, or justify: {}", raw_value
+                    )));
+                }
+                continue;
+            }
+            "font-family" => {
+                if !is_safe_font_family(raw_value) {
+                    return Err(ParseError::UnexpectedToken(format!(
+                        "Class style font-family supports plain font names only: {}", raw_value
+                    )));
+                }
+                continue;
             }
             other => {
                 return Err(ParseError::UnexpectedToken(format!(
@@ -4995,7 +5322,7 @@ fn parse_sequence_note(statement: &str) -> Result<Option<SequenceNote>, ParseErr
             statement
         )));
     }
-    Ok(Some(SequenceNote { placement, participants, text: text.to_string() }))
+    Ok(Some(SequenceNote { placement, participants, text: sanitize_label_text(text) }))
 }
 
 fn parse_sequence_activation(statement: &str) -> Result<Option<SequenceActivation>, ParseError> {
@@ -5322,7 +5649,7 @@ fn parse_sequence_message(statement: &str) -> Result<Option<SequenceMessage>, Pa
     Ok(Some(SequenceMessage {
         from: from.to_string(),
         to: to.to_string(),
-        label: label.to_string(),
+        label: sanitize_label_text(label),
         line_style,
         end_marker,
         activate_target,

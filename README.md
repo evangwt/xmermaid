@@ -158,7 +158,7 @@ All remaining Mermaid catalog families are explicitly marked `planned` in `getSu
 
 `sankey` and `sankey-beta` are partial: acyclic three-column CSV `source,target,value` records (including quoted commas and blank lines) render as native weighted SVG bands. Cycles, non-positive values, YAML/config directives, and custom Sankey configuration remain unsupported.
 
-Flowcharts support `classDef <name>`, `class <node-id>[,<node-id>...] <name>`, and `style <node-id>` when definitions contain only `fill`, `stroke`, and `color` with three- or six-digit hexadecimal values. Multiple assignments cascade by field, with later values winning. Visual editing is read-only for sources with class statements until it can preserve those declarations. Supported FontAwesome 4 labels such as `A[fa:fa-car Delivery]` are embedded as portable SVG icons; unknown icon names remain diagnosed. Unsupported or partial flowchart syntax includes invalid `graph` / `flowchart` directions, unsafe `style` or `linkStyle` property values, `click`, HTML labels, Markdown labels, edge IDs, and `direction` statements inside subgraphs (parsed but ignored by the layout). Use `getSupportMatrix()` or `analyzeSupport(source)` to inspect the current production support contract from code.
+Flowcharts support `classDef <name>`, `class <node-id>[,<node-id>...] <name>`, and `style <node-id>` when definitions contain `fill`, `stroke`, `color` with safe color values plus `stroke-width` / `stroke-dasharray`; common cosmetic properties such as `font-size`, `text-align`, and `font-family` are validated and accepted-and-ignored until per-node text styling exists. Multiple assignments cascade by field, with later values winning. Visual editing is read-only for sources with class statements until it can preserve those declarations. Supported FontAwesome 4 labels such as `A[fa:fa-car Delivery]` are embedded as portable SVG icons; unknown icon names degrade to their remaining label text with a warning. HTML labels (`<b>`, `<span ...>`, `<br>`) and Markdown string labels (`` A["`**text**`"] ``) are supported through sanitization: tags are stripped to plain text and `<br>` variants become line breaks — labels are never rendered as trusted HTML. Edge IDs (`A e1@--> B`) are parsed and dropped, and quoted inline edge labels (`A -- "text" --> B`) keep their spacing. Unsupported or partial flowchart syntax includes invalid `graph` / `flowchart` directions, unsafe `style` or `linkStyle` property values, `click` (accepted, no effect in static output), and `direction` statements inside subgraphs (parsed but ignored by the layout). Use `getSupportMatrix()` or `analyzeSupport(source)` to inspect the current production support contract from code.
 
 ## Diagnostics
 
@@ -189,8 +189,9 @@ The default security policy is `strict` for untrusted Mermaid input embedded in 
 Strict mode blocks before rendering when it sees:
 
 - Mermaid `click` callbacks or links: `security_blocked_click`
-- HTML labels: `security_blocked_html`
 - URL protocols outside the allowlist: `security_blocked_url`
+
+HTML labels are not gated: they are sanitized to plain text and line breaks at parse time and are never rendered as trusted HTML, so markup in a label cannot inject anything at any security level.
 
 The default URL protocol allowlist is `http:`, `https:`, and `mailto:`.
 
@@ -200,7 +201,7 @@ await renderer.renderToSVGElement(source, {
 });
 ```
 
-`loose` only removes the security blocking for `click` and HTML labels. Those features are still unsupported by the current renderer and remain diagnostics. Dangerous URL protocols such as `javascript:` and `data:` remain blocked.
+`loose` only removes the security blocking for `click`. Dangerous URL protocols such as `javascript:` and `data:` remain blocked.
 
 The default policy also sets `sanitizeSvg: true`. Generated SVG output is walked before return/mount; `script` and `foreignObject` elements, inline event handler attributes, and dangerous `href` values are removed. xmermaid does not execute click callbacks, does not render HTML labels as HTML, and does not provide CSP or a sandbox.
 

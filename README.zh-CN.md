@@ -110,11 +110,13 @@ xmermaid 专注于 Mermaid 流程图的浏览器端 SVG 渲染，提供较为完
 
 `pie` 为完全支持：数值扇区、标题（独立 `title` 行或 `pie showData title ...` 组合头）、`showData` 数值表格与 `%%{init: {'theme': ...}}%%` 主题指令渲染为饼图。
 
-`mindmap` 为部分支持：带方括号、圆角、圆形、体育场、圆柱、六边形与非对称形状的缩进层级，`::icon(fa fa-*)` 声明会渲染为 FontAwesome 图标（未知图标名会提前报错）。Markdown 字符串尚不支持。
+`mindmap` 为部分支持：带方括号、圆角、圆形、体育场、圆柱、六边形与非对称形状的缩进层级，`::icon(fa fa-*)` 声明会渲染为 FontAwesome 图标（未知图标名降级为纯文本并给出警告）。Markdown 字符串尚不支持。
 
-流程图支持 `classDef <名称>`、`class <节点 ID>[,<节点 ID>...] <名称>` 与 `style <节点 ID>`。定义仅可包含 `fill`、`stroke` 和 `color`，且颜色必须是三位或六位十六进制颜色。一个节点应用多个类或样式时按字段级联，后应用的值优先。在序列化能够无损保留这些声明之前，包含 `classDef` 或 `class` 的源码在可视化编辑中保持只读。
+流程图支持 `classDef <名称>`、`class <节点 ID>[,<节点 ID>...] <名称>` 与 `style <节点 ID>`。定义可包含 `fill`、`stroke`、`color`（安全颜色值）以及 `stroke-width` / `stroke-dasharray`；`font-size`、`text-align`、`font-family` 等常见外观属性会被校验并接受（当前解析后忽略，后续版本接入按节点文本样式）。一个节点应用多个类或样式时按字段级联，后应用的值优先。在序列化能够无损保留这些声明之前，包含 `classDef` 或 `class` 的源码在可视化编辑中保持只读。
 
-当前不支持或仅部分支持的流程图语法包括无效方向、不安全的 `style` 或 `linkStyle` 属性值、`click`、HTML 或 Markdown 标签、边 ID，以及子图内的 `direction` 语句（会解析但布局忽略）。
+HTML 标签（`<b>`、`<span ...>`、`<br>`）与 Markdown 字符串标签（`` A["`**文本**`"] ``）通过清洗获得支持：标签被剥除为纯文本，`<br>` 变为换行——标签永远不会被当作可信 HTML 渲染。边 ID（`A e1@--> B`）会解析并忽略；带引号的内联边标签（`A -- "文本" --> B`) 保留空格。
+
+当前不支持或仅部分支持的流程图语法包括无效方向、不安全的 `style` 或 `linkStyle` 属性值、`click`（接受但在静态输出中无效果），以及子图内的 `direction` 语句（会解析但布局忽略）。
 
 ## 诊断
 
@@ -124,7 +126,7 @@ WASM 解析、布局或渲染失败会被标准化为带结构化诊断的 `XMer
 
 ## 安全策略
 
-嵌入同源应用的非受信任 Mermaid 输入默认使用 `strict` 安全策略。它会在渲染前阻止 `click` 回调或链接、HTML 标签以及不在 `http:`、`https:`、`mailto:` 白名单中的 URL 协议。
+嵌入同源应用的非受信任 Mermaid 输入默认使用 `strict` 安全策略。它会在渲染前阻止 `click` 回调或链接以及不在 `http:`、`https:`、`mailto:` 白名单中的 URL 协议。HTML 标签不在拦截之列：解析器会将其清洗为纯文本和换行，任何安全级别下都不会把标签当作可信 HTML 渲染。
 
 默认也会启用 `sanitizeSvg: true`，在返回或挂载 SVG 前清除 `script`、`foreignObject`、内联事件处理器以及危险 `href`。xmermaid 不执行 click 回调，也不将 HTML 标签渲染为 HTML。
 
