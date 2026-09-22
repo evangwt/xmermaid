@@ -8,7 +8,9 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-0b7a53.svg)](LICENSE)
 [![Live editor](https://img.shields.io/badge/try-live%20editor-0b7a53?logo=githubpages)](https://evangwt.github.io/xmermaid-live/)
 
-**A Rust/WASM-powered browser renderer for native Mermaid SVG diagrams.** xmermaid focuses on flowcharts while exposing explicit, programmatic support boundaries for partial Mermaid families - so browser applications can render what is supported and explain what is not.
+**Your AI writes Mermaid. xmermaid renders it — no cleanup pass required.** The syntax AI output is full of — `<br>` labels, Markdown strings, edge ids, cosmetic styles — gets sanitized and drawn in your browser. What genuinely cannot render comes back *before* any rendering, as a structured diagnostic with a source range you can paste straight back into the prompt.
+
+![xmermaid rendering messy AI-written Mermaid source into a clean SVG diagram](https://raw.githubusercontent.com/evangwt/xmermaid/main/docs/assets/hero-ai-flowchart.png)
 
 <p>
   <a href="https://evangwt.github.io/xmermaid-live/"><strong>Try the live editor</strong></a>
@@ -16,39 +18,88 @@
   <a href="https://www.npmjs.com/package/@evangwt/xmermaid"><strong>View on npm</strong></a>
 </p>
 
-## Highlights
+## The loop it closes
 
-- **Native browser SVG:** Rust/WASM parsing, layout, and rendering without a rendering service.
-- **Truthful compatibility:** `getSupportMatrix()` and `analyzeSupport()` distinguish supported, partial, planned, and blocked input.
-- **Safe by default:** strict handling for untrusted Mermaid input and sanitized SVG output.
-- **Composable API:** use `XMermaid` directly or import the static editor from `@evangwt/xmermaid/editor`.
+1. The model emits a diagram.
+2. `analyzeSupport()` answers before WASM runs: it renders, and exactly which syntax doesn't.
+3. What renders, draws. What doesn't returns structured diagnostics with stable codes and `line:column` ranges.
+4. Paste the diagnostic into your next prompt — fixed diagram, zero guesswork.
 
-## Quick Start
+## What AI writes vs. what you get
+
+| The model writes | xmermaid does |
+| --- | --- |
+| `A["line one<br/>line two"]` | Two-line label with real breaks |
+| `B["\`**bold** plan\`"]` | Markdown string → plain text |
+| `C e1@--> D` | Edge renders, id dropped |
+| `E -- "quoted label" --> F` | Quoting kept as text |
+| `classDef ok fill:#0b7a53,font-size:15px` | Color applied; `font-size` accepted |
+| `click A callback` | Warning: no-op in static SVG |
+
+## Why xmermaid
+
+- **AI-syntax tolerant.** Hazardous-looking labels and styles are sanitized and rendered — never a blank canvas with a thrown error.
+- **Rust, in the browser.** Parse, layout, and render compile to one WebAssembly module; the whole SDK ships in a ~1 MB tarball. No server, no upload, no main-thread JS graph stack.
+- **Honest by construction.** A machine-readable support matrix covers the Mermaid 11.16.0 catalog (30 families) and is queryable from code — the boundary is data, not documentation.
+
+## xmermaid vs. mermaid.js
+
+| | mermaid.js | xmermaid |
+| --- | --- | --- |
+| Engine | JavaScript on the main thread | Rust → WebAssembly, TypeScript SVG renderer |
+| HTML in labels | Rendered as live markup by default | Never trusted HTML — plain text + `<br>` breaks |
+| Support boundary | Discovered at render time, by failing | `analyzeSupport()` answers before you render |
+| Failure mode | Thrown errors | Structured diagnostics with stable codes and ranges |
+| Untrusted input | Safe mode is opt-in | Strict is the default; blocks before WASM runs |
+
+mermaid.js covers more syntax. xmermaid covers a documented subset — and tells you exactly where the line is.
+
+## Quick start
 
 ```bash
 npm install @evangwt/xmermaid
 ```
 
-xmermaid is a browser SDK. The root ESM bundle can be parsed by Node and SSR tooling, but DOM rendering requires a browser-like environment.
-
-## Browser Usage
-
 ```ts
 import { XMermaid, analyzeSupport } from '@evangwt/xmermaid';
 
-const source = 'graph TD\n  A[Start] --> B[End]';
-const report = analyzeSupport(source);
+const source = 'flowchart TD\n  A[Start] --> B{OK?} -->|yes| C[End]';
+console.log(analyzeSupport(source).status); // 'partial'
 
-const container = document.getElementById('diagram');
-if (!container) throw new Error('Missing diagram container');
-
-const renderer = new XMermaid({ container });
+const renderer = new XMermaid({ container: document.getElementById('diagram')! });
 await renderer.render(source);
 ```
 
-## Live Editor Usage
+Browser SDK: the ESM bundle parses under Node/SSR tooling, but DOM rendering needs a browser.
 
-The static live editor API is available from the `@evangwt/xmermaid/editor` subpath.
+## What your AI writes, rendered
+
+```mermaid
+flowchart TD
+  A["AI-generated<br>Mermaid source"]
+  B["`**sanitized** to plain text`"]
+  C{"genuinely unsupported?"}
+  D[["✓ clean SVG, in-page"]]
+  E[/"actionable diagnostics"/]
+  A -- "renders" --> B
+  B e1@--> C
+  C -- "no" --> D
+  C -- "yes" --> E
+  classDef ok fill:#0b7a53,font-size:15px
+  class D,E ok
+```
+
+## Know before you render
+
+```ts
+const report = analyzeSupport(source);
+// { diagramType, status: 'supported' | 'partial' | 'planned' | 'unsupported',
+//   message, unsupportedFeatures: [{ id, range, message, severity }] }
+```
+
+`unsupportedFeatures` carries a `range` per finding — show a placeholder, disable export, or feed the list back to the model that wrote the diagram. `getSupportMatrix()` exposes the full contract programmatically: every family, per-feature syntax notes.
+
+## Embed the live editor
 
 ```ts
 import { XMermaidLiveEditor } from '@evangwt/xmermaid/editor';
@@ -61,155 +112,86 @@ const editor = new XMermaidLiveEditor({
 await editor.mount();
 ```
 
+Extracts every diagram from a whole document (fenced or bare), AST-backed visual editing, share hash, SVG export.
+
 ## SVG API
 
-Use `renderToSVGElement()` when the host app owns mounting, serialization, storage, or post-processing.
-
 ```ts
-import { XMermaid } from '@evangwt/xmermaid';
+const result = await renderer.renderToSVGElement(source);
+document.body.appendChild(result.svg); // { diagramType, diagnostics, dimensions, svg }
 
-const renderer = new XMermaid({ container: document.createElement('div') });
-
-const result = await renderer.renderToSVGElement('graph TD\n  A-->B');
-document.body.appendChild(result.svg);
-
-const svgText = await renderer.renderToSVGString('graph TD\n  A-->B');
+const svgText = await renderer.renderToSVGString(source);
 ```
 
-`RenderResult` contains:
+`XMermaid.run()` scans a page and renders every `.mermaid` element, writing structured error data into the ones that fail.
 
-- `diagramType`
-- `diagnostics`
-- `dimensions`
-- `svg`
-
-## Diagram Themes
-
-xmermaid publishes paired `LIGHT_THEME` and `DARK_THEME` presets while keeping `DEFAULT_THEME` as the compatibility default. Pass a preset or any partial `RenderTheme` per renderer or per render:
+## Themes
 
 ```ts
-import { DARK_THEME, XMermaid, type RenderTheme } from '@evangwt/xmermaid';
+import { DARK_THEME, type RenderTheme } from '@evangwt/xmermaid';
 
-const customTheme: Partial<RenderTheme> = {
+const theme: Partial<RenderTheme> = {
   ...DARK_THEME,
-  colors: {
-    ...DARK_THEME.colors,
-    nodeStroke: '#67e8f9',
-    arrowFill: '#fbbf24',
-  },
-  arrowStyle: 'open',
+  colors: { ...DARK_THEME.colors, nodeStroke: '#67e8f9' },
   curveStyle: 'step',
-  edgeGap: 2,
-  arrowSize: 12,
 };
 
-await renderer.renderToSVGElement(source, { theme: customTheme });
+await renderer.renderToSVGElement(source, { theme });
 ```
 
-`edgeGap` is the clearance between the marker and target node. The renderer derives the visible line endpoint from the active marker style, size, and stroke width so the line joins the marker without a visible gap.
+`LIGHT_THEME` / `DARK_THEME` presets ship beside the `DEFAULT_THEME` compatibility default.
 
-## Current Support
+A `%%{init: {'theme': 'dark'}}%%` directive in the source overrides the programmatic theme, matching Mermaid precedence (`default`, `dark`, `neutral`, `light`, `forest`, `base`, `minimal`).
 
-xmermaid focuses on browser-side SVG rendering for Mermaid flowcharts with a broad, native feature set: `graph` / `flowchart` declarations, all four directions, chained and `&`-combined statements (`A & B --> C & D`), pipe and inline edge labels (`A -- text --> B`, `A -. text .-> B`, `A == text ==> B`), circle (`o`), cross (`x`), and bidirectional (`<-->`, `o--o`, `x--x`) edge endings on either endpoint, extended edge lengths (`A---->B`), and the full core shape set — rectangle, rounded, stadium `([t])`, cylinder/database `[(t)]`, circle, double circle, diamond, hexagon, parallelogram, trapezoid, subroutine, and asymmetric. Subgraph containers render as labeled boxes, and edges may connect to container ids. Safe `classDef`, `class`, `style`, and `linkStyle` statements accept hexadecimal and CSS named colors plus numeric `stroke-width` / `stroke-dasharray`; inline `A:::className` assignments, hyphenated node ids, decoded entity-code labels (`#9829;`), and `A@{ shape: stadium, label: "..." }` expanded shapes all render. FontAwesome 4 labels embed as SVG icons.
+## What renders today
 
-It also renders deliberately scoped subsets of Sequence, Class, State, Entity Relationship, User Journey, Gantt, Pie, Mindmap, Timeline, Requirement, GitGraph, C4, ZenUML, XY Chart (categorical and numeric x-axes, horizontal orientation, axis titles), Sankey, Quadrant (including direct point styling and classes), Architecture (groups, junctions, and bidirectional arrows), Block, Kanban (task ticket metadata), Treemap, Radar (graticule shapes and tick counts), Packet, Venn, Swimlane, Ishikawa, Event Modeling, Wardley Map, and Cynefin diagrams. User Journey, Gantt, and Pie are fully supported today.
+The Mermaid 11.16.0 catalog (30 documented families), as partial Mermaid support:
 
-Every diagram family accepts `accTitle` / `accDescr` directives and `---` frontmatter, surfacing them as the SVG accessible name and description. Any diagram source may select a theme through the Mermaid `%%{init: {'theme': 'dark'}}%%` directive; the directive overrides any theme passed programmatically, matching Mermaid's precedence. Recognized names are `default`, `dark`, `neutral`, `light`, `forest`, `base`, and `minimal`.
+| Family | Status |
+| --- | --- |
+| `flowchart` / `graph` | **The core.** Deep native coverage — below |
+| `user-journey`, `gantt`, `pie` | Fully supported today |
+| `sequenceDiagram`, `classDiagram`, `stateDiagram`, `erDiagram` | Partial — deep coverage of each core grammar |
+| `mindmap`, `timeline`, `gitgraph`, `requirementDiagram`, `quadrantChart`, `zenuml`, `sankey`, `xychart-beta`, `block-beta`, `packet`, `venn-beta`, `kanban`, `architecture-beta`, `C4*`, `radar-beta`, `treemap`, `swimlane`, `ishikawa`, `event-modeling`, `wardley`, `cynefin`, `treeview` | Partial — core structure renders; advanced styling does not |
 
-This is partial Mermaid support, not full Mermaid compatibility.
+Every family accepts `accTitle` / `accDescr` accessibility directives and `---` frontmatter. Planned families are rejected before WASM renders — never half-rendered.
 
-All remaining Mermaid catalog families are explicitly marked `planned` in `getSupportMatrix()` and rejected before WASM rendering.
+**Flowcharts (the core):**
 
-`sequenceDiagram` is partial: explicit `participant` / `actor` declarations (including `as` display aliases), labeled messages with solid, dashed, cross (`-x`, `--x`), and async open-arrow (`-)`, `--)`) endings, bidirectional `<->` links, `create` / `destroy` lifecycle (destroyed lifelines terminate with a ✕), `box` participant groups, `autonumber` with optional start and increment, `activate` / `deactivate` (and message `+` / `-` suffixes), single-line `Note left/right/over`, `rect` frames with `rgb()`, `rgba()`, or hex colors, and nested `loop`, `alt` / `else`, `opt`, `par` / `and`, `critical` / `option`, and `break` blocks render through a native timeline layout. Multi-line notes remain unsupported. `getSupportMatrix()` or `analyzeSupport(source)` exposes that boundary programmatically.
+- All four directions; `&`-chaining; pipe and inline edge labels; extended edges
+- Full core shape set, plus `A@{ shape: stadium, label: "..." }` expanded shapes
+- **Subgraph containers** render as labeled boxes; edges can target container ids
+- Safe `classDef <name>` / `class` / `style` / `linkStyle` with **safe color values** and numeric `stroke-width` / `stroke-dasharray`; cosmetic properties are accepted-and-ignored
+- Decoded entity-code labels (`#9829;`); FontAwesome 4 labels embed as SVG icons
+- Fail-closed limits: invalid directions, unsafe style values, subgraph `direction` (parsed, ignored), `click` (no-op in static output). **Visual editing is read-only** for class-styled sources
 
-`classDiagram` is partial: the full relation grammar renders natively — inheritance (`<|--`, `--|>`), composition (`*--`), aggregation (`o--`), association (`-->`, `<--`), links (`--`), dependency (`..>`, `..`), and realization (`..|>`, `<|..`) with relation labels and quoted cardinalities. Class member blocks (`class Foo { ... }`), member shorthand lines (`Foo : +int size`), and classifier annotations (`<<interface>>`) render inside class boxes. `namespace` containers render as labeled boxes, and `style` directives with safe colors, `stroke-width`, and `stroke-dasharray` color the boxes. `classDef`, `cssClass`, and `click` directives remain unsupported.
+**Sequence · class · state · ER:**
 
-`stateDiagram` is partial: named states, labeled transitions, start/end `[*]` pseudostates rendered as circle markers, `<<choice>>` diamonds and `<<fork>>`/`<<join>>` bars, state aliases, left/right notes rendered as attached note boxes, and composite state blocks whose inner transitions are flattened into labeled containers render as a relationship layout. Concurrent regions parse but render flattened into a single combined graph, surfaced with a warning diagnostic.
+- `sequenceDiagram` — participants, message endings, create/destroy, boxes, autonumber, activation, notes, colored frames, nested control blocks; no multi-line notes yet
+- `classDiagram` — full relation grammar, member blocks, namespaces, `classDef` / `cssClass` styles; `click` downgraded to a warning
+- `stateDiagram` — choice/fork/join pseudostates, notes, composite states (flattened, warned)
+- `erDiagram` — full crow's-foot cardinality grammar, attribute blocks with PK/FK/UK keys
 
-`erDiagram` is partial: the full crow's-foot cardinality grammar (`|o`, `||`, `}o`, `}|` on the left; `o|`, `||`, `o{`, `|{` on the right) with identifying (`--`) and non-identifying (`..`) connectors renders with native crow's-foot glyphs at both ends; entity attribute blocks with key markers (PK/FK/UK) and comments render inside entity boxes.
+**Gantt · pie · journey:** fully supported — dates, durations, milestones, working-day `excludes`; slices, titles, `showData`; tasks, scores, sections.
 
-`gantt` is fully supported: sectioned tasks with `dateFormat` directives built from `YYYY`, `MM`, and `DD` tokens, ISO start dates, `Nd` / `Nw` / `Nh` durations, explicit end dates, `done` / `active` / `crit` task states rendered with colors, milestones rendered as diamonds, `after <task...>` dependencies (multiple anchors start after all finish), and `excludes weekends` / weekday / date directives that expand durations over a working-day calendar render as a timeline. Unix timestamps work through `dateFormat X` (seconds), `dateFormat x` (milliseconds), and the historical `dateFormat unix` alias.
-
-`pie` is fully supported: numeric labeled slices, titles (standalone `title` lines or the combined `pie showData title ...` header), the `showData` value table, and `%%{init: {'theme': ...}}%%` theme directives render as a pie chart.
-
-`mindmap` is partial: space-indented hierarchies with square, rounded, circle, stadium, cylinder, hexagon, and asymmetric node shapes render as connected nodes, and `::icon(fa fa-*)` declarations render as FontAwesome icons (unknown icon names are rejected up front). Markdown strings remain unsupported.
-
-`timeline` is partial: ordered period/event entries render as connected nodes; advanced styling and event metadata remain unsupported.
-
-`requirementDiagram` is partial: typed requirement blocks and labeled relationships render as connected nodes; custom styling and advanced relation syntax remain unsupported.
-
-`gitGraph` is partial: commits, branches, checkouts, merges, IDs, tags, and types render as a history graph; cherry-picks, custom ordering, and advanced commit options remain unsupported.
-
-`C4Context`, `C4Container`, `C4Component`, `C4Dynamic`, and `C4Deployment` are partial: people, systems, containers, components, external elements, and labeled relationships render as connected nodes; boundaries, deployment nodes, styling, and advanced relationship macros remain unsupported.
-
-`architecture-beta` is partial: `service id(icon)[label]` declarations (including `in <group>` membership), `group id(icon)[label]` containers rendered as labeled boxes, `junction` nodes, and direct port-to-port `--` / `-->` / `<-->` relationships render as a left-to-right service layout. `align` directives, configuration, icon glyphs, and junctions inside groups remain unsupported.
-
-`block-beta` is partial: flat rows of named blocks, optional positive `columns N`, `id["Label"]`, `id:N` spans, `space` placeholders, and direct `--` / `-->` relationships render as a native grid. Nested blocks, block arrows, custom shapes, classes, styles, configuration, and edge labels remain unsupported.
-
-`packet` is partial: optional titles, ordered absolute `start-end: "Label"` fields, and sequential `+width: "Label"` fields render as a native 32-bit SVG grid. Overlapping/out-of-order fields, YAML configuration, classes, styles, and accessibility directives remain unsupported.
-
-`venn-beta` is partial: named `set` declarations, optional display labels, labeled unions of declared sets, and titles render as native overlapping SVG circles. Set/union sizes, text annotations, YAML configuration, classes, styles, and accessibility directives remain unsupported.
-
-`kanban` is partial: ordered bare or bracket-labeled columns with space-indented bare or bracket-labeled tasks render as a native board. Task metadata, ticket configuration, YAML, styles, and advanced syntax remain unsupported.
-
-`zenuml` is partial: labeled `->` calls and `-->` returns render as distinct solid and dashed arrows; blocks, declarations, async messages, and advanced control syntax remain unsupported.
-
-`xychart-beta` is partial: quoted titles, categorical `x-axis [label, ...]` (with quoted or unquoted axis titles), numeric `x-axis min --> max` ranges, numeric and auto `y-axis` ranges with optional titles, `xychart horizontal` orientation, and ordered `bar` / `line` series render as native SVG axes, bars, and polylines. Front-matter configuration, data labels, named-series legends, and theme variables remain unsupported.
-
-`sankey` and `sankey-beta` are partial: acyclic three-column CSV `source,target,value` records (including quoted commas and blank lines) render as native weighted SVG bands. Cycles, non-positive values, YAML/config directives, and custom Sankey configuration remain unsupported.
-
-Flowcharts support `classDef <name>`, `class <node-id>[,<node-id>...] <name>`, and `style <node-id>` when definitions contain `fill`, `stroke`, `color` with safe color values plus `stroke-width` / `stroke-dasharray`; common cosmetic properties such as `font-size`, `text-align`, and `font-family` are validated and accepted-and-ignored until per-node text styling exists. Multiple assignments cascade by field, with later values winning. Visual editing is read-only for sources with class statements until it can preserve those declarations. Supported FontAwesome 4 labels such as `A[fa:fa-car Delivery]` are embedded as portable SVG icons; unknown icon names degrade to their remaining label text with a warning. HTML labels (`<b>`, `<span ...>`, `<br>`) and Markdown string labels (`` A["`**text**`"] ``) are supported through sanitization: tags are stripped to plain text and `<br>` variants become line breaks — labels are never rendered as trusted HTML. Edge IDs (`A e1@--> B`) are parsed and dropped, and quoted inline edge labels (`A -- "text" --> B`) keep their spacing. Unsupported or partial flowchart syntax includes invalid `graph` / `flowchart` directions, unsafe `style` or `linkStyle` property values, `click` (accepted, no effect in static output), and `direction` statements inside subgraphs (parsed but ignored by the layout). Use `getSupportMatrix()` or `analyzeSupport(source)` to inspect the current production support contract from code.
+This is partial Mermaid support, not full Mermaid compatibility. The subset is documented here and enforced fail-closed.
 
 ## Diagnostics
 
-```ts
-import { XMermaidError, type XMermaidDiagnostic } from '@evangwt/xmermaid';
+- Renderable-but-unsupported syntax → `unsupported_syntax` warnings
+- Invalid directions, unknown families → error-severity blocks; unknown families report `unsupported_diagram_type`
+- WASM failures → normalized `XMermaidError` with structured diagnostics (Rust parser errors may carry `range: null`)
 
-try {
-  const result = await renderer.renderToSVGElement('graph TD\n  A-->B\n  style A fill:#fff');
-  const diagnostics: XMermaidDiagnostic[] = result.diagnostics;
-  console.log(diagnostics);
-} catch (error) {
-  if (error instanceof XMermaidError) {
-    console.error(error.code, error.diagnostics);
-  }
-}
-```
+## Security policy
 
-Unsupported flowchart syntax is reported as `unsupported_syntax` warnings when rendering can continue. Error-severity unsupported syntax, such as invalid flowchart directions, blocks before WASM rendering. Unsupported diagram families fail before WASM rendering with `unsupported_diagram_type`.
+- `strict` by default: blocks `click` callbacks (`security_blocked_click`) and URL protocols outside `http:` / `https:` / `mailto:` (`security_blocked_url`) before rendering
+- HTML labels are never rendered as trusted HTML — sanitized to plain text at parse time, at every security level
+- `sanitizeSvg: true` walks output SVG and removes `script`, `foreignObject`, inline handlers, dangerous `href`
+- `loose` only unblocks `click`; `javascript:` and `data:` stay blocked
 
-WASM parse/layout/render failures are normalized into `XMermaidError` with structured diagnostics. Rust parser errors do not yet expose token-accurate offset/column ranges, so those diagnostics may have `range: null`.
+## WASM and packaging
 
-The DOM scan helper `XMermaid.run()` keeps its compatibility behavior of writing an error message into failed `.mermaid` elements, and also exposes `data-xmermaid-error-code` plus JSON `data-xmermaid-diagnostics` on that element.
-
-## Security Policy
-
-The default security policy is `strict` for untrusted Mermaid input embedded in a same-origin app.
-
-Strict mode blocks before rendering when it sees:
-
-- Mermaid `click` callbacks or links: `security_blocked_click`
-- URL protocols outside the allowlist: `security_blocked_url`
-
-HTML labels are not gated: they are sanitized to plain text and line breaks at parse time and are never rendered as trusted HTML, so markup in a label cannot inject anything at any security level.
-
-The default URL protocol allowlist is `http:`, `https:`, and `mailto:`.
-
-```ts
-await renderer.renderToSVGElement(source, {
-  securityLevel: 'loose',
-});
-```
-
-`loose` only removes the security blocking for `click`. Dangerous URL protocols such as `javascript:` and `data:` remain blocked.
-
-The default policy also sets `sanitizeSvg: true`. Generated SVG output is walked before return/mount; `script` and `foreignObject` elements, inline event handler attributes, and dangerous `href` values are removed. xmermaid does not execute click callbacks, does not render HTML labels as HTML, and does not provide CSP or a sandbox.
-
-## WASM And Packaging
-
-The published package includes the JS bundles, TypeScript declarations, and `dist/xmermaid_wasm_bg.wasm`.
-
-By default, the bundled loader resolves that asset next to the built JS entry. Hosts with a custom asset base path can pass an explicit URL on the render that first initializes WASM:
+The tarball ships JS bundles, TypeScript declarations, and `dist/xmermaid_wasm_bg.wasm`, resolved next to the built JS entry. Custom asset bases pass an explicit URL on the render that first initializes WASM:
 
 ```ts
 await renderer.renderToSVGElement(source, {
@@ -220,27 +202,23 @@ await renderer.renderToSVGElement(source, {
 });
 ```
 
-WASM initialization is process-global. After the module is initialized, later renders reuse the same WASM instance; change `wasmUrl` / `fetch` before the first render, not between renders.
+WASM init is process-global: after the module is initialized, later renders reuse it. Change `wasmUrl` / `fetch` before the first render, not between renders.
 
-The package also publishes the `@evangwt/xmermaid/editor` subpath for live editor imports. The packed tarball includes `README.md` and `LICENSE` alongside the runtime bundles.
+## Release verification
 
-Release verification uses a packed-package consumer smoke test. It runs `npm pack`, installs the tarball into a temporary project, typechecks the public API and `@evangwt/xmermaid/editor` subpath, imports the installed ESM entries, requires the installed CommonJS entries, and opens headless Chrome to render a minimal SVG through the default bundle-relative WASM asset resolution. The same Chrome smoke imports the live editor through `@evangwt/xmermaid/editor` and runs a live editor workflow: multi-diagram selection, visual rename, preview-only direction control, source direction edit, unsupported visual edit blocking, share hash generation, and SVG export readiness.
+- **Consumer smoke** — headless Chrome (`CHROME_BIN` for CI) installs the packed tarball, typechecks the public API, imports ESM/CJS, and renders through the default bundle-relative WASM asset resolution
+- **Live editor workflow smoke** — through `@evangwt/xmermaid/editor`: multi-diagram selection, visual rename, preview-only direction control, source direction edit, unsupported visual edit blocking, share hash, and SVG export readiness
 
-The browser smoke requires Chrome or Chromium. Set `CHROME_BIN` when CI does not expose a default Chrome executable.
-
-```bash
-CHROME_BIN=/path/to/chrome npm run smoke:consumer -- --json
-```
+Maintainers: [docs/production-release-checklist.md](docs/production-release-checklist.md).
 
 ## Troubleshooting
 
-- `Chrome executable not found`: install Chrome/Chromium or set `CHROME_BIN`.
-- `unsupported_diagram_type`: the diagram family is outside the current production support contract.
-- `unsupported_syntax`: the input uses Mermaid syntax that is known but not implemented in xmermaid yet.
-- `security_blocked_*`: strict security policy blocked a risky construct before rendering.
-- WASM asset load failures: confirm the package tarball includes `dist/xmermaid_wasm_bg.wasm` and the app serves it with the built JS bundle.
-- Missing package metadata: confirm the packed tarball includes `README.md`, `LICENSE`, and the `@evangwt/xmermaid/editor` export.
+- `Chrome executable not found` — install Chrome/Chromium or set `CHROME_BIN`
+- `unsupported_diagram_type` — family outside the current support contract
+- `unsupported_syntax` — known Mermaid syntax not implemented yet
+- `security_blocked_*` — strict policy blocked a risky construct before rendering
+- WASM asset load failure — serve `dist/xmermaid_wasm_bg.wasm` beside the built JS bundle
 
-## Release Readiness
+## License
 
-Maintainers should run the production release checklist in `docs/production-release-checklist.md`. The default release matrix includes build, packed consumer smoke, docs support matrix sync, JS tests, TypeScript, Rust tests, and whitespace checks.
+MIT. See [LICENSE](LICENSE).
