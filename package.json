@@ -1,6 +1,6 @@
 {
   "name": "@evangwt/xmermaid",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Flowchart-focused Mermaid renderer with partial Mermaid support powered by Rust WASM",
   "repository": {
     "type": "git",

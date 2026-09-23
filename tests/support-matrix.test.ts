@@ -441,6 +441,16 @@ describe('support matrix production contract', () => {
     expect(analyzeSupport('mindmap\n  Root\n    Child')).toMatchObject({ diagramType: 'mindmap', status: 'partial', unsupportedFeatures: [] });
   });
 
+  it('accepts the documented mindmap icon spellings without flagging them', () => {
+    for (const spelling of ['fa fa-book', 'fa:fa-book', 'fa-book', 'book']) {
+      const source = `mindmap\n  Root\n    ::icon(${spelling})\n    Child`;
+      expect(analyzeSupport(source).unsupportedFeatures, `icon spelling ${spelling}`).toEqual([]);
+    }
+    expect(analyzeSupport('mindmap\n  Root\n    ::icon(fa fa-unknown-icon)\n    Child').unsupportedFeatures).toEqual([
+      expect.objectContaining({ id: 'mindmap.advanced', severity: 'warning' }),
+    ]);
+  });
+
   it('reports indented Ishikawa causes as partial instead of planned', () => {
     expect(analyzeSupport('ishikawa-beta\n  Blurry photo\n  Process\n    Out of focus')).toMatchObject({
       diagramType: 'ishikawa', status: 'partial', unsupportedFeatures: [],

@@ -342,7 +342,9 @@ export function detectUnsupportedFeatures(source: string): UnsupportedFeature[] 
       const match = /^\s*::icon\(([^)\r\n]+)\)/.exec(line.text);
       if (match) {
         const raw = match[1]!.trim();
-        const name = raw.replace(/^fa[\s:]/, '');
+        // `fa fa-book` / `fa:fa-book` / `fa-book` / `book` all name the icon
+        // `book` in the FontAwesome 4 set.
+        const name = raw.replace(/^fa[\s:]/, '').replace(/^fa-/, '');
         if (!getFontAwesomeIcon(name)) {
           features.push(unsupportedSyntax(
             'mindmap.advanced',
