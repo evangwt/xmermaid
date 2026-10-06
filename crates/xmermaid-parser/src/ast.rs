@@ -8,6 +8,13 @@ pub enum FlowDirection {
     RL,
 }
 
+impl Default for FlowDirection {
+    /// Left-to-right is the Mermaid default for class diagrams.
+    fn default() -> Self {
+        Self::LR
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum NodeShape {
@@ -250,6 +257,8 @@ pub enum SequenceMessageEnd {
     Cross,
     /// Open arrowhead used by async `-)` / `--)` messages.
     Open,
+    /// No arrowhead: the plain `-?` and `--?` line forms.
+    None,
 }
 
 impl Default for SequenceMessageEnd {
@@ -326,6 +335,9 @@ pub struct ClassAst {
     /// Safe per-class style overrides from `style` directives.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub styles: Vec<ClassStyleAssignment>,
+    /// Optional `direction TB | BT | LR | RL` directive; defaults to LR.
+    #[serde(default)]
+    pub direction: FlowDirection,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -593,7 +605,20 @@ impl Default for NodeShape {
 #[derive(Debug, Clone, Serialize, Deserialize)] pub struct Requirement { pub kind: String, pub name: String, pub id: Option<String>, pub text: Option<String>, pub risk: Option<String>, pub verify_method: Option<String> }
 #[derive(Debug, Clone, Serialize, Deserialize)] pub struct RequirementRelationship { pub from: String, pub to: String, pub label: String }
 #[derive(Debug, Clone, Serialize, Deserialize)] pub struct GitGraphAst { pub commits: Vec<GitCommit> }
-#[derive(Debug, Clone, Serialize, Deserialize)] pub struct GitCommit { pub id: String, pub branch: String, pub tag: Option<String>, pub commit_type: Option<String>, pub parents: Vec<String> }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GitCommit {
+    pub id: String,
+    pub branch: String,
+    pub tag: Option<String>,
+    pub commit_type: Option<String>,
+    pub parents: Vec<String>,
+    /// Display-only label (commit id, branch, and tag) normalized to plain
+    /// text with `<br>` line breaks. `id` itself stays raw so identity lookups
+    /// (duplicate detection, cherry-pick, parent edges) keep matching the
+    /// original text.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub display_label: Option<String>,
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct C4Ast {
     pub diagram_kind: String,

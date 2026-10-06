@@ -18,7 +18,7 @@ pub fn compute_layout(ast: &DiagramAst, config: &LayoutConfig) -> LayoutResult {
         DiagramAst::Class(class) => {
             let class_ast_styles = &class.styles;
             let flowchart_ast = xmermaid_parser::ast::FlowchartAst {
-                direction: xmermaid_parser::ast::FlowDirection::LR,
+                direction: class.direction.clone(),
                 nodes: class.classes.iter().map(|class| {
                     let mut label_lines = Vec::new();
                     if let Some(annotation) = &class.annotation {
@@ -88,7 +88,12 @@ pub fn compute_layout(ast: &DiagramAst, config: &LayoutConfig) -> LayoutResult {
                 link_styles: Vec::new(),
             };
             let mut class_config = config.clone();
-            class_config.direction = crate::types::FlowDirection::LR;
+            class_config.direction = match class.direction.clone() {
+                xmermaid_parser::ast::FlowDirection::TD => crate::types::FlowDirection::TB,
+                xmermaid_parser::ast::FlowDirection::BT => crate::types::FlowDirection::BT,
+                xmermaid_parser::ast::FlowDirection::LR => crate::types::FlowDirection::LR,
+                xmermaid_parser::ast::FlowDirection::RL => crate::types::FlowDirection::RL,
+            };
             flowchart::layout(&flowchart_ast, &class_config)
         }
         DiagramAst::State(state) => {
@@ -329,13 +334,19 @@ pub fn compute_layout(ast: &DiagramAst, config: &LayoutConfig) -> LayoutResult {
             let ast = xmermaid_parser::ast::FlowchartAst {
                 direction: xmermaid_parser::ast::FlowDirection::LR,
                 nodes: gitgraph.commits.iter().map(|commit| {
-                    let tag = commit.tag.as_ref().map(|tag| format!("\n{}", tag)).unwrap_or_default();
                     let style = (commit.commit_type.as_deref() == Some("HIGHLIGHT")).then(|| xmermaid_parser::ast::NodeStyle {
                         fill: Some("#fbbf24".to_string()),
                         ..xmermaid_parser::ast::NodeStyle::default()
                     });
+                    // Prefer the parser-normalized display label (id/branch/tag
+                    // with `<br>` line breaks); fall back to the raw fields for
+                    // ASTs built without it.
+                    let label = commit.display_label.clone().unwrap_or_else(|| {
+                        let tag = commit.tag.as_ref().map(|tag| format!("\n{}", tag)).unwrap_or_default();
+                        format!("{}\n{}{}", commit.id, commit.branch, tag)
+                    });
                     xmermaid_parser::ast::Node {
-                        id: commit.id.clone(), label: Some(format!("{}\n{}{}", commit.id, commit.branch, tag)),
+                        id: commit.id.clone(), label: Some(label),
                         shape: xmermaid_parser::ast::NodeShape::Circle, classes: vec![], styles: vec![], style,
                     }
                 }).collect(),

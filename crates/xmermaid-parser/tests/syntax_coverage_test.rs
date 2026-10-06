@@ -643,6 +643,135 @@ fn test_html_labels_are_sanitized_to_text() {
     assert_eq!(edge.edges[0].label.as_deref(), Some("yes\nok"));
 }
 
+/// Batch 1 of the `<br/>` label-fidelity fix: the labels of these 12 families
+/// all flow through `flowchart::layout`, whose `wrap_label` already splits on
+/// `\n`. They previously never reached `sanitize_label_text`, so a raw `<br/>`
+/// was painted verbatim. Each family must now turn `<br/>` into a real break.
+#[test]
+fn test_br_line_breaks_across_flowchart_layout_families() {
+    fn br_ok(label: &str, needle: &str, ctx: &str) {
+        assert!(label.contains(needle), "{ctx}: expected {needle:?} in {label:?}");
+        assert!(!label.contains("<br"), "{ctx}: raw <br must not survive in {label:?}");
+    }
+
+    match parse("classDiagram\n  class A\n  A --> B : \"rel<br/>X\"").unwrap() {
+        DiagramAst::Class(ast) => br_ok(&ast.relations[0].label, "rel\nX", "class"),
+        other => panic!("class: {other:?}"),
+    }
+    match parse("stateDiagram-v2\n  state \"desc<br/>X\" as s1\n  s1 --> s2").unwrap() {
+        DiagramAst::State(ast) => {
+            let s1 = ast.states.iter().find(|state| state.id == "s1").expect("state s1");
+            br_ok(s1.label.as_deref().unwrap_or_default(), "desc\nX", "state");
+        }
+        other => panic!("state: {other:?}"),
+    }
+    match parse("erDiagram\n  A ||--o{ B : has<br/>X").unwrap() {
+        DiagramAst::Er(ast) => br_ok(&ast.relationships[0].label, "has\nX", "er"),
+        other => panic!("er: {other:?}"),
+    }
+    match parse("architecture-beta\n  service a(server)[A<br/>X]\n  service b(database)[B]\n  a:R --> L:b").unwrap() {
+        DiagramAst::Architecture(ast) => br_ok(&ast.services[0].label, "A\nX", "architecture"),
+        other => panic!("architecture: {other:?}"),
+    }
+    match parse("journey\n  section S\n    Task<br/>X: 5: Actor").unwrap() {
+        DiagramAst::UserJourney(ast) => br_ok(&ast.tasks[0].label, "Task\nX", "user-journey"),
+        other => panic!("user-journey: {other:?}"),
+    }
+    match parse("timeline\n  2020 : Event<br/>X").unwrap() {
+        DiagramAst::Timeline(ast) => br_ok(&ast.entries[0].events[0], "Event\nX", "timeline"),
+        other => panic!("timeline: {other:?}"),
+    }
+    match parse("mindmap\n  root((M))\n    A[Square<br/>X]").unwrap() {
+        DiagramAst::Mindmap(ast) => br_ok(&ast.nodes[1].label, "Square\nX", "mindmap"),
+        other => panic!("mindmap: {other:?}"),
+    }
+    match parse("tree\n  Root\n    Child<br/>X").unwrap() {
+        DiagramAst::Treeview(ast) => br_ok(&ast.nodes[1].label, "Child\nX", "treeview"),
+        other => panic!("treeview: {other:?}"),
+    }
+    match parse("requirementDiagram\n  requirement R {\n    id: 1\n    text: hi<br/>X\n  }").unwrap() {
+        DiagramAst::Requirement(ast) => {
+            br_ok(ast.requirements[0].text.as_deref().unwrap_or_default(), "hi\nX", "requirement");
+        }
+        other => panic!("requirement: {other:?}"),
+    }
+    match parse("gitGraph\n  commit id: \"v1<br/>X\"").unwrap() {
+        DiagramAst::GitGraph(ast) => {
+            assert_eq!(ast.commits[0].id, "v1<br/>X", "gitgraph id must stay raw for identity");
+            br_ok(ast.commits[0].display_label.as_deref().unwrap_or_default(), "v1\nX", "gitgraph");
+        }
+        other => panic!("gitgraph: {other:?}"),
+    }
+    match parse("C4Context\n  Person(u, \"User<br/>X\")\n  System(s, \"Sys\")\n  Rel(u, s, \"uses\")").unwrap() {
+        DiagramAst::C4(ast) => br_ok(&ast.elements[0].label, "User\nX", "c4"),
+        other => panic!("c4: {other:?}"),
+    }
+    match parse("zenuml\n  A->B: hello<br/>X").unwrap() {
+        DiagramAst::ZenUml(ast) => br_ok(&ast.messages[0].label, "hello\nX", "zenuml"),
+        other => panic!("zenuml: {other:?}"),
+    }
+}
+
+/// Security invariants for the batch-1 label channel: an entity-escaped
+/// `&lt;br/&gt;` stays literal text (never a line break), and active markup
+/// such as `<script>` / `<img onerror>` is stripped to inert text.
+#[test]
+fn test_html_label_security_invariants_across_families() {
+    match parse("classDiagram\n  class A\n  A --> B : \"a &lt;br/&gt; b\"").unwrap() {
+        DiagramAst::Class(ast) => {
+            let label = &ast.relations[0].label;
+            assert!(label.contains("<br/>"), "class escaped entity must stay literal: {label:?}");
+            assert!(!label.contains('\n'), "class escaped entity must not become a break: {label:?}");
+        }
+        other => panic!("class: {other:?}"),
+    }
+    match parse("erDiagram\n  A ||--o{ B : a &lt;br/&gt; b").unwrap() {
+        DiagramAst::Er(ast) => {
+            let label = &ast.relationships[0].label;
+            assert!(label.contains("<br/>"), "er escaped entity must stay literal: {label:?}");
+            assert!(!label.contains('\n'), "er escaped entity must not become a break: {label:?}");
+        }
+        other => panic!("er: {other:?}"),
+    }
+    match parse("C4Context\n  Person(u, \"a &lt;br/&gt; b\")\n  System(s, \"Sys\")\n  Rel(u, s, \"uses\")").unwrap() {
+        DiagramAst::C4(ast) => {
+            let label = &ast.elements[0].label;
+            assert!(label.contains("<br/>"), "c4 escaped entity must stay literal: {label:?}");
+            assert!(!label.contains('\n'), "c4 escaped entity must not become a break: {label:?}");
+        }
+        other => panic!("c4: {other:?}"),
+    }
+    match parse("classDiagram\n  class A\n  A --> B : \"<script>alert(1)</script>\"").unwrap() {
+        DiagramAst::Class(ast) => {
+            let label = &ast.relations[0].label;
+            assert!(!label.contains("<script"), "class <script> must be stripped: {label:?}");
+        }
+        other => panic!("class: {other:?}"),
+    }
+    match parse("zenuml\n  A->B: <img src=x onerror=alert(1)>").unwrap() {
+        DiagramAst::ZenUml(ast) => {
+            let label = &ast.messages[0].label;
+            assert!(!label.contains("<img"), "zenuml <img> must be stripped: {label:?}");
+            assert!(!label.contains("onerror"), "zenuml onerror text must be stripped: {label:?}");
+        }
+        other => panic!("zenuml: {other:?}"),
+    }
+}
+
+/// The gitgraph display label is normalized, but `id` stays raw, so identity
+/// lookups (here cherry-pick) still match the original text.
+#[test]
+fn test_gitgraph_cherry_pick_matches_raw_id() {
+    let source = "gitGraph\n  commit id: \"a<br/>b\"\n  branch feat\n  checkout feat\n  cherry-pick id: \"a<br/>b\"";
+    let ast = match parse(source).unwrap() {
+        DiagramAst::GitGraph(gitgraph) => gitgraph,
+        other => panic!("gitgraph: {other:?}"),
+    };
+    assert_eq!(ast.commits[0].id, "a<br/>b", "raw id preserved for identity");
+    assert_eq!(ast.commits[0].display_label.as_deref(), Some("a\nb\nmain"), "display label normalized");
+    assert_eq!(ast.commits.len(), 2, "cherry-pick resolved the raw id and added a commit");
+}
+
 #[test]
 fn test_flowchart_style_statements_accept_common_cosmetic_properties() {
     // font-size, text-align, etc. are accepted (value-validated) and ignored.

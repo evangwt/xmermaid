@@ -109,6 +109,35 @@ impl<'a> Lexer<'a> {
         label
     }
 
+    /// Read an edge label (`|...|`) honoring backslash escapes. `\|` yields a
+    /// literal `|` and does not close the label, so `A -->|a \| b| B` renders
+    /// the label `a | b` instead of failing as an unterminated label. `\\`
+    /// yields a literal backslash; any other `\x` keeps the backslash.
+    fn read_edge_label_content(&mut self) -> String {
+        let mut label = String::new();
+        while let Some(&c) = self.peek() {
+            if c == '|' {
+                break;
+            }
+            if c == '\\' {
+                self.advance();
+                match self.peek() {
+                    Some(&next) if next == '|' || next == '\\' => {
+                        label.push(self.advance().unwrap());
+                    }
+                    _ => label.push('\\'),
+                }
+                continue;
+            }
+            label.push(self.advance().unwrap());
+        }
+        let label = label.trim().to_string();
+        if label.len() >= 2 && label.starts_with('"') && label.ends_with('"') {
+            return label[1..label.len() - 1].trim().to_string();
+        }
+        label
+    }
+
     fn skip_comment(&mut self) {
         // Already consumed first %, skip until newline or EOF
         while let Some(&c) = self.peek() {
@@ -191,7 +220,7 @@ impl<'a> Iterator for Lexer<'a> {
                 }
                 Some(_) => Some(Token {
                     ty: TokenType::Label,
-                    value: self.read_label_content('|'),
+                    value: self.read_edge_label_content(),
                     line,
                 }),
             },

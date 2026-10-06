@@ -161,6 +161,7 @@ pub fn layout(diagram: &SequenceAst, config: &LayoutConfig) -> LayoutResult {
                         SequenceMessageEnd::Arrow => "arrow".to_string(),
                         SequenceMessageEnd::Cross => "cross".to_string(),
                         SequenceMessageEnd::Open => "open".to_string(),
+                        SequenceMessageEnd::None => "none".to_string(),
                     },
                     bidirectional: message.bidirectional,
                 });

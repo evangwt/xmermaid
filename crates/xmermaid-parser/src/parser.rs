@@ -273,6 +273,7 @@ impl<'a> Parser<'a> {
         let mut member_target: Option<String> = None;
         let mut class_definitions: std::collections::HashMap<String, NodeStyle> = std::collections::HashMap::new();
         let mut class_assignments: Vec<(Vec<String>, String)> = Vec::new();
+        let mut direction = FlowDirection::LR;
 
         let mut lines = body_lines(self.input).peekable();
         while let Some(line) = lines.next() {
@@ -285,12 +286,12 @@ impl<'a> Parser<'a> {
             if let Some(id) = &member_target {
                 if let Some(annotation) = statement.strip_prefix("<<").and_then(|rest| rest.strip_suffix(">>")) {
                     if let Some(class) = classes.iter_mut().find(|class| &class.id == id) {
-                        class.annotation = Some(format!("<<{}>>", annotation.trim()));
+                        class.annotation = Some(format!("<<{}>>", sanitize_label_text(annotation.trim())));
                     }
                     continue;
                 }
                 if let Some(class) = classes.iter_mut().find(|class| &class.id == id) {
-                    class.members.push(statement.to_string());
+                    class.members.push(sanitize_label_text(statement));
                 }
                 continue;
             }
@@ -352,6 +353,32 @@ impl<'a> Parser<'a> {
                 continue;
             }
 
+            // `direction TB | BT | LR | RL` sets the class diagram layout.
+            if let Some(rest) = statement.strip_prefix("direction ") {
+                let value = rest.trim();
+                direction = match value {
+                    "TD" | "TB" => FlowDirection::TD,
+                    "BT" => FlowDirection::BT,
+                    "LR" => FlowDirection::LR,
+                    "RL" => FlowDirection::RL,
+                    _ => {
+                        return Err(ParseError::UnexpectedToken(format!(
+                            "Class diagram direction must be TD, TB, BT, LR, or RL: {}",
+                            statement
+                        )))
+                    }
+                };
+                continue;
+            }
+
+            // `note for ClassName "text"` / `note left of X "t"` / `note right
+            // of X "t"` / floating `note "t"`. Notes have no static SVG
+            // equivalent yet, but AI-authored class diagrams emit them
+            // constantly; accept and skip so a note never fails the diagram.
+            if statement.starts_with("note ") || statement == "note" {
+                continue;
+            }
+
             if let Some(relation) = parse_class_relation(statement)? {
                 Self::upsert_class(&mut classes, &relation.from);
                 Self::upsert_class(&mut classes, &relation.to);
@@ -367,7 +394,7 @@ impl<'a> Parser<'a> {
                 }
                 Self::upsert_class(&mut classes, id);
                 if let Some(class) = classes.iter_mut().find(|class| class.id == id) {
-                    class.members.push(member.trim().to_string());
+                    class.members.push(sanitize_label_text(member.trim()));
                 }
                 continue;
             }
@@ -450,6 +477,24 @@ impl<'a> Parser<'a> {
                 continue;
             }
 
+            // Classifier annotation prefix: `<<interface>> Shape`. This is
+            // Mermaid's documented form (the stereotype on its own line before
+            // the class name). It reuses the existing `annotation` field, so no
+            // new AST concept is introduced.
+            if let Some(rest) = statement.strip_prefix("<<") {
+                if let Some((annotation, id)) = rest.split_once(">>") {
+                    let id = id.trim();
+                    if id.is_empty() {
+                        return Err(ParseError::UnexpectedToken(format!("Invalid class annotation: {}", statement)));
+                    }
+                    Self::upsert_class(&mut classes, id);
+                    if let Some(class) = classes.iter_mut().find(|class| class.id == id) {
+                        class.annotation = Some(format!("<<{}>>", sanitize_label_text(annotation.trim())));
+                    }
+                    continue;
+                }
+            }
+
             // Classifier annotation: `<<interface>> Shape`
             if let Some((_, rest)) = statement.split_once("<<").and_then(|(head, tail)| tail.strip_suffix(">>").map(|inner| (head, inner))) {
                 let id = statement.split_once("<<").map(|(head, _)| head.trim()).unwrap_or_default();
@@ -458,7 +503,7 @@ impl<'a> Parser<'a> {
                 }
                 Self::upsert_class(&mut classes, id);
                 if let Some(class) = classes.iter_mut().find(|class| class.id == id) {
-                    class.annotation = Some(format!("<<{}>>", rest.trim()));
+                    class.annotation = Some(format!("<<{}>>", sanitize_label_text(rest.trim())));
                 }
                 continue;
             }
@@ -474,7 +519,7 @@ impl<'a> Parser<'a> {
         if classes.is_empty() {
             return Err(ParseError::EmptyInput);
         }
-        Ok(DiagramAst::Class(ClassAst { classes, relations, namespaces, styles }))
+        Ok(DiagramAst::Class(ClassAst { classes, relations, namespaces, styles, direction }))
     }
 
     fn parse_state(&self) -> Result<DiagramAst, ParseError> {
@@ -541,7 +586,7 @@ impl<'a> Parser<'a> {
                             "State notes require text: {}", statement
                         )));
                     }
-                    notes.push(StateNote { target: note.target, placement: note.placement, text: body });
+                    notes.push(StateNote { target: note.target, placement: note.placement, text: sanitize_label_text(&body) });
                 }
                 continue;
             }
@@ -655,6 +700,13 @@ impl<'a> Parser<'a> {
                 continue;
             }
 
+            // Concurrent region separator at the top level (`--`). Regions are
+            // flattened into one combined graph; the support analyzer surfaces a
+            // warning diagnostic so the flattening is not silent.
+            if statement == "--" {
+                continue;
+            }
+
             let (from, to, label) = parse_state_transition(statement)?;
             let from = resolve_state_id(&from, TransitionSide::From);
             let to = resolve_state_id(&to, TransitionSide::To);
@@ -685,12 +737,13 @@ impl<'a> Parser<'a> {
         let mut relationships = Vec::new();
 
         let mut upsert_entity = |entities: &mut Vec<ErEntity>, name: &str, attributes: Vec<ErAttribute>| {
+            let name = sanitize_label_text(name);
             if let Some(existing) = entities.iter_mut().find(|entity| entity.name == name) {
                 if !attributes.is_empty() {
                     existing.attributes = attributes;
                 }
             } else {
-                entities.push(ErEntity { name: name.to_string(), attributes });
+                entities.push(ErEntity { name, attributes });
             }
         };
 
@@ -845,14 +898,14 @@ impl<'a> Parser<'a> {
         for line in body_lines(self.input) {
             let statement = line.trim();
             if statement.is_empty() || statement.starts_with("%%") { continue; }
-            if let Some(value) = statement.strip_prefix("title ") { title = value.trim().to_string(); continue; }
-            if let Some(value) = statement.strip_prefix("section ") { section = value.trim().to_string(); continue; }
+            if let Some(value) = statement.strip_prefix("title ") { title = sanitize_label_text(value); continue; }
+            if let Some(value) = statement.strip_prefix("section ") { section = sanitize_label_text(value); continue; }
             let mut parts = statement.split(':').map(str::trim);
             let label = parts.next().unwrap_or_default();
             let score = parts.next().and_then(|value| value.parse::<u8>().ok());
-            let actors = parts.next().map(|value| value.split(',').map(str::trim).filter(|actor| !actor.is_empty()).map(ToString::to_string).collect()).unwrap_or_default();
+            let actors = parts.next().map(|value| value.split(',').map(str::trim).filter(|actor| !actor.is_empty()).map(sanitize_label_text).collect()).unwrap_or_default();
             if label.is_empty() || section.is_empty() || parts.next().is_some() || !matches!(score, Some(1..=5)) { return Err(ParseError::UnexpectedToken(format!("Journey tasks require a section, label, and score 1-5: {}", statement))); }
-            tasks.push(UserJourneyTask { section: section.clone(), label: label.to_string(), score: score.unwrap(), actors });
+            tasks.push(UserJourneyTask { section: section.clone(), label: sanitize_label_text(label), score: score.unwrap(), actors });
         }
         if tasks.is_empty() { return Err(ParseError::EmptyInput); }
         Ok(DiagramAst::UserJourney(UserJourneyAst { title, tasks }))
@@ -862,12 +915,12 @@ impl<'a> Parser<'a> {
         for line in body_lines(self.input) {
             let statement = line.trim();
             if statement.is_empty() || statement.starts_with("%%") { continue; }
-            if let Some(value) = statement.strip_prefix("title ") { title = value.trim().to_string(); continue; }
-            if let Some(value) = statement.strip_prefix("section ") { section = value.trim().to_string(); continue; }
+            if let Some(value) = statement.strip_prefix("title ") { title = sanitize_label_text(value); continue; }
+            if let Some(value) = statement.strip_prefix("section ") { section = sanitize_label_text(value); continue; }
             let (period, event) = statement.split_once(':').ok_or_else(|| ParseError::UnexpectedToken(format!("Timeline entries require period : event syntax: {}", statement)))?;
             let period = period.trim(); let event = event.trim();
             if event.is_empty() { return Err(ParseError::UnexpectedToken(format!("Timeline events cannot be empty: {}", statement))); }
-            if period.is_empty() { if let Some(entry) = entries.last_mut() { entry.events.push(event.to_string()); } else { return Err(ParseError::UnexpectedToken(format!("Timeline event has no preceding period: {}", statement))); } } else { entries.push(TimelineEntry { period: period.to_string(), events: vec![event.to_string()], section: section.clone() }); }
+            if period.is_empty() { if let Some(entry) = entries.last_mut() { entry.events.push(sanitize_label_text(event)); } else { return Err(ParseError::UnexpectedToken(format!("Timeline event has no preceding period: {}", statement))); } } else { entries.push(TimelineEntry { period: sanitize_label_text(period), events: vec![sanitize_label_text(event)], section: section.clone() }); }
         }
         if entries.is_empty() { return Err(ParseError::EmptyInput); }
         Ok(DiagramAst::Timeline(TimelineAst { title, entries }))
@@ -875,27 +928,36 @@ impl<'a> Parser<'a> {
     fn parse_mindmap(&self) -> Result<DiagramAst, ParseError> {
         let mut nodes: Vec<MindmapNode> = Vec::new(); let mut parents: Vec<String> = Vec::new(); let mut base_indent = None;
         for line in body_lines(self.input) { let raw = line.trim_end(); if raw.trim().is_empty() { continue; }
-            let trimmed = raw.trim();
-            // Icon declarations attach to the previous node.
-            if let Some(icon) = trimmed.strip_prefix("::icon(").and_then(|rest| rest.strip_suffix(')')) {
-                let name = icon.trim();
-                let name = name.strip_prefix("fa ").unwrap_or(name);
-                let name = name.strip_prefix("fa:").unwrap_or(name);
-                let name = name.strip_prefix("fa-").unwrap_or(name);
+            let mut trimmed = raw.trim();
+            // Icon handling: a bare `::icon(name)` attaches to the previous
+            // node, while `::icon(name) Label` prefixes a node declared on the
+            // same line.
+            let mut leading_icon: Option<String> = None;
+            if let Some(rest) = trimmed.strip_prefix("::icon(") {
+                let close = rest.find(')').ok_or_else(|| ParseError::UnexpectedToken(format!("Mindmap icons require a closing ')': {}", trimmed)))?;
+                let icon = rest[..close].trim();
+                let mut name = icon.strip_prefix("fa ").unwrap_or(icon);
+                name = name.strip_prefix("fa:").unwrap_or(name);
+                name = name.strip_prefix("fa-").unwrap_or(name);
                 if name.is_empty() {
                     return Err(ParseError::UnexpectedToken(format!("Mindmap icons require a name: {}", trimmed)));
                 }
-                let Some(previous) = nodes.last_mut() else {
-                    return Err(ParseError::UnexpectedToken(format!("Mindmap icons require a preceding node: {}", trimmed)));
-                };
-                previous.icon = Some(name.to_string());
-                continue;
+                let after = rest[close + 1..].trim();
+                if after.is_empty() {
+                    let Some(previous) = nodes.last_mut() else {
+                        return Err(ParseError::UnexpectedToken(format!("Mindmap icons require a preceding node: {}", trimmed)));
+                    };
+                    previous.icon = Some(name.to_string());
+                    continue;
+                }
+                leading_icon = Some(name.to_string());
+                trimmed = after;
             }
             let depth = raw.len() - raw.trim_start().len(); let base = *base_indent.get_or_insert(depth); let level = (depth.saturating_sub(base)) / 2;
             if level > parents.len() || trimmed.is_empty() { return Err(ParseError::UnexpectedToken(format!("Invalid Mindmap indentation: {}", raw))); }
             let (label, shape) = parse_mindmap_node_text(trimmed)?;
             let id = format!("mindmap-{}", nodes.len()); let parent = if level == 0 { None } else { Some(parents[level - 1].clone()) };
-            parents.truncate(level); parents.push(id.clone()); nodes.push(MindmapNode { id, label, parent, shape, icon: None }); }
+            parents.truncate(level); parents.push(id.clone()); nodes.push(MindmapNode { id, label, parent, shape, icon: leading_icon }); }
         if nodes.is_empty() { return Err(ParseError::EmptyInput); } Ok(DiagramAst::Mindmap(MindmapAst { nodes }))
     }
     fn parse_treeview(&self) -> Result<DiagramAst, ParseError> {
@@ -905,7 +967,7 @@ impl<'a> Parser<'a> {
             if level > parents.len() || label.is_empty() { return Err(ParseError::UnexpectedToken(format!("Invalid Treeview indentation: {}", raw))); }
             if label.contains(['(', ')', '[', ']', '{', '}']) { return Err(ParseError::UnexpectedToken(format!("Treeview node shapes are not supported: {}", label))); }
             let id = format!("tree-{}", nodes.len()); let parent = if level == 0 { None } else { Some(parents[level - 1].clone()) };
-            parents.truncate(level); parents.push(id.clone()); nodes.push(MindmapNode { id, label: label.to_string(), parent, shape: NodeShape::Rounded, icon: None }); }
+            parents.truncate(level); parents.push(id.clone()); nodes.push(MindmapNode { id, label: sanitize_label_text(label), parent, shape: NodeShape::Rounded, icon: None }); }
         if nodes.is_empty() { return Err(ParseError::EmptyInput); } Ok(DiagramAst::Treeview(MindmapAst { nodes }))
     }
     fn parse_requirement(&self) -> Result<DiagramAst, ParseError> {
@@ -920,7 +982,7 @@ impl<'a> Parser<'a> {
                 let (label, to) = rest.split_once(" -> ").ok_or_else(|| ParseError::UnexpectedToken(format!("Invalid requirement relationship: {}", statement)))?;
                 let (from, label, to) = (from.trim(), label.trim(), to.trim());
                 if from.is_empty() || label.is_empty() || to.is_empty() { return Err(ParseError::UnexpectedToken(format!("Invalid requirement relationship: {}", statement))); }
-                relationships.push(RequirementRelationship { from: from.to_string(), to: to.to_string(), label: label.to_string() });
+                relationships.push(RequirementRelationship { from: sanitize_label_text(from), to: sanitize_label_text(to), label: sanitize_label_text(label) });
                 continue;
             }
 
@@ -951,10 +1013,10 @@ impl<'a> Parser<'a> {
                     "verifymethod" => &mut verify_method,
                     _ => return Err(ParseError::UnexpectedToken(format!("Unsupported requirement property: {}", key.trim()))),
                 };
-                if target.replace(value.to_string()).is_some() { return Err(ParseError::UnexpectedToken(format!("Duplicate requirement property: {}", key.trim()))); }
+                if target.replace(sanitize_label_text(value)).is_some() { return Err(ParseError::UnexpectedToken(format!("Duplicate requirement property: {}", key.trim()))); }
             }
             if !closed { return Err(ParseError::UnexpectedToken(format!("Requirement block is missing a closing brace: {}", name))); }
-            requirements.push(Requirement { kind: kind.to_string(), name: name.to_string(), id, text, risk, verify_method });
+            requirements.push(Requirement { kind: kind.to_string(), name: sanitize_label_text(name), id, text, risk, verify_method });
         }
 
         if requirements.is_empty() { return Err(ParseError::EmptyInput); }
@@ -987,8 +1049,10 @@ impl<'a> Parser<'a> {
                 let id = attributes.get("id").cloned().unwrap_or_else(|| format!("commit-{}", commits.len() + 1));
                 if commits.iter().any(|commit: &GitCommit| commit.id == id) { return Err(ParseError::UnexpectedToken(format!("Duplicate GitGraph commit id: {}", id))); }
                 let parents = heads.get(&current_branch).and_then(Clone::clone).into_iter().collect();
+                let tag = attributes.get("tag").cloned();
+                let display_label = Some(gitgraph_display_label(&id, &current_branch, tag.as_deref()));
                 heads.insert(current_branch.clone(), Some(id.clone()));
-                commits.push(GitCommit { id, branch: current_branch.clone(), tag: attributes.get("tag").cloned(), commit_type: attributes.get("type").cloned(), parents });
+                commits.push(GitCommit { id, branch: current_branch.clone(), tag, commit_type: attributes.get("type").cloned(), parents, display_label });
                 continue;
             }
             if let Some(merge) = statement.strip_prefix("merge ") {
@@ -1002,8 +1066,10 @@ impl<'a> Parser<'a> {
                 if parents.is_empty() { return Err(ParseError::UnexpectedToken(format!("GitGraph merge requires a commit on either branch: {}", statement))); }
                 let id = attributes.get("id").cloned().unwrap_or_else(|| format!("merge-{}", commits.len() + 1));
                 if commits.iter().any(|commit: &GitCommit| commit.id == id) { return Err(ParseError::UnexpectedToken(format!("Duplicate GitGraph commit id: {}", id))); }
+                let tag = attributes.get("tag").cloned();
+                let display_label = Some(gitgraph_display_label(&id, &current_branch, tag.as_deref()));
                 heads.insert(current_branch.clone(), Some(id.clone()));
-                commits.push(GitCommit { id, branch: current_branch.clone(), tag: attributes.get("tag").cloned(), commit_type: attributes.get("type").cloned(), parents });
+                commits.push(GitCommit { id, branch: current_branch.clone(), tag, commit_type: attributes.get("type").cloned(), parents, display_label });
                 continue;
             }
             if let Some(attributes) = statement.strip_prefix("cherry-pick") {
@@ -1026,12 +1092,14 @@ impl<'a> Parser<'a> {
                     }
                 }
                 heads.insert(current_branch.clone(), Some(id.clone()));
+                let display_label = Some(gitgraph_display_label(&id, &current_branch, target.tag.as_deref()));
                 commits.push(GitCommit {
                     id,
                     branch: current_branch.clone(),
                     tag: target.tag.clone(),
                     commit_type: target.commit_type.clone(),
                     parents,
+                    display_label,
                 });
                 continue;
             }
@@ -1055,7 +1123,7 @@ impl<'a> Parser<'a> {
         for line in header {
             let statement = line.trim();
             if statement.is_empty() || statement.starts_with("%%") { continue; }
-            if let Some(value) = statement.strip_prefix("title ") { title = value.trim().to_string(); continue; }
+            if let Some(value) = statement.strip_prefix("title ") { title = sanitize_label_text(value); continue; }
 
             // Close the innermost boundary block.
             if statement == "}" {
@@ -1063,9 +1131,13 @@ impl<'a> Parser<'a> {
                 continue;
             }
 
+            // A boundary/deployment container may open its block on the same
+            // line as the call: `Enterprise_Boundary(b, "B") {`. Drop the
+            // trailing brace so the argument list parses; the matching `}` is
+            // consumed above.
+            let statement = statement.strip_suffix('{').map(str::trim_end).unwrap_or(statement);
             let (kind, arguments) = split_c4_call(statement)?;
             let values = parse_c4_arguments(arguments)?;
-
             // Boundary and deployment-node containers own a braced block.
             if matches!(kind, "System_Boundary" | "Container_Boundary" | "Enterprise_Boundary" | "Deployment_Node" | "Deployment_Node_L" | "Deployment_Node_R") {
                 if values.len() != 2 || values[0].is_empty() || values[1].is_empty() {
@@ -1079,7 +1151,7 @@ impl<'a> Parser<'a> {
                 let boundary = C4Boundary {
                     kind: kind.to_string(),
                     id: values[0].clone(),
-                    label: values[1].clone(),
+                    label: sanitize_label_text(&values[1]),
                     elements: Vec::new(),
                     boundaries: Vec::new(),
                 };
@@ -1100,7 +1172,7 @@ impl<'a> Parser<'a> {
                 relationships.push(C4Relationship {
                     from: values[0].clone(),
                     to: values[1].clone(),
-                    label: values[2].clone(),
+                    label: sanitize_label_text(&values[2]),
                     bidirectional: kind == "BiRel",
                 });
                 continue;
@@ -1116,7 +1188,7 @@ impl<'a> Parser<'a> {
                     parent_boundary.elements.push(values[0].clone());
                 }
             }
-            elements.push(C4Element { kind: kind.to_string(), id: values[0].clone(), label: values[1].clone(), description: values.get(2).cloned(), container });
+            elements.push(C4Element { kind: kind.to_string(), id: values[0].clone(), label: sanitize_label_text(&values[1]), description: values.get(2).map(|description| sanitize_label_text(description)), container });
         }
         if elements.is_empty() { return Err(ParseError::EmptyInput); }
         Ok(DiagramAst::C4(C4Ast { diagram_kind: diagram_kind.to_string(), title, elements, relationships, boundaries }))
@@ -1174,7 +1246,7 @@ impl<'a> Parser<'a> {
             messages.push(ZenUmlMessage {
                 from: from.to_string(),
                 to: to.to_string(),
-                label: label.to_string(),
+                label: sanitize_label_text(label),
                 kind: kind.to_string(),
             });
         }
@@ -1339,6 +1411,12 @@ impl<'a> Parser<'a> {
                 let index = number.parse::<usize>().ok().filter(|number| (1..=4).contains(number)).ok_or_else(|| ParseError::UnexpectedToken(format!("Invalid quadrant label: {}", statement)))? - 1;
                 if !quadrants[index].is_empty() || label.trim().is_empty() { return Err(ParseError::UnexpectedToken(format!("Duplicate or empty quadrant label: {}", statement))); }
                 quadrants[index] = label.trim().to_string();
+            } else if is_quadrant_point_link(statement) {
+                // `A --> B` draws a connector between two named points. The
+                // quadrant renderer has no link geometry yet, so accept and
+                // skip the link instead of failing the whole chart; both
+                // endpoints are still rendered from their `[x, y]` points.
+                continue;
             } else {
                 points.push(parse_quadrant_point(statement, &class_defs)?);
             }
@@ -1473,20 +1551,35 @@ impl<'a> Parser<'a> {
 
         let mut nodes: Vec<TreemapNode> = Vec::new();
         let mut parents: Vec<String> = Vec::new();
-        let mut base_indent = None;
+        // Hierarchy depth is inferred from relative indentation rather than a
+        // fixed four-space step: AI output commonly uses two spaces. A deeper
+        // indent opens one level, an equal indent stays on the level, and a
+        // shallower indent closes levels until it matches an open one.
+        let mut indent_stack: Vec<usize> = Vec::new();
         for line in lines {
             if line.contains('\t') {
                 return Err(ParseError::UnexpectedToken("Treemap indentation must use spaces.".to_string()));
             }
             let indent = line.len() - line.trim_start().len();
-            let base = *base_indent.get_or_insert(indent);
-            if indent < base || (indent - base) % 4 != 0 {
-                return Err(ParseError::UnexpectedToken(format!("Treemap entries must use four-space indentation: {}", line.trim())));
+            while let Some(&top) = indent_stack.last() {
+                if indent < top {
+                    indent_stack.pop();
+                } else {
+                    break;
+                }
             }
-            let depth = (indent - base) / 4;
-            if depth > parents.len() {
-                return Err(ParseError::UnexpectedToken(format!("Treemap entries cannot skip hierarchy levels: {}", line.trim())));
-            }
+            let depth = match indent_stack.last() {
+                Some(&top) if indent == top => indent_stack.len() - 1,
+                Some(&top) if indent > top => {
+                    indent_stack.push(indent);
+                    indent_stack.len() - 1
+                }
+                None => {
+                    indent_stack.push(indent);
+                    0
+                }
+                Some(_) => unreachable!("indent stack invariant"),
+            };
 
             let (label, value) = parse_treemap_entry(line.trim())?;
             if nodes.iter().any(|node| node.label == label) {
@@ -1954,13 +2047,13 @@ impl<'a> Parser<'a> {
 
     fn add_class_if_new(classes: &mut Vec<ClassDefinition>, id: &str) {
         if !classes.iter().any(|class| class.id == id) {
-            classes.push(ClassDefinition { id: id.to_string(), label: id.to_string(), members: Vec::new(), annotation: None, namespace: None });
+            classes.push(ClassDefinition { id: id.to_string(), label: sanitize_label_text(id), members: Vec::new(), annotation: None, namespace: None });
         }
     }
 
     fn upsert_class(classes: &mut Vec<ClassDefinition>, id: &str) {
         if !classes.iter().any(|class| class.id == id) {
-            classes.push(ClassDefinition { id: id.to_string(), label: id.to_string(), members: Vec::new(), annotation: None, namespace: None });
+            classes.push(ClassDefinition { id: id.to_string(), label: sanitize_label_text(id), members: Vec::new(), annotation: None, namespace: None });
         }
     }
 
@@ -1973,7 +2066,7 @@ impl<'a> Parser<'a> {
         }
         classes.push(ClassDefinition {
             id: id.to_string(),
-            label: id.to_string(),
+            label: sanitize_label_text(id),
             members: Vec::new(),
             annotation: None,
             namespace: Some(namespace.to_string()),
@@ -3125,7 +3218,7 @@ fn parse_state_note_prefix(statement: &str) -> Result<Option<StateNoteDraft>, Pa
         &statement[13..]
     };
     let (target, inline_text) = match rest.split_once(':') {
-        Some((target, text)) => (target.trim(), Some(text.trim().to_string())),
+        Some((target, text)) => (target.trim(), Some(sanitize_label_text(text))),
         None => (rest.trim(), None),
     };
     if target.is_empty() {
@@ -3183,7 +3276,7 @@ fn parse_state_transition(statement: &str) -> Result<(String, String, String), P
     if from.is_empty() || to.is_empty() {
         return Err(ParseError::UnexpectedToken(format!("Invalid state statement: {}", statement)));
     }
-    Ok((from.to_string(), to.to_string(), label.trim().to_string()))
+    Ok((from.to_string(), to.to_string(), sanitize_label_text(label.trim())))
 }
 
 /// Map a raw state endpoint to its node id; `[*]` becomes a dedicated
@@ -3219,7 +3312,7 @@ fn parse_state_alias(rest: &str) -> Result<(String, Option<String>), ParseError>
         if id.is_empty() {
             return Err(ParseError::UnexpectedToken(format!("Invalid state declaration: {}", rest)));
         }
-        return Ok((id.to_string(), Some(label.trim().to_string())));
+        return Ok((id.to_string(), Some(sanitize_label_text(label.trim()))));
     }
     if rest.is_empty() || rest.contains(char::is_whitespace) {
         return Err(ParseError::UnexpectedToken(format!("Invalid state declaration: {}", rest)));
@@ -3387,6 +3480,16 @@ fn sanitize_label_text(text: &str) -> String {
     let plain = strip_markdown_string_wrapper(strip_markup_tags(&convert_br_line_breaks(text)).trim());
     let decoded = decode_label_entities(&decode_standard_entities(&plain));
     decoded.trim().to_string()
+}
+
+/// Build a gitgraph node's display label from its commit id, branch, and tag,
+/// normalizing every component through `sanitize_label_text`. The commit `id`
+/// used for identity lookups is kept raw separately (see
+/// `GitCommit::display_label`), so sanitizing the display can never break
+/// duplicate detection, cherry-pick, or parent edges.
+fn gitgraph_display_label(id: &str, branch: &str, tag: Option<&str>) -> String {
+    let tag_line = tag.map(|tag| format!("\n{}", sanitize_label_text(tag))).unwrap_or_default();
+    format!("{}\n{}{}", sanitize_label_text(id), sanitize_label_text(branch), tag_line)
 }
 
 /// Decode the standard HTML entities labels use (`&lt;`, `&gt;`, `&amp;`,
@@ -3721,7 +3824,7 @@ fn parse_class_relation(statement: &str) -> Result<Option<ClassRelation>, ParseE
     ];
 
     let (body, label) = match statement.split_once(" : ") {
-        Some((body, label)) => (body.trim(), label.trim().to_string()),
+        Some((body, label)) => (body.trim(), sanitize_label_text(label.trim())),
         None => (statement.trim(), String::new()),
     };
 
@@ -3844,7 +3947,7 @@ fn parse_mindmap_node_text(text: &str) -> Result<(String, NodeShape), ParseError
                 if label.is_empty() {
                     return Err(ParseError::UnexpectedToken(format!("Mindmap node labels cannot be empty: {}", text)));
                 }
-                return Ok((label.to_string(), shape));
+                return Ok((sanitize_label_text(label), shape));
             }
         }
     }
@@ -3853,7 +3956,7 @@ fn parse_mindmap_node_text(text: &str) -> Result<(String, NodeShape), ParseError
             "Unbalanced or unsupported mindmap shape delimiters: {}", text
         )));
     }
-    Ok((text.to_string(), NodeShape::Rounded))
+    Ok((sanitize_label_text(text), NodeShape::Rounded))
 }
 
 fn parse_gitgraph_attributes(input: &str) -> Result<std::collections::HashMap<String, String>, ParseError> {
@@ -3910,7 +4013,7 @@ fn parse_c4_arguments(input: &str) -> Result<Vec<String>, ParseError> {
 /// The connector is `--` (identifying) or `..` (non-identifying).
 fn parse_er_relationship(statement: &str) -> Option<ErRelationship> {
     let (body, label) = match statement.split_once(':') {
-        Some((body, label)) => (body.trim(), label.trim().to_string()),
+        Some((body, label)) => (body.trim(), sanitize_label_text(label.trim())),
         None => (statement.trim(), String::new()),
     };
 
@@ -3953,8 +4056,8 @@ fn parse_er_relationship(statement: &str) -> Option<ErRelationship> {
         _ => return None,
     };
     Some(ErRelationship {
-        from: from.to_string(),
-        to: to.to_string(),
+        from: sanitize_label_text(from),
+        to: sanitize_label_text(to),
         label,
         from_cardinality,
         to_cardinality,
@@ -3993,8 +4096,8 @@ fn parse_er_attributes(body: &str) -> Result<Vec<ErAttribute>, ParseError> {
                 keys.push(part.to_string());
             }
         }
-        let comment = comment.filter(|comment| !comment.is_empty());
-        attributes.push(ErAttribute { kind: kind.to_string(), name: name.to_string(), keys, comment });
+        let comment = comment.filter(|comment| !comment.is_empty()).map(|comment| sanitize_label_text(&comment));
+        attributes.push(ErAttribute { kind: sanitize_label_text(kind), name: sanitize_label_text(name), keys, comment });
     }
     Ok(attributes)
 }
@@ -4518,7 +4621,10 @@ fn parse_quadrant_style(text: &str, statement: &str) -> Result<QuadrantPointStyl
                     .ok_or_else(|| ParseError::UnexpectedToken(format!("Quadrant radius must be a positive number: {}", statement)))?;
                 style.radius = Some(radius);
             }
-            "color" => {
+            // Mermaid's quadrant `classDef` uses `fill`; treat it as an alias
+            // for the point fill color so the advertised quadrant.classes
+            // contract holds.
+            "color" | "fill" => {
                 style.fill_color = Some(quadrant_safe_color(value).ok_or_else(|| ParseError::UnexpectedToken(format!("Quadrant colors must be #rgb or #rrggbb hexadecimal values: {}", statement)))?);
             }
             "stroke-color" | "strokecolor" => {
@@ -4538,6 +4644,15 @@ fn parse_quadrant_style(text: &str, statement: &str) -> Result<QuadrantPointStyl
     Ok(style)
 }
 
+/// `true` for a quadrant point-to-point connector such as `A --> B` or
+/// `A --- B`, which links two already-placed points instead of declaring one.
+fn is_quadrant_point_link(statement: &str) -> bool {
+    ["-->", "---", "--x", "--o"]
+        .iter()
+        .filter_map(|arrow| statement.split_once(arrow))
+        .any(|(from, to)| !from.trim().is_empty() && !to.trim().is_empty())
+}
+
 fn parse_quadrant_point(statement: &str, class_defs: &std::collections::HashMap<String, QuadrantPointStyle>) -> Result<QuadrantPoint, ParseError> {
     let (label, value) = statement.split_once(':').ok_or_else(|| ParseError::UnexpectedToken(format!("Invalid quadrant point: {}", statement)))?;
     let label = label.trim();
@@ -4554,12 +4669,26 @@ fn parse_quadrant_point(statement: &str, class_defs: &std::collections::HashMap<
         class_name = Some(name.to_string());
         value = remainder.trim();
     }
-    let (coordinates_text, style_text) = match value.split_once(']') {
+    let (coordinates_text, after_text) = match value.split_once(']') {
         Some((inside, after)) => (
             format!("{}]", inside),
-            after.trim().trim_start_matches(',').trim(),
+            after.trim(),
         ),
         None => (value.to_string(), ""),
+    };
+    // Mermaid also allows the class reference *after* the coordinates, as in
+    // `A: [0.3, 0.6]:::cls` (optionally followed by `, key: value` styles).
+    let mut trailing_class: Option<String> = None;
+    let style_text = if let Some(rest) = after_text.strip_prefix(":::") {
+        let (name, remainder) = rest.split_once(',').unwrap_or((rest, ""));
+        let name = name.trim();
+        if !class_style_name(name) {
+            return Err(ParseError::UnexpectedToken(format!("Invalid quadrant point class reference: {}", statement)));
+        }
+        trailing_class = Some(name.to_string());
+        remainder.trim()
+    } else {
+        after_text.trim_start_matches(',').trim()
     };
     let values = coordinates_text.trim().strip_prefix('[').and_then(|value| value.strip_suffix(']')).ok_or_else(|| ParseError::UnexpectedToken(format!("Quadrant points require [x, y] coordinates: {}", statement)))?;
     let coordinates = values.split(',').map(str::trim).collect::<Vec<_>>();
@@ -4567,7 +4696,7 @@ fn parse_quadrant_point(statement: &str, class_defs: &std::collections::HashMap<
     let x = coordinates[0].parse::<f64>().ok().filter(|value| value.is_finite() && (0.0..=1.0).contains(value)).ok_or_else(|| ParseError::UnexpectedToken(format!("Quadrant point x must be between 0 and 1: {}", statement)))?;
     let y = coordinates[1].parse::<f64>().ok().filter(|value| value.is_finite() && (0.0..=1.0).contains(value)).ok_or_else(|| ParseError::UnexpectedToken(format!("Quadrant point y must be between 0 and 1: {}", statement)))?;
     // Precedence: direct styles first, then class styles, then theme defaults.
-    let mut style = match class_name.map(|name| class_defs.get(&name).cloned().ok_or(name)) {
+    let mut style = match class_name.or(trailing_class).map(|name| class_defs.get(&name).cloned().ok_or(name)) {
         Some(Ok(style)) => style,
         Some(Err(name)) => return Err(ParseError::UnexpectedToken(format!("Quadrant point references an undefined class: {}", name))),
         None => QuadrantPointStyle::default(),
@@ -4599,7 +4728,7 @@ fn parse_architecture_service(value: &str) -> Result<ArchitectureService, ParseE
     if !architecture_identifier(id) || !architecture_identifier(icon) || label.is_empty() {
         return Err(ParseError::UnexpectedToken(format!("Architecture services require id(icon)[label] syntax: {}", value)));
     }
-    Ok(ArchitectureService { id: id.to_string(), icon: icon.to_string(), label: label.to_string(), group: None })
+    Ok(ArchitectureService { id: id.to_string(), icon: icon.to_string(), label: sanitize_label_text(label), group: None })
 }
 
 fn parse_architecture_relationship(statement: &str) -> Result<ArchitectureRelationship, ParseError> {
@@ -4798,6 +4927,15 @@ fn block_identifier(value: &str) -> bool {
         && characters.all(|character| character.is_ascii_alphanumeric() || character == '_')
 }
 
+/// Kanban ids are more permissive than block ids: AI-authored boards use
+/// non-ASCII (e.g. CJK) identifiers. Any alphanumeric (Unicode) run is accepted,
+/// with `_`/`-` as separators.
+fn kanban_identifier(value: &str) -> bool {
+    let mut characters = value.chars();
+    matches!(characters.next(), Some(character) if character.is_alphanumeric() || character == '_')
+        && characters.all(|character| character.is_alphanumeric() || character == '_' || character == '-')
+}
+
 /// Split a trailing `@{ key: value, ... }` metadata block, returning the
 /// ticket id when one is declared. Unknown keys are rejected.
 fn split_kanban_metadata(statement: &str) -> Result<(&str, Option<String>), ParseError> {
@@ -4843,7 +4981,7 @@ fn parse_kanban_item(statement: &str, prefix: &str, index: usize) -> Result<(Str
     }
     if let Some((id, label)) = statement.split_once('[') {
         let label = label.strip_suffix(']').ok_or_else(|| ParseError::UnexpectedToken(format!("Kanban labels require id[Label] syntax: {}", statement)))?;
-        if !block_identifier(id) || label.trim().is_empty() {
+        if !kanban_identifier(id) || label.trim().is_empty() {
             return Err(ParseError::UnexpectedToken(format!("Kanban ids must be identifiers and labels non-empty: {}", statement)));
         }
         return Ok((id.to_string(), label.trim().to_string()));
@@ -5602,28 +5740,48 @@ fn register_box_membership(boxes: &mut [SequenceBox], participants: &[SequencePa
 }
 
 fn parse_sequence_message(statement: &str) -> Result<Option<SequenceMessage>, ParseError> {
-    // Bidirectional links: `A<->B: label` / `A<-->B: label`
-    let mut bidirectional = false;
-    let (from, rest, line_style, end_marker) = if let Some((from, rest)) = statement.split_once("<->") {
-        bidirectional = true;
-        let rest = rest.strip_prefix('>').unwrap_or(rest);
-        (from, rest, SequenceMessageLineStyle::Solid, SequenceMessageEnd::Arrow)
-    } else {
-        let arrows = [
-            ("-->>", SequenceMessageLineStyle::Dashed, SequenceMessageEnd::Arrow),
-            ("->>", SequenceMessageLineStyle::Solid, SequenceMessageEnd::Arrow),
-            ("--)", SequenceMessageLineStyle::Dashed, SequenceMessageEnd::Open),
-            ("-)", SequenceMessageLineStyle::Solid, SequenceMessageEnd::Open),
-            ("-->", SequenceMessageLineStyle::Dashed, SequenceMessageEnd::Arrow),
-            ("--x", SequenceMessageLineStyle::Dashed, SequenceMessageEnd::Cross),
-        ];
-        let Some(found) = arrows.iter().find_map(|(arrow, style, end_marker)| {
-            statement.split_once(arrow).map(|(from, rest)| (from, rest, *style, *end_marker))
-        }) else {
-            return Ok(None);
-        };
-        found
+    use SequenceMessageEnd::{Arrow, Cross, None as NoHead, Open};
+    use SequenceMessageLineStyle::{Dashed, Solid};
+
+    // Every Mermaid sequence arrow, longest-first so a two-character arrow
+    // never shadows a longer one that starts the same way (`->>` before `->`).
+    // Mermaid's full set is `->` `-->` `->>` `-->>` `<<->>` `<<-->>` `-x` `--x`
+    // `-)` `--)`: the `>`-terminated forms carry an arrowhead, the plain forms
+    // are bare lines, `x` is a cross, and `)` is the async open head.
+    const ARROWS: &[(&str, SequenceMessageLineStyle, SequenceMessageEnd)] = &[
+        ("<<-->>", Dashed, Arrow),
+        ("<<->>", Solid, Arrow),
+        ("<-->", Dashed, NoHead),
+        ("<->", Solid, NoHead),
+        ("-->>", Dashed, Arrow),
+        ("->>", Solid, Arrow),
+        ("--)", Dashed, Open),
+        ("--x", Dashed, Cross),
+        ("-->", Dashed, NoHead),
+        ("-)", Solid, Open),
+        ("-x", Solid, Cross),
+        ("->", Solid, NoHead),
+    ];
+
+    // Find the earliest arrow in the statement; among arrows starting at the
+    // same offset the longest wins (so `A->>B` is never read as `A->` + `>B`).
+    let chosen = ARROWS
+        .iter()
+        .filter_map(|(arrow, line_style, end_marker)| {
+            statement
+                .find(arrow)
+                .map(|offset| (offset, std::cmp::Reverse(arrow.len()), *line_style, *end_marker))
+        })
+        .min_by_key(|(offset, len, _, _)| (*offset, *len));
+    let Some((offset, len, line_style, end_marker)) = chosen else {
+        return Ok(None);
     };
+    let len = len.0;
+    // Every bidirectional form starts with `<` (`<<->>`, `<->`, …); with
+    // earliest-offset-wins a canonical `<<->>` is chosen over any inner `<->`.
+    let bidirectional = statement[offset..].starts_with('<');
+    let (from, rest) = statement.split_at(offset);
+    let rest = &rest[len..];
     let (target, label) = rest.split_once(':').ok_or_else(|| {
         ParseError::UnexpectedToken(format!(
             "Sequence messages require a label: {}",
