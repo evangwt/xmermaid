@@ -8,6 +8,7 @@ import { analyzeSupport } from './support';
 import type { UnsupportedFeature } from './support';
 import type { XMermaidDiagnostic, XMermaidDiagnosticCode } from './types/diagnostics';
 import { detectSecurityDiagnostics, resolveSecurityPolicy } from './security';
+import { mapDiagnosticsToOriginal, normalizeSource } from './normalize';
 
 export class XMermaid {
   private container: HTMLElement;
@@ -27,10 +28,21 @@ export class XMermaid {
   }
 
   async renderToSVGElement(input: string, options: RenderOptions = {}): Promise<RenderResult> {
+    // Normalize once and hand the *same* text to the support gate, the security
+    // gate, and the parser: a glyph quirk (BOM, smart-dash arrow) must not be
+    // rejected by a TS gate before the Rust parser can see the canonical form.
+    const normalized = normalizeSource(input);
+    const source = normalized.text;
     const securityPolicy = resolveSecurityPolicy(options);
-    const support = analyzeSupport(input);
-    const supportDiagnostics = support.unsupportedFeatures.map(unsupportedFeatureToDiagnostic);
-    const securityDiagnostics = detectSecurityDiagnostics(input, securityPolicy);
+    const support = analyzeSupport(source);
+    const supportDiagnostics = mapDiagnosticsToOriginal(
+      support.unsupportedFeatures.map(unsupportedFeatureToDiagnostic),
+      normalized.offsetMap,
+    );
+    const securityDiagnostics = mapDiagnosticsToOriginal(
+      detectSecurityDiagnostics(source, securityPolicy),
+      normalized.offsetMap,
+    );
     const diagnostics = [...supportDiagnostics, ...securityDiagnostics];
     const unsupportedDiagramDiagnostic = diagnostics.find(diagnostic => diagnostic.code === 'unsupported_diagram_type');
     if (unsupportedDiagramDiagnostic) {
@@ -62,10 +74,10 @@ export class XMermaid {
       );
     }
 
-    const layout = await this.renderLayout(input, options.layoutConfig ?? this.layoutConfig, options.wasm);
+    const layout = await this.renderLayout(source, options.layoutConfig ?? this.layoutConfig, options.wasm);
     // The source-level %%{init}%% directive wins over an explicit theme,
     // matching Mermaid's directive-over-config precedence.
-    const themeOverride = resolveSourceTheme(input) ?? options.theme;
+    const themeOverride = resolveSourceTheme(source) ?? options.theme;
     const renderer = themeOverride ? new SVGRenderer(themeOverride) : this.renderer;
     const svg = renderer.render(layout);
     if (securityPolicy.sanitizeSvg) {

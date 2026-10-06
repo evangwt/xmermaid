@@ -19,6 +19,8 @@ export { SVGRenderer } from './renderer/svg';
 export { computeEdgePath, computeBezierPath, computeStepPath, computeStraightPath, truncateAtBounds, computeArrowPlacement, computeArrowPoints } from './renderer/edge';
 export { DEFAULT_THEME, DARK_THEME, LIGHT_THEME, MINIMAL_THEME, createTheme } from './types/theme';
 export { initWasm, isWasmReady } from './wasm';
+export { normalizeSource, mapDiagnosticsToOriginal } from './normalize';
+export type { NormalizedSource, SourceOffsetMap } from './normalize';
 export { XMermaidError } from './types/error';
 export { DIAGRAM_CATALOG, MERMAID_COMPATIBILITY_VERSION, detectDiagramType } from './diagram-catalog';
 export { getSupportMatrix, getDiagramSupport, analyzeSupport, detectUnsupportedFeatures } from './support';
