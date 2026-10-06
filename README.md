@@ -167,8 +167,8 @@ Every family accepts `accTitle` / `accDescr` accessibility directives and `---` 
 
 **Sequence · class · state · ER:**
 
-- `sequenceDiagram` — participants, message endings, create/destroy, boxes, autonumber, activation, notes, colored frames, nested control blocks; no multi-line notes yet
-- `classDiagram` — full relation grammar, member blocks, namespaces, `classDef` / `cssClass` styles; `click` downgraded to a warning
+- `sequenceDiagram` — every Mermaid arrow (`->>` `-->>` `->` `-->` `-x` `--x` `-)` `--)` and bidirectional `<<->>` / `<->`), participants, create/destroy, boxes, autonumber, activation, notes, colored frames, nested control blocks; no multi-line notes yet
+- `classDiagram` — full relation grammar, member blocks, namespaces, `direction`, `classDef` / `cssClass` styles; `click` downgraded to a warning, `note` accepted and skipped
 - `stateDiagram` — choice/fork/join pseudostates, notes, composite states (flattened, warned)
 - `erDiagram` — full crow's-foot cardinality grammar, attribute blocks with PK/FK/UK keys
 

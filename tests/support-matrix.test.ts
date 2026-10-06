@@ -1,12 +1,22 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
+import initWasmPackage, * as wasmPkg from '../pkg/xmermaid_wasm.js';
 import {
   analyzeSupport,
   detectUnsupportedFeatures,
   getDiagramSupport,
   getSupportMatrix,
 } from '../src/index';
+import { XMermaid } from '../src/xmermaid';
+import { LIGHT_THEME } from '../src/types/theme';
+import { __setWasmModuleLoaderForTests } from '../src/wasm';
+import { XMermaidError } from '../src/types/error';
+
+beforeAll(async () => {
+  await initWasmPackage({ module_or_path: readFileSync('pkg/xmermaid_wasm_bg.wasm') });
+  __setWasmModuleLoaderForTests(async () => wasmPkg as never);
+});
 
 interface FlowchartClassContractCase {
   name: string;
@@ -666,11 +676,11 @@ describe('support matrix production contract', () => {
       '  D----E',
       '  F===>G',
       '  H:::hot-->I',
-      '  linkStyle 0 stroke:#ff3',
+      '  linkStyle 0 stroke:url(#evil)',
     ].join('\n'));
 
     // Expanded shapes are validated by the parser itself; only the unsafe
-    // linkStyle color is flagged by the support analyzer.
+    // linkStyle value is flagged by the support analyzer.
     expect(features.map(feature => feature.id)).toEqual([
       'flowchart.style',
     ]);
@@ -678,6 +688,40 @@ describe('support matrix production contract', () => {
       severity: 'error',
       range: expect.objectContaining({ startLine: 7 }),
     })));
+  });
+
+  it('accepts every safe linkStyle index and stroke-width / dasharray form', () => {
+    // Regression: the linkStyle index regex was built from a template literal
+    // where a bare `\d` collapsed to the letter `d`, so every numeric index
+    // was rejected as an unsafe `flowchart.style` error and blocked the whole
+    // diagram. Safe values must render clean; the parser already applies them.
+    const safeSources = [
+      '  linkStyle 0 stroke:#ff0000',
+      '  linkStyle 0 stroke:#ff3',
+      '  linkStyle 0 stroke-width:2',
+      '  linkStyle 0 stroke-width:2px',
+      '  linkStyle 0 stroke-dasharray:5 5',
+      '  linkStyle default stroke:#00f',
+      '  linkStyle 0,1 stroke:#000',
+    ];
+    for (const statement of safeSources) {
+      const features = detectUnsupportedFeatures(['flowchart TD', '  A --> B', statement].join('\n'));
+      expect(features, statement).toEqual([]);
+    }
+  });
+
+  it('still rejects unsafe stroke-width and dasharray values', () => {
+    const unsafeSources = [
+      '  style A stroke-width:abc',
+      '  style A stroke-width:2p',
+      '  classDef c stroke-dasharray:calc(1)',
+      '  linkStyle 0 stroke-width:auto',
+    ];
+    for (const statement of unsafeSources) {
+      const features = detectUnsupportedFeatures(['flowchart TD', '  A --> B', statement].join('\n'));
+      expect(features.length, statement).toBeGreaterThan(0);
+      expect(features[0]!.severity, statement).toBe('error');
+    }
   });
 
   it('renders quoted labels and entity codes while allowing FontAwesome labels', () => {
@@ -748,5 +792,257 @@ describe('support matrix production contract', () => {
     expect(readme).toMatch(/partial mermaid support/i);
     expect(readme).toMatch(/sequenceDiagram/i);
     expect(readme).toMatch(/unsupported/i);
+  });
+});
+
+/**
+ * Render contract: every capability the support matrix advertises as
+ * `supported` must actually render through the real WASM pipeline. A
+ * representative source per capability is fed to `XMermaid.renderToSVGElement`;
+ * a throw or a blocking diagnostic is a "claims support but throws"
+ * regression, which is exactly what the matrix/behaviour audit is meant to
+ * eliminate (see docs/ai-syntax-support-plan.md §4 / T04).
+ */
+const SUPPORT_RENDER_SAMPLES: Record<string, string> = {
+  // flowchart
+  'flowchart::flowchart.basic-graph': 'flowchart TD\n  A --> B',
+  'flowchart::flowchart.basic-edges': 'flowchart TD\n  A --> B\n  B -.-> C\n  C ==> D',
+  'flowchart::flowchart.basic-labels': 'flowchart TD\n  A[Start] -->|go| B[End]',
+  'flowchart::flowchart.basic-shapes': 'flowchart TD\n  A[rect]\n  B(rounded)\n  C([stadium])\n  D[(db)]\n  E((circle))\n  F{{hex}}',
+  'flowchart::flowchart.classDef': 'flowchart TD\n  A --> B\n  classDef hot fill:#ff0000,stroke:#990000,color:#ffffff\n  class A hot',
+  'flowchart::flowchart.class': 'flowchart TD\n  A --> B\n  classDef hot fill:#f00\n  class A hot',
+  'flowchart::flowchart.style': 'flowchart TD\n  A --> B\n  style A fill:#f9f,stroke:#333',
+  'flowchart::flowchart.fontAwesomeLabel': 'flowchart TD\n  A[fa:fa-rocket Launch] --> B',
+  'flowchart::flowchart.htmlLabel': 'flowchart TD\n  A["<b>bold</b>"] --> B',
+  'flowchart::flowchart.markdownLabel': 'flowchart TD\n  A[`code`] --> B',
+  'flowchart::flowchart.edgeId': 'flowchart TD\n  A e1@--> B',
+  'flowchart::flowchart.quoted-edge-labels': 'flowchart TD\n  A -- "text" --> B',
+  'flowchart::flowchart.edge-endings': 'flowchart TD\n  A o--o B\n  C x--x D',
+  'flowchart::flowchart.inline-edge-labels': 'flowchart TD\n  A -- text --> B',
+  'flowchart::flowchart.extended-length': 'flowchart TD\n  A ----> B',
+  'flowchart::flowchart.chained-ampersand': 'flowchart TD\n  A & B --> C & D',
+  'flowchart::flowchart.subgraph-containers': 'flowchart TD\n  subgraph one [One]\n    A[Start]\n  end\n  A --> one',
+  'flowchart::flowchart.hyphenatedNodeId': 'flowchart TD\n  my-node --> B',
+  'flowchart::flowchart.entityCodeLabel': 'flowchart TD\n  A[&#9829;] --> B',
+  'flowchart::flowchart.inlineClass': 'flowchart TD\n  A:::cls --> B\n  classDef cls fill:#f00',
+  'flowchart::flowchart.linkStyle': 'flowchart TD\n  A-->B\n  linkStyle 0 stroke:#f00',
+  'flowchart::flowchart.expandedShape': 'flowchart TD\n  A@{ shape: stadium, label: "Start" }',
+  'flowchart::flowchart.namedColors': 'flowchart TD\n  A --> B\n  style A fill:red,stroke:none',
+
+  // sequence
+  'sequence::sequence.participants': 'sequenceDiagram\n  participant A\n  actor B\n  A->>B: x',
+  'sequence::sequence.message': 'sequenceDiagram\n  A->>B: hello',
+  'sequence::sequence.activation': 'sequenceDiagram\n  A->>+B: req\n  B-->>-A: resp',
+  'sequence::sequence.note': 'sequenceDiagram\n  A->>B: x\n  Note right of B: hi',
+  'sequence::sequence.control': 'sequenceDiagram\n  loop every minute\n    A->>B: ping\n  end',
+  'sequence::sequence.autonumber': 'sequenceDiagram\n  autonumber\n  A->>B: x',
+  'sequence::sequence.rect': 'sequenceDiagram\n  rect rgb(235, 244, 255)\n    A->>B: x\n  end',
+  'sequence::sequence.cross-ending': 'sequenceDiagram\n  A-xB: x',
+  'sequence::sequence.async-ending': 'sequenceDiagram\n  A-)B: x',
+  'sequence::sequence.lifecycle': 'sequenceDiagram\n  create participant W\n  W->>B: hello\n  destroy W',
+  'sequence::sequence.box': 'sequenceDiagram\n  box Purple Team\n    participant A\n    participant B\n  end\n  A->>B: x',
+  'sequence::sequence.bare-line': 'sequenceDiagram\n  A->B: x',
+  'sequence::sequence.links': 'sequenceDiagram\n  A<<->>B: x',
+
+  // class
+  'class::class.definition': 'classDiagram\n  class Animal\n  class Duck',
+  'class::class.members': 'classDiagram\n  class A {\n    +method()\n    +String name$\n  }',
+  'class::class.relations': 'classDiagram\n  A <|-- B : extends',
+  'class::class.namespaces': 'classDiagram\n  namespace ns {\n    class A\n  }\n  A --> B',
+  'class::class.style': 'classDiagram\n  A --> B\n  style A fill:#f00,stroke:#333',
+  'class::class.direction': 'classDiagram\n  direction TB\n  A --> B',
+
+  // state
+  'state::state.transition': 'stateDiagram-v2\n  Idle --> Running : start',
+  'state::state.pseudostates': 'stateDiagram-v2\n  [*] --> A\n  A --> [*]',
+  'state::state.composites': 'stateDiagram-v2\n  state Composite {\n    [*] --> X\n    X --> [*]\n  }',
+  'state::state.pseudostate-glyphs': 'stateDiagram-v2\n  state c <<choice>>\n  A --> c\n  c --> B',
+  'state::state.notes': 'stateDiagram-v2\n  A --> B\n  note right of A : hi',
+
+  // er
+  'er::er.relationship': 'erDiagram\n  A ||--o{ B : has',
+  'er::er.attributes': 'erDiagram\n  A {\n    string id PK\n  }\n  A ||--|| B : r',
+
+  // user-journey
+  'user-journey::user-journey.scored-task': 'journey\n  section S\n    Task: 5: Actor',
+  'user-journey::acc.accessibility': 'journey\n  accTitle: J\n  accDescr: D\n  section S\n    Task: 5: Actor',
+  'user-journey::theme.init-directive': '%%{init: {\'theme\':\'dark\'}}%%\njourney\n  section S\n    Task: 5: Actor',
+
+  // timeline
+  'timeline::timeline.period-event': 'timeline\n  title T\n  2020 : Event',
+  'timeline::timeline.sections': 'timeline\n  section S\n    2020 : A',
+  'timeline::acc.accessibility': 'timeline\n  accTitle: T\n  accDescr: D\n  2020 : Event',
+
+  // gantt
+  'gantt::gantt.dated-task': 'gantt\n  section S\n    Task :done, 2024-01-01, 30d',
+  'gantt::gantt.states': 'gantt\n  section S\n    A :done, 2024-01-01, 3d\n    B :active, 2024-01-05, 3d\n    C :crit, 2024-01-10, 3d',
+  'gantt::gantt.milestones': 'gantt\n  section S\n    Release :milestone, 2024-02-01, 0d',
+  'gantt::gantt.dependencies': 'gantt\n  section S\n    A :2024-01-01, 3d\n    B :after A, 2d',
+  'gantt::gantt.date-format': 'gantt\n  dateFormat YYYY-MM-DD\n  section S\n    Task :2024-01-01, 3d',
+  'gantt::gantt.unix-date-format': 'gantt\n  dateFormat X\n  section S\n    Task :1700000000, 3d',
+  'gantt::gantt.multi-dependency': 'gantt\n  section S\n    A :2024-01-01, 3d\n    B :2024-01-01, 3d\n    C :after A B, 2d',
+  'gantt::gantt.excludes': 'gantt\n  excludes weekends\n  section S\n    Task :2024-01-01, 10d',
+  'gantt::acc.accessibility': 'gantt\n  accTitle: T\n  accDescr: D\n  section S\n    Task :2024-01-01, 3d',
+  'gantt::theme.init-directive': '%%{init: {\'theme\':\'dark\'}}%%\ngantt\n  section S\n    Task :2024-01-01, 3d',
+
+  // pie
+  'pie::pie.value': 'pie\n  "a" : 1\n  "b" : 2',
+  'pie::pie.title': 'pie title Chart\n  "a" : 1',
+  'pie::pie.showData': 'pie showData title C\n  "a" : 1',
+  'pie::acc.accessibility': 'pie\n  accTitle: T\n  accDescr: D\n  "a" : 1',
+  'pie::theme.init-directive': '%%{init: {\'theme\':\'dark\'}}%%\npie\n  "a" : 1',
+
+  // mindmap
+  'mindmap::mindmap.indent': 'mindmap\n  root((M))\n    A\n      A1',
+  'mindmap::mindmap.shapes': 'mindmap\n  root((M))\n    A[Square]\n    B(Rounded)\n    C((Circle))',
+  'mindmap::mindmap.icons': 'mindmap\n  root((M))\n    ::icon(fa fa-book) Docs',
+
+  // requirement
+  'requirement::requirement.block': 'requirementDiagram\n  requirement R {\n    id: 1\n    text: hi\n  }',
+  'requirement::requirement.relationship': 'requirementDiagram\n  requirement A {\n    id: 1\n    text: a\n  }\n  requirement B {\n    id: 2\n    text: b\n  }\n  A - contains -> B',
+
+  // gitgraph
+  'gitgraph::gitgraph.commit': 'gitGraph\n  commit id: "v1" tag: "v1.0"',
+  'gitgraph::gitgraph.branch-merge': 'gitGraph\n  commit id: "v1"\n  branch dev\n  checkout dev\n  commit id: "w"\n  checkout main\n  merge dev',
+  'gitgraph::gitgraph.cherry-pick': 'gitGraph\n  commit id: "a"\n  branch d\n  checkout d\n  commit id: "b"\n  checkout main\n  cherry-pick id: "b"',
+
+  // c4
+  'c4::c4.element': 'C4Context\n  Person(u, "User")\n  System(s, "Sys")',
+  'c4::c4.relationship': 'C4Context\n  Person(u, "User")\n  System(s, "Sys")\n  Rel(u, s, "uses")',
+  'c4::c4.relationship-directions': 'C4Context\n  Person(u, "User")\n  System(s, "Sys")\n  Rel_Right(u, s, "uses")',
+  'c4::c4.boundaries': 'C4Context\n  Enterprise_Boundary(b, "B") {\n    System(s, "S")\n  }',
+
+  // zenuml
+  'zenuml::zenuml.call': 'zenuml\n  A->B: hello',
+  'zenuml::zenuml.return': 'zenuml\n  A->B: x\n  B-->A: y',
+  'zenuml::zenuml.declarations': 'zenuml\n  participant A\n  A->B: x',
+
+  // sankey
+  'sankey::sankey.csv': 'sankey\nA,B,10\nB,C,5',
+  'sankey::sankey.dag': 'sankey\nA,B,10\nB,C,5',
+  'sankey::acc.accessibility': 'sankey\n  accTitle: T\n  accDescr: D\nA,B,10\nB,C,5',
+
+  // quadrant
+  'quadrant::quadrant.axes': 'quadrantChart\n  title T\n  x-axis a --> b\n  y-axis c --> d\n  quadrant-1 Q1\n  A: [0.3, 0.6]',
+  'quadrant::quadrant.points': 'quadrantChart\n  A: [0.3, 0.6]',
+  'quadrant::quadrant.point-styling': 'quadrantChart\n  A: [0.3, 0.6] radius: 10, color: #f00',
+  'quadrant::quadrant.point-links': 'quadrantChart\n  A: [0.3, 0.6]\n  B: [0.7, 0.2]\n  A --> B',
+  'quadrant::quadrant.classes': 'quadrantChart\n  classDef x fill:#f00\n  A: [0.3, 0.6]:::x',
+  'quadrant::acc.accessibility': 'quadrantChart\n  accTitle: T\n  accDescr: D\n  A: [0.3, 0.6]',
+
+  // xychart
+  'xychart::xychart.categorical-axis': 'xychart-beta\n  x-axis [a, b]\n  y-axis 0 --> 10\n  bar [1, 2]',
+  'xychart::xychart.numeric-axis': 'xychart-beta\n  x-axis [1, 2]\n  y-axis 0 --> 10\n  line [1, 2]',
+  'xychart::xychart.horizontal': 'xychart-beta horizontal\n  x-axis [a, b]\n  y-axis 0 --> 10\n  bar [1, 2]',
+  'xychart::xychart.axis-titles': 'xychart-beta\n  title "Latency"\n  x-axis [100, 200]\n  y-axis "ms" 0 --> 100\n  bar [1, 2]',
+  'xychart::xychart.bar-line-series': 'xychart-beta\n  x-axis [a, b]\n  y-axis 0 --> 10\n  bar [1, 2]\n  line [2, 1]',
+  'xychart::acc.accessibility': 'xychart-beta\n  accTitle: T\n  accDescr: D\n  x-axis [a]\n  y-axis 0 --> 10\n  bar [1]',
+
+  // architecture
+  'architecture::architecture.service': 'architecture-beta\n  service a(server)[A]',
+  'architecture::architecture.relationship': 'architecture-beta\n  service a(server)[A]\n  service b(database)[B]\n  a:R --> L:b',
+  'architecture::architecture.groups': 'architecture-beta\n  group g(system)[G]\n  service a(server)[A] in g',
+  'architecture::architecture.junctions': 'architecture-beta\n  junction j\n  service a(server)[A]\n  a:R --> L:j',
+
+  // block
+  'block::block.grid': 'block-beta\n  columns 3\n  A B C',
+  'block::block.relationship': 'block-beta\n  A\n  B\n  A --> B',
+
+  // kanban
+  'kanban::kanban.columns': 'kanban\n  done[A]\n    t1[Task]',
+  'kanban::kanban.tasks': 'kanban\n  done[A]\n    t1[Task]',
+  'kanban::kanban.tickets': 'kanban\n  todo[T]\n    task[X]@{ ticket: XM-1 }',
+  'kanban::acc.accessibility': 'kanban\n  accTitle: T\n  accDescr: D\n  done[A]\n    t1[Task]',
+
+  // treemap
+  'treemap::treemap.hierarchy': 'treemap-beta\n"Root"\n    "Child": 10',
+  'treemap::treemap.leaf-value': 'treemap-beta\n"Root"\n    "Child": 10',
+  'treemap::acc.accessibility': 'treemap-beta\n  accTitle: T\n  accDescr: D\n"Root"\n    "Child": 10',
+
+  // radar
+  'radar::radar.axes': 'radar-beta\n  axis a, b, c\n  curve x{1, 2, 3}',
+  'radar::radar.curves': 'radar-beta\n  axis a, b, c\n  curve x{1, 2, 3}',
+  'radar::radar.range': 'radar-beta\n  axis a, b, c\n  curve x{1, 2, 3}\n  min 0\n  max 5',
+  'radar::radar.graticule': 'radar-beta\n  axis a, b, c\n  curve x{1, 2, 3}\n  graticule circle\n  ticks 4',
+  'radar::acc.accessibility': 'radar-beta\n  accTitle: T\n  accDescr: D\n  axis a, b, c\n  curve x{1, 2, 3}',
+
+  // packet
+  'packet::packet.bit-range': 'packet\n  64-127: "Payload"',
+  'packet::packet.sequential-width': 'packet\n  +8: "A"',
+  'packet::packet.title': 'packet\n  title T\n  +8: "A"',
+  'packet::acc.accessibility': 'packet\n  accTitle: T\n  accDescr: D\n  +8: "A"',
+
+  // venn
+  'venn::venn.set': 'venn-beta\n  set A\n  set B',
+  'venn::venn.union': 'venn-beta\n  set A\n  set B\n  union A,B["AB"]',
+  'venn::venn.title': 'venn-beta\n  title "T"\n  set A\n  set B',
+  'venn::acc.accessibility': 'venn-beta\n  accTitle: T\n  accDescr: D\n  set A\n  set B',
+
+  // swimlanes
+  'swimlanes::swimlanes.basic-lanes': 'swimlane-beta LR\n  subgraph A\n    x[X]\n  end\n  subgraph B\n    y[Y]\n  end\n  x --> y',
+  'swimlanes::swimlanes.nodes': 'swimlane-beta LR\n  subgraph A\n    x[X]\n  end\n  subgraph B\n    y[Y]\n  end\n  x --> y',
+  'swimlanes::swimlanes.edges': 'swimlane-beta LR\n  subgraph A\n    x[X]\n  end\n  subgraph B\n    y[Y]\n  end\n  x -->|go| y',
+  'swimlanes::acc.accessibility': 'swimlane-beta LR\n  accTitle: T\n  accDescr: D\n  subgraph A\n    x[X]\n  end\n  subgraph B\n    y[Y]\n  end\n  x --> y',
+
+  // treeview
+  'treeview::treeview.indent': 'tree\n  Root\n    Child',
+  'treeview::acc.accessibility': 'tree\n  accTitle: T\n  accDescr: D\n  Root\n    Child',
+
+  // ishikawa
+  'ishikawa::ishikawa.indent': 'ishikawa-beta\n  Effect\n  Category\n    Cause',
+  'ishikawa::acc.accessibility': 'ishikawa-beta\n  accTitle: T\n  accDescr: D\n  Effect\n  Category\n    Cause',
+
+  // event-modeling
+  'event-modeling::event-modeling.timeframe': 'eventmodeling\n  tf 01 ui A\n  tf 02 cmd B',
+  'event-modeling::event-modeling.entities': 'eventmodeling\n  tf 01 ui A\n  tf 02 cmd B\n  tf 03 evt C',
+  'event-modeling::acc.accessibility': 'eventmodeling\n  accTitle: T\n  accDescr: D\n  tf 01 ui A',
+
+  // wardley
+  'wardley::wardley.components': 'wardley-beta\nanchor A [0.9, 0.8]\ncomponent B [0.5, 0.5]',
+  'wardley::wardley.dependencies': 'wardley-beta\nanchor A [0.9, 0.8]\ncomponent B [0.5, 0.5]\nA -> B',
+  'wardley::wardley.title': 'wardley-beta\ntitle T\nanchor A [0.9, 0.8]',
+  'wardley::acc.accessibility': 'wardley-beta\n  accTitle: T\n  accDescr: D\nanchor A [0.9, 0.8]',
+
+  // cynefin
+  'cynefin::cynefin.domains': 'cynefin-beta\nclear\n"a"',
+  'cynefin::cynefin.transitions': 'cynefin-beta\nclear\n"a"\ncomplex\n"b"\nclear --> complex : "x"',
+  'cynefin::cynefin.title': 'cynefin-beta\ntitle T\nclear\n"a"',
+  'cynefin::acc.accessibility': 'cynefin-beta\n  accTitle: T\n  accDescr: D\nclear\n"a"',
+};
+
+describe('support matrix render contract', () => {
+  const renderer = new XMermaid({ container: document.createElement('div') });
+
+  async function renderOutcome(source: string): Promise<{ ok: boolean; errorCode: string | null; message: string }> {
+    try {
+      await renderer.renderToSVGElement(source, { theme: LIGHT_THEME });
+      return { ok: true, errorCode: null, message: '' };
+    } catch (error) {
+      return {
+        ok: false,
+        errorCode: error instanceof XMermaidError ? error.code : null,
+        message: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  it('provides a representative render sample for every advertised supported capability', () => {
+    const missing: string[] = [];
+    for (const entry of getSupportMatrix().entries) {
+      if (entry.status === 'planned') continue;
+      for (const capability of entry.supportedSyntax) {
+        if (capability.status !== 'supported') continue;
+        const key = `${entry.diagramType}::${capability.id}`;
+        if (SUPPORT_RENDER_SAMPLES[key] === undefined) missing.push(key);
+      }
+    }
+    expect(missing).toEqual([]);
+  });
+
+  const cases = Object.entries(SUPPORT_RENDER_SAMPLES).map(([key, source]) => ({ key, source }));
+
+  it.each(cases)('$key renders through the real pipeline', async ({ key, source }) => {
+    const outcome = await renderOutcome(source);
+    expect(outcome.ok, `${key}: ${outcome.errorCode ?? ''} ${outcome.message}`.trim()).toBe(true);
   });
 });

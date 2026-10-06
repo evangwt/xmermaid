@@ -248,7 +248,7 @@ export interface SequenceBoxLayout {
   color?: string;
   bounds: Bounds;
 }
-export interface SequenceMessageLayout { from: string; to: string; from_x: number; to_x: number; y: number; label: string; label_position: Point; self_width?: number; dashed: boolean; number?: number; end_marker?: 'arrow' | 'cross';  bidirectional?: boolean;
+export interface SequenceMessageLayout { from: string; to: string; from_x: number; to_x: number; y: number; label: string; label_position: Point; self_width?: number; dashed: boolean; number?: number; end_marker?: 'arrow' | 'cross' | 'open' | 'none';  bidirectional?: boolean;
 }
 export type SequenceNotePlacementLayout = 'left_of' | 'right_of' | 'over';
 export interface SequenceNoteLayout { placement: SequenceNotePlacementLayout; participants: string[]; bounds: Bounds; text: string; lines?: string[]; }

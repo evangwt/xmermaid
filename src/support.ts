@@ -480,6 +480,11 @@ const EXTENDED_FLOWCHART_STYLE_PROPERTIES = new Set([
   'font-size', 'font-weight', 'text-align', 'font-family',
   'letter-spacing', 'opacity', 'rx', 'ry',
 ]);
+// `stroke-width` / `stroke-dasharray` values the Rust parser accepts: bare
+// numbers, space/comma separated number lists, each with an optional `px`
+// suffix. `(?:px)?` makes the unit optional; the earlier `px?` was a literal
+// `p` + optional `x`, which rejected every unitless value and every dasharray.
+const SAFE_FLOWCHART_LENGTH = /^(?:stroke-width|stroke-dasharray)[ \t]*:[ \t]*[0-9.]+(?:[ ,]+[0-9.]+)*(?:px)?$/;
 
 /** The extended property name when `property` is `name: value`, else null. */
 function extendedFlowchartStyleProperty(property: string): string | null {
@@ -497,7 +502,7 @@ function isSafeFlowchartClassDefinition(source: string): boolean {
 
   const seen = new Set<string>();
   const propertyPattern = new RegExp(`^(fill|stroke|color)${FLOWCHART_SPACE}*:${FLOWCHART_SPACE}*${SAFE_FLOWCHART_COLOR}$`, 'iu');
-  const lengthPattern = /^(?:stroke-width|stroke-dasharray)[ \t]*:[ \t]*[0-9.]+(?:[ ,]+[0-9.]+)*px?$/;
+  const lengthPattern = SAFE_FLOWCHART_LENGTH;
   const properties = match[2].split(',').map(trimFlowchartWhitespace);
   return properties.length > 0 && properties.every(property => {
     const propertyMatch = propertyPattern.exec(property);
@@ -529,7 +534,7 @@ function isSafeFlowchartStyleStatement(source: string): boolean {
 
   const seen = new Set<string>();
   const propertyPattern = new RegExp(`^(fill|stroke|color)${FLOWCHART_SPACE}*:${FLOWCHART_SPACE}*${SAFE_FLOWCHART_COLOR}$`, 'iu');
-  const lengthPattern = /^(?:stroke-width|stroke-dasharray)[ \t]*:[ \t]*[0-9.]+(?:[ ,]+[0-9.]+)*px?$/;
+  const lengthPattern = SAFE_FLOWCHART_LENGTH;
   const properties = match[2].split(',').map(trimFlowchartWhitespace);
   return properties.length > 0 && properties.every(property => {
     const propertyMatch = propertyPattern.exec(property);
@@ -556,11 +561,15 @@ function isSafeFlowchartStyleStatement(source: string): boolean {
 }
 
 function isSafeFlowchartLinkStyleStatement(source: string): boolean {
-  const match = new RegExp(`^linkStyle${FLOWCHART_SPACE}+(?:default|(?:\d+${FLOWCHART_SPACE}*,${FLOWCHART_SPACE}*)*\d+)${FLOWCHART_SPACE}+(.+?)${FLOWCHART_SPACE}*$`, 'iu').exec(source);
+  // `\d` must be escaped as `\\d` here: this pattern is built from a template
+  // literal, where a bare `\d` is an unrecognized escape that collapses to the
+  // literal letter `d`, so the index would only ever match a "d" and every
+  // numeric linkStyle index would be rejected as unsafe.
+  const match = new RegExp(`^linkStyle${FLOWCHART_SPACE}+(?:default|(?:\\d+${FLOWCHART_SPACE}*,${FLOWCHART_SPACE}*)*\\d+)${FLOWCHART_SPACE}+(.+?)${FLOWCHART_SPACE}*$`, 'iu').exec(source);
   if (!match) return false;
   const seen = new Set<string>();
   const colorPattern = new RegExp(`^(fill|stroke|color)${FLOWCHART_SPACE}*:${FLOWCHART_SPACE}*${SAFE_FLOWCHART_COLOR}$`);
-  const lengthPattern = /^(?:stroke-width|stroke-dasharray)[ \t]*:[ \t]*[0-9.]+(?:[ ,]+[0-9.]+)*px?$/;
+  const lengthPattern = SAFE_FLOWCHART_LENGTH;
   const properties = match[1].split(',').map(trimFlowchartWhitespace);
   return properties.length > 0 && properties.every(property => {
     const colorMatch = colorPattern.exec(property);
@@ -656,6 +665,13 @@ function scanFlowchartStatements(source: string): FlowchartStatementScan {
       inComment = true;
       continue;
     }
+    // Inside a pipe edge label a backslash escapes the next character, so
+    // `A -->|a \| b| B` does not close the label at the escaped pipe. This
+    // mirrors the Rust lexer's edge-label reading (lexer.rs `InEdgeLabel`).
+    if (labelCloser === '|' && character === '\\') {
+      index += 1;
+      continue;
+    }
     let closer: string | null = null;
     if (labelCloser === null) {
       if (character === '[') closer = ']';
@@ -708,7 +724,10 @@ export function topLevelFlowchartClassStyleRange(source: string): number | null 
 }
 
 function startsAsymmetricFlowchartLabel(source: string, index: number): boolean {
-  return index === 0 || !/[-.=~>]/.test(source[index - 1]);
+  // A `>` is an asymmetric-shape opener only when it is not preceded by an
+  // arrow character. Smart/full-width dashes are included so that an
+  // un-normalized `A –> B` is not mistaken for an unterminated label either.
+  return index === 0 || !/[-.=~>\u2013\u2014\u2212\uFF0D]/.test(source[index - 1]);
 }
 
 function detectUnsupportedSequenceFeatures(source: string): UnsupportedFeature[] {
@@ -762,12 +781,15 @@ function detectUnsupportedClassFeatures(source: string): UnsupportedFeature[] {
 function detectUnsupportedZenUmlFeatures(source: string): UnsupportedFeature[] {
   const features: UnsupportedFeature[] = [];
   for (const line of linesWithRanges(source)) {
-    if (/^\s*(?:participant|actor|create|destroy|if|else|while|for|loop|opt|alt|par|end|return)\b/i.test(line.text)
+    // `participant`/`actor` declarations are supported (registered as columns);
+    // only control blocks, create/destroy, and async message forms remain
+    // unsupported.
+    if (/^\s*(?:create|destroy|if|else|while|for|loop|opt|alt|par|end|return)\b/i.test(line.text)
       || /(?:--?>{2,}|\{|\})/.test(line.text)) {
       features.push(unsupportedSyntax(
         'zenuml.advanced',
         line,
-        'ZenUML blocks, declarations, async messages, and advanced control syntax are not supported yet.',
+        'ZenUML blocks, async messages, and advanced control syntax are not supported yet.',
         'error',
       ));
     }
@@ -785,10 +807,24 @@ function detectUnsupportedXyChartFeatures(_source: string): UnsupportedFeature[]
 function detectUnsupportedSankeyFeatures(source: string): UnsupportedFeature[] {
   const features: UnsupportedFeature[] = [];
   const records: { source: string; target: string; line: SourceLine }[] = [];
+  // `accTitle:` / `accDescr:` are shared accessibility metadata: the parser
+  // strips them for every family, so they must pass this gate instead of being
+  // mistaken for a configuration directive or a malformed CSV record. A
+  // multi-line `accDescr { ... }` block is skipped as a unit.
+  let inAccessibilityBlock = false;
   for (const line of linesWithRanges(source)) {
     const trimmed = line.text.trim();
+    if (inAccessibilityBlock) {
+      if (trimmed === '}') inAccessibilityBlock = false;
+      continue;
+    }
     if (!trimmed || trimmed.startsWith('%%') || /^sankey(?:-beta)?\b/i.test(trimmed)) continue;
-    if (/^(?:---|config:|sankey:|accTitle:|accDescr:)/i.test(trimmed)) {
+    if (/^accDescr\s*\{$/i.test(trimmed)) {
+      inAccessibilityBlock = true;
+      continue;
+    }
+    if (/^acc(?:Title|Descr)\b/i.test(trimmed)) continue;
+    if (/^(?:---|config:|sankey:)/i.test(trimmed)) {
       features.push(unsupportedSyntax('sankey.advanced', line, 'Sankey configuration directives are not supported yet.', 'error'));
       continue;
     }
@@ -882,7 +918,7 @@ function detectUnsupportedKanbanFeatures(source: string): UnsupportedFeature[] {
       // Only `@{ ticket: ... }` metadata is rendered on cards today.
       const keys = metadata[1]!.split(',').map(pair => pair.split(':')[0]!.trim().toLowerCase()).filter(Boolean);
       const base = trimmed.replace(/@\{[^}\r\n]*\}/, '').trim();
-      const item = /^(?:[A-Za-z_][A-Za-z0-9_]*\[[^\]\r\n]+\]|\[[^\]\r\n]+\]|[^@\[\]\r\n]+)$/.test(base);
+      const item = /^(?:[\p{L}_][\p{L}\p{N}_-]*\[[^\]\r\n]+\]|\[[^\]\r\n]+\]|[^@\[\]\r\n]+)$/u.test(base);
       if (!item || keys.some(key => key !== 'ticket')) {
         features.push(unsupportedSyntax(
           'kanban.advanced',
@@ -893,7 +929,7 @@ function detectUnsupportedKanbanFeatures(source: string): UnsupportedFeature[] {
       }
       continue;
     }
-    const item = /^(?:[A-Za-z_][A-Za-z0-9_]*\[[^\]\r\n]+\]|\[[^\]\r\n]+\]|[^@\[\]\r\n]+)$/.test(trimmed);
+    const item = /^(?:[\p{L}_][\p{L}\p{N}_-]*\[[^\]\r\n]+\]|\[[^\]\r\n]+\]|[^@\[\]\r\n]+)$/u.test(trimmed);
     if (!item) {
       features.push(unsupportedSyntax(
         'kanban.advanced',
@@ -911,7 +947,7 @@ function detectUnsupportedTreemapFeatures(source: string): UnsupportedFeature[] 
   for (const line of linesWithRanges(source)) {
     const trimmed = line.text.trim();
     if (!trimmed || trimmed.startsWith('%%') || trimmed === 'treemap-beta') continue;
-    if (/^(?:---|config:|classDef\b|class\b|style\b|themeVariables:|accTitle:|accDescr:)/i.test(trimmed) || /:::[A-Za-z0-9_-]+/.test(trimmed)) {
+    if (/^(?:---|config:|classDef\b|class\b|style\b|themeVariables:)/i.test(trimmed) || /:::[A-Za-z0-9_-]+/.test(trimmed)) {
       features.push(unsupportedSyntax(
         'treemap.advanced',
         line,
@@ -930,7 +966,7 @@ function detectUnsupportedRadarFeatures(source: string): UnsupportedFeature[] {
     if (!trimmed || trimmed.startsWith('%%') || trimmed === 'radar-beta') continue;
     // `graticule circle|polygon` and `ticks N` are supported; configuration
     // blocks, classes, and styles remain unsupported.
-    if (/^(?:---|config:|themeVariables:|classDef\b|class\b|style\b|showLegend\b|accTitle:|accDescr:)/i.test(trimmed) || /:::[A-Za-z0-9_-]+/.test(trimmed)) {
+    if (/^(?:---|config:|themeVariables:|classDef\b|class\b|style\b|showLegend\b)/i.test(trimmed) || /:::[A-Za-z0-9_-]+/.test(trimmed)) {
       features.push(unsupportedSyntax(
         'radar.advanced',
         line,
@@ -947,7 +983,7 @@ function detectUnsupportedPacketFeatures(source: string): UnsupportedFeature[] {
   for (const line of linesWithRanges(source)) {
     const trimmed = line.text.trim();
     if (!trimmed || trimmed.startsWith('%%') || trimmed === 'packet') continue;
-    if (/^(?:---|config:|themeVariables:|classDef\b|class\b|style\b|accTitle:|accDescr:)/i.test(trimmed) || /:::[A-Za-z0-9_-]+/.test(trimmed)) {
+    if (/^(?:---|config:|themeVariables:|classDef\b|class\b|style\b)/i.test(trimmed) || /:::[A-Za-z0-9_-]+/.test(trimmed)) {
       features.push(unsupportedSyntax(
         'packet.advanced',
         line,
@@ -963,7 +999,7 @@ function detectUnsupportedVennFeatures(source: string): UnsupportedFeature[] {
   return linesWithRanges(source).flatMap(line => {
     const trimmed = line.text.trim();
     if (!trimmed || trimmed.startsWith('%%') || trimmed === 'venn-beta') return [];
-    return /^(?:---|config:|themeVariables:|classDef\b|class\b|style\b|text\b|accTitle:|accDescr:)/i.test(trimmed) || /:::[A-Za-z0-9_-]+/.test(trimmed)
+    return /^(?:---|config:|themeVariables:|classDef\b|class\b|style\b|text\b)/i.test(trimmed) || /:::[A-Za-z0-9_-]+/.test(trimmed)
       ? [unsupportedSyntax('venn.advanced', line, 'Venn styles and text annotations are not supported yet.', 'error')]
       : [];
   });
@@ -1056,11 +1092,12 @@ function partialSequence(): DiagramSupportEntry {
       { id: 'sequence.control', label: 'loop, alternative, option, parallel, critical, and break blocks', status: 'supported' },
       { id: 'sequence.autonumber', label: 'autonumber labels with optional start and increment', status: 'supported' },
       { id: 'sequence.rect', label: 'rgb(), rgba(), and hex-framed sequence regions', status: 'supported' },
-      { id: 'sequence.cross-ending', label: 'dashed cross-ended messages', status: 'supported' },
+      { id: 'sequence.cross-ending', label: 'cross-ended messages: solid (-x) and dashed (--x)', status: 'supported' },
       { id: 'sequence.async-ending', label: 'async open-arrow messages (-) and --))', status: 'supported' },
       { id: 'sequence.lifecycle', label: 'create/destroy participant lifecycle with lifeline termination', status: 'supported' },
       { id: 'sequence.box', label: 'box participant groups with colors and labels', status: 'supported' },
-      { id: 'sequence.links', label: 'bidirectional <-> links', status: 'supported' },
+      { id: 'sequence.bare-line', label: 'no-head line messages (-> and -->)', status: 'supported' },
+      { id: 'sequence.links', label: 'bidirectional links: canonical <<->>/<<-->> and legacy <->/<-->', status: 'supported' },
     ],
     unsupportedSyntax: [
       { id: 'sequence.advanced', label: 'multi-line note line breaks and invalid rect colors', status: 'unsupported' },
@@ -1078,9 +1115,11 @@ function partialClass(): DiagramSupportEntry {
       { id: 'class.relations', label: 'inheritance, composition, aggregation, association, link, dependency, and realization relations with labels and quoted cardinalities', status: 'supported' },
       { id: 'class.namespaces', label: 'namespace containers rendered as labeled boxes', status: 'supported' },
       { id: 'class.style', label: 'style directives and classDef definitions with safe hexadecimal or CSS named colors, stroke-width, and stroke-dasharray', status: 'supported' },
+      { id: 'class.direction', label: 'direction TB/BT/LR/RL applied to the class diagram layout (defaults to LR)', status: 'supported' },
     ],
     unsupportedSyntax: [
       { id: 'class.advanced', label: 'click callbacks, and cssClass directives without visual effect', status: 'unsupported' },
+      { id: 'class.notes', label: 'note for / left of / right of class notes (accepted and skipped, not drawn)', status: 'unsupported' },
     ],
   };
 }
@@ -1121,17 +1160,17 @@ function partialRequirement(): DiagramSupportEntry { return { diagramType: 'requ
 function partialGitGraph(): DiagramSupportEntry { return { diagramType: 'gitgraph', status: 'partial', supportedSyntax: [{ id: 'gitgraph.commit', label: 'commits with ids, tags, and types including HIGHLIGHT coloring', status: 'supported' }, { id: 'gitgraph.branch-merge', label: 'branch, checkout, and merge history', status: 'supported' }, { id: 'gitgraph.cherry-pick', label: 'cherry-pick commits across branches', status: 'supported' }], unsupportedSyntax: [{ id: 'gitgraph.advanced', label: 'custom branch ordering and reverse commit rendering', status: 'unsupported' }] }; }
 function partialC4(): DiagramSupportEntry { return { diagramType: 'c4', status: 'partial', supportedSyntax: [{ id: 'c4.element', label: 'people, systems, containers, components, and external elements', status: 'supported' }, { id: 'c4.relationship', label: 'labeled directional relationships', status: 'supported' }, { id: 'c4.relationship-directions', label: 'Rel_Left/Right/Up/Down/Neighbor and BiRel', status: 'supported' }, { id: 'c4.boundaries', label: 'system, container, and enterprise boundaries plus deployment nodes rendered as containers', status: 'supported' }], unsupportedSyntax: [{ id: 'c4.advanced', label: 'custom element styling and relationship index macros', status: 'unsupported' }] }; }
 function partialZenUml(): DiagramSupportEntry { return { diagramType: 'zenuml', status: 'partial', supportedSyntax: [{ id: 'zenuml.call', label: 'labeled direct calls', status: 'supported' }, { id: 'zenuml.return', label: 'labeled returns', status: 'supported' }, { id: 'zenuml.declarations', label: 'participant and actor declarations', status: 'supported' }], unsupportedSyntax: [{ id: 'zenuml.advanced', label: 'control blocks and async message forms', status: 'unsupported' }] }; }
-function partialSankey(): DiagramSupportEntry { return { diagramType: 'sankey', status: 'partial', supportedSyntax: [{ id: 'sankey.csv', label: 'three-column weighted CSV records', status: 'supported' }, { id: 'sankey.dag', label: 'acyclic weighted flows', status: 'supported' }], unsupportedSyntax: [{ id: 'sankey.invalidCsv', label: 'malformed CSV and non-three-column records', status: 'unsupported' }, { id: 'sankey.invalidValue', label: 'zero, negative, and non-finite weights', status: 'unsupported' }, { id: 'sankey.cycle', label: 'cyclic flow graphs', status: 'unsupported' }, { id: 'sankey.advanced', label: 'diagram configuration and custom node styling', status: 'unsupported' }] }; }
-function partialQuadrant(): DiagramSupportEntry { return { diagramType: 'quadrant', status: 'partial', supportedSyntax: [{ id: 'quadrant.axes', label: 'title, axis labels, and quadrant captions', status: 'supported' }, { id: 'quadrant.points', label: 'normalized [0, 1] coordinate points', status: 'supported' }, { id: 'quadrant.point-styling', label: 'direct radius, color, stroke-color, and stroke-width point styles', status: 'supported' }, { id: 'quadrant.classes', label: 'classDef definitions and :::class point references', status: 'supported' }, { id: 'acc.accessibility', label: 'accTitle and accDescr directives surfaced as the SVG accessible name and description', status: 'supported' }], unsupportedSyntax: [{ id: 'quadrant.advanced', label: 'front-matter configuration and theme variables', status: 'unsupported' }] }; }
+function partialSankey(): DiagramSupportEntry { return { diagramType: 'sankey', status: 'partial', supportedSyntax: [{ id: 'sankey.csv', label: 'three-column weighted CSV records', status: 'supported' }, { id: 'sankey.dag', label: 'acyclic weighted flows', status: 'supported' }, { id: 'acc.accessibility', label: 'accTitle and accDescr directives surfaced as the SVG accessible name and description', status: 'supported' }], unsupportedSyntax: [{ id: 'sankey.invalidCsv', label: 'malformed CSV and non-three-column records', status: 'unsupported' }, { id: 'sankey.invalidValue', label: 'zero, negative, and non-finite weights', status: 'unsupported' }, { id: 'sankey.cycle', label: 'cyclic flow graphs', status: 'unsupported' }, { id: 'sankey.advanced', label: 'diagram configuration and custom node styling', status: 'unsupported' }] }; }
+function partialQuadrant(): DiagramSupportEntry { return { diagramType: 'quadrant', status: 'partial', supportedSyntax: [{ id: 'quadrant.axes', label: 'title, axis labels, and quadrant captions', status: 'supported' }, { id: 'quadrant.points', label: 'normalized [0, 1] coordinate points', status: 'supported' }, { id: 'quadrant.point-styling', label: 'direct radius, color, stroke-color, and stroke-width point styles', status: 'supported' }, { id: 'quadrant.point-links', label: 'point-to-point connectors (A --> B) accepted; endpoints render, connector line not drawn', status: 'supported' }, { id: 'quadrant.classes', label: 'classDef definitions (color or fill) and leading or trailing :::class point references', status: 'supported' }, { id: 'acc.accessibility', label: 'accTitle and accDescr directives surfaced as the SVG accessible name and description', status: 'supported' }], unsupportedSyntax: [{ id: 'quadrant.advanced', label: 'front-matter configuration and theme variables', status: 'unsupported' }] }; }
 function partialXyChart(): DiagramSupportEntry { return { diagramType: 'xychart', status: 'partial', supportedSyntax: [{ id: 'xychart.categorical-axis', label: 'categorical x-axis labels (with optional titles) and numeric y-axis ranges', status: 'supported' }, { id: 'xychart.numeric-axis', label: 'numeric x-axis ranges and auto y-axis ranges from data', status: 'supported' }, { id: 'xychart.horizontal', label: 'horizontal XY chart orientation', status: 'supported' }, { id: 'xychart.axis-titles', label: 'quoted or unquoted x/y-axis titles', status: 'supported' }, { id: 'xychart.bar-line-series', label: 'ordered bar and line series', status: 'supported' }, { id: 'acc.accessibility', label: 'accTitle and accDescr directives surfaced as the SVG accessible name and description', status: 'supported' }], unsupportedSyntax: [{ id: 'xychart.advanced', label: 'front-matter configuration, data labels, named series legends, and theme variables', status: 'unsupported' }] }; }
 function partialArchitecture(): DiagramSupportEntry { return { diagramType: 'architecture', status: 'partial', supportedSyntax: [{ id: 'architecture.service', label: 'labeled services with validated icon identifiers, including `in <group>` membership', status: 'supported' }, { id: 'architecture.relationship', label: 'direct port-to-port lines, target arrows, and bidirectional arrows', status: 'supported' }, { id: 'architecture.groups', label: 'group containers rendered as labeled boxes', status: 'supported' }, { id: 'architecture.junctions', label: 'junction nodes', status: 'supported' }], unsupportedSyntax: [{ id: 'architecture.advanced', label: 'align directives, configuration, icon glyphs, and junctions inside groups', status: 'unsupported' }] }; }
 function partialBlock(): DiagramSupportEntry { return { diagramType: 'block', status: 'partial', supportedSyntax: [{ id: 'block.grid', label: 'flat rows, columns, and span declarations', status: 'supported' }, { id: 'block.relationship', label: 'direct -- and --> relationships between declared blocks', status: 'supported' }], unsupportedSyntax: [{ id: 'block.advanced', label: 'nested blocks, block arrows, custom shapes, classes, styles, configuration, and edge labels', status: 'unsupported' }] }; }
-function partialKanban(): DiagramSupportEntry { return { diagramType: 'kanban', status: 'partial', supportedSyntax: [{ id: 'kanban.columns', label: 'ordered columns with bracketed or bare labels', status: 'supported' }, { id: 'kanban.tasks', label: 'space-indented tasks within columns', status: 'supported' }, { id: 'kanban.tickets', label: 'task `@{ ticket }` metadata rendered on cards', status: 'supported' }, { id: 'acc.accessibility', label: 'accTitle and accDescr directives surfaced as the SVG accessible name and description', status: 'supported' }], unsupportedSyntax: [{ id: 'kanban.advanced', label: 'YAML configuration, ticketBaseUrl, custom styles, and metadata keys beyond `ticket`', status: 'unsupported' }] }; }
-function partialTreemap(): DiagramSupportEntry { return { diagramType: 'treemap', status: 'partial', supportedSyntax: [{ id: 'treemap.hierarchy', label: 'quoted, space-indented category hierarchy', status: 'supported' }, { id: 'treemap.leaf-value', label: 'positive numeric leaf values', status: 'supported' }, { id: 'acc.accessibility', label: 'accTitle and accDescr directives surfaced as the SVG accessible name and description', status: 'supported' }], unsupportedSyntax: [{ id: 'treemap.advanced', label: 'YAML configuration, classes, and styles', status: 'unsupported' }] }; }
+function partialKanban(): DiagramSupportEntry { return { diagramType: 'kanban', status: 'partial', supportedSyntax: [{ id: 'kanban.columns', label: 'ordered columns with bracketed or bare labels (ASCII or non-ASCII identifiers)', status: 'supported' }, { id: 'kanban.tasks', label: 'space-indented tasks within columns', status: 'supported' }, { id: 'kanban.tickets', label: 'task `@{ ticket }` metadata rendered on cards', status: 'supported' }, { id: 'acc.accessibility', label: 'accTitle and accDescr directives surfaced as the SVG accessible name and description', status: 'supported' }], unsupportedSyntax: [{ id: 'kanban.advanced', label: 'YAML configuration, ticketBaseUrl, custom styles, and metadata keys beyond `ticket`', status: 'unsupported' }] }; }
+function partialTreemap(): DiagramSupportEntry { return { diagramType: 'treemap', status: 'partial', supportedSyntax: [{ id: 'treemap.hierarchy', label: 'quoted category hierarchy indented by a consistent space step (depth is relative)', status: 'supported' }, { id: 'treemap.leaf-value', label: 'positive numeric leaf values', status: 'supported' }, { id: 'acc.accessibility', label: 'accTitle and accDescr directives surfaced as the SVG accessible name and description', status: 'supported' }], unsupportedSyntax: [{ id: 'treemap.advanced', label: 'YAML configuration, classes, and styles', status: 'unsupported' }] }; }
 function partialRadar(): DiagramSupportEntry { return { diagramType: 'radar', status: 'partial', supportedSyntax: [{ id: 'radar.axes', label: 'three or more named axes', status: 'supported' }, { id: 'radar.curves', label: 'finite numeric curves with matching axis values', status: 'supported' }, { id: 'radar.range', label: 'title and min/max numeric range', status: 'supported' }, { id: 'radar.graticule', label: 'graticule circle or polygon ring shape with ticks count', status: 'supported' }, { id: 'acc.accessibility', label: 'accTitle and accDescr directives surfaced as the SVG accessible name and description', status: 'supported' }], unsupportedSyntax: [{ id: 'radar.advanced', label: 'YAML configuration, classes, styles, and showLegend legends', status: 'unsupported' }] }; }
 function partialPacket(): DiagramSupportEntry { return { diagramType: 'packet', status: 'partial', supportedSyntax: [{ id: 'packet.bit-range', label: 'ordered absolute start-end bit ranges', status: 'supported' }, { id: 'packet.sequential-width', label: 'ordered +width bit fields', status: 'supported' }, { id: 'packet.title', label: 'optional packet title', status: 'supported' }, { id: 'acc.accessibility', label: 'accTitle and accDescr directives surfaced as the SVG accessible name and description', status: 'supported' }], unsupportedSyntax: [{ id: 'packet.advanced', label: 'YAML configuration, classes, and styles', status: 'unsupported' }] }; }
 function partialVenn(): DiagramSupportEntry { return { diagramType: 'venn', status: 'partial', supportedSyntax: [{ id: 'venn.set', label: 'two or more named sets with optional display labels', status: 'supported' }, { id: 'venn.union', label: 'labeled unions of declared sets', status: 'supported' }, { id: 'venn.title', label: 'optional title', status: 'supported' }, { id: 'acc.accessibility', label: 'accTitle and accDescr directives surfaced as the SVG accessible name and description', status: 'supported' }], unsupportedSyntax: [{ id: 'venn.advanced', label: 'sizes, text annotations, and custom configuration', status: 'unsupported' }] }; }
-function partialSwimlanes(): DiagramSupportEntry { return { diagramType: 'swimlanes', status: 'partial', supportedSyntax: [{ id: 'swimlanes.basic-lanes', label: 'top-level subgraph lanes with optional labels', status: 'supported' }, { id: 'swimlanes.nodes', label: 'square-bracket lane nodes', status: 'supported' }, { id: 'swimlanes.edges', label: 'directed edges with optional pipe labels', status: 'supported' }], unsupportedSyntax: [{ id: 'swimlanes.advanced', label: 'configuration, nested lanes, classes, styles, and advanced shapes', status: 'unsupported' }] }; }
+function partialSwimlanes(): DiagramSupportEntry { return { diagramType: 'swimlanes', status: 'partial', supportedSyntax: [{ id: 'swimlanes.basic-lanes', label: 'top-level subgraph lanes with optional labels', status: 'supported' }, { id: 'swimlanes.nodes', label: 'square-bracket lane nodes', status: 'supported' }, { id: 'swimlanes.edges', label: 'directed edges with optional pipe labels', status: 'supported' }, { id: 'acc.accessibility', label: 'accTitle and accDescr directives surfaced as the SVG accessible name and description', status: 'supported' }], unsupportedSyntax: [{ id: 'swimlanes.advanced', label: 'configuration, nested lanes, classes, styles, and advanced shapes', status: 'unsupported' }] }; }
 function partialTreeview(): DiagramSupportEntry { return { diagramType: 'treeview', status: 'partial', supportedSyntax: [{ id: 'treeview.indent', label: 'space-indented hierarchy beneath tree', status: 'supported' }, { id: 'acc.accessibility', label: 'accTitle and accDescr directives surfaced as the SVG accessible name and description', status: 'supported' }], unsupportedSyntax: [{ id: 'treeview.advanced', label: 'configuration, styles, icons, and custom shapes', status: 'unsupported' }] }; }
 function partialIshikawa(): DiagramSupportEntry { return { diagramType: 'ishikawa', status: 'partial', supportedSyntax: [{ id: 'ishikawa.indent', label: 'indented effect, categories, and nested causes', status: 'supported' }, { id: 'acc.accessibility', label: 'accTitle and accDescr directives surfaced as the SVG accessible name and description', status: 'supported' }], unsupportedSyntax: [{ id: 'ishikawa.advanced', label: 'custom styling', status: 'unsupported' }] }; }
 function partialEventModeling(): DiagramSupportEntry { return { diagramType: 'event-modeling', status: 'partial', supportedSyntax: [{ id: 'event-modeling.timeframe', label: 'ordered tf/timeframe and rf/resetframe entity frames', status: 'supported' }, { id: 'event-modeling.entities', label: 'ui, processor, command, readmodel, and event entity types', status: 'supported' }, { id: 'acc.accessibility', label: 'accTitle and accDescr directives surfaced as the SVG accessible name and description', status: 'supported' }], unsupportedSyntax: [{ id: 'event-modeling.advanced', label: 'data-block rendering, configuration, classes, and styles', status: 'unsupported' }] }; }
@@ -1141,7 +1180,7 @@ function partialCynefin(): DiagramSupportEntry { return { diagramType: 'cynefin'
 function detectUnsupportedSwimlaneFeatures(source: string): UnsupportedFeature[] {
   const features: UnsupportedFeature[] = [];
   for (const line of linesWithRanges(source)) {
-    if (/^\s*(?:%%\{init|classDef|class|style|linkStyle|click|accTitle|accDescr|---|config:)\b/i.test(line.text) || /@\{\s*shape\s*:|:::/i.test(line.text)) {
+    if (/^\s*(?:%%\{init|classDef|class|style|linkStyle|click|---|config:)\b/i.test(line.text) || /@\{\s*shape\s*:|:::/i.test(line.text)) {
       features.push(unsupportedSyntax('swimlanes.advanced', line, 'Swimlane configuration, styles, classes, nested lanes, and advanced shapes are not supported yet.', 'error'));
     }
   }
@@ -1151,7 +1190,7 @@ function detectUnsupportedSwimlaneFeatures(source: string): UnsupportedFeature[]
 function detectUnsupportedWardleyFeatures(source: string): UnsupportedFeature[] {
   const features: UnsupportedFeature[] = [];
   for (const line of linesWithRanges(source)) {
-    if (/^\s*(?:evolve|pipeline|note|annotation|strategy|classDef|class|style|accTitle|accDescr|---|config:)\b/i.test(line.text) || /@\{|:::/i.test(line.text)) {
+    if (/^\s*(?:evolve|pipeline|note|annotation|strategy|classDef|class|style|---|config:)\b/i.test(line.text) || /@\{|:::/i.test(line.text)) {
       features.push(unsupportedSyntax('wardley.advanced', line, 'Wardley evolution, pipelines, annotations, strategies, styles, and configuration are not supported yet.', 'error'));
     }
   }
@@ -1163,7 +1202,7 @@ function detectUnsupportedCynefinFeatures(source: string): UnsupportedFeature[] 
   let configurationBlock = false;
   for (const line of linesWithRanges(source)) {
     if (/^\s*---(?:\s|$)/.test(line.text)) configurationBlock = true;
-    if (configurationBlock || /^\s*(?:config:|accTitle\b|accDescr\b|classDef\b|class\b|style\b)/i.test(line.text) || /(?:@\{|:::)/i.test(line.text)) {
+    if (configurationBlock || /^\s*(?:config:|classDef\b|class\b|style\b)/i.test(line.text) || /(?:@\{|:::)/i.test(line.text)) {
       features.push(unsupportedSyntax('cynefin.advanced', line, 'Cynefin configuration, classes, styles, and custom appearance are not supported yet.', 'error'));
     }
   }

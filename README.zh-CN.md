@@ -175,8 +175,8 @@ await renderer.renderToSVGElement(source, { theme });
 
 **时序 · 类 · 状态 · ER：**
 
-- `sequenceDiagram` —— 参与者、消息端点、create/destroy、box 分组、autonumber、激活、备注、着色框、嵌套控制块；多行备注暂不支持
-- `classDiagram` —— 完整关系语法、成员块、namespace、`classDef` / `cssClass` 样式；`click` 降级为警告
+- `sequenceDiagram` —— 全部 Mermaid 箭头（`->>` `-->>` `->` `-->` `-x` `--x` `-)` `--)` 与双向 `<<->>` / `<->`）、参与者、create/destroy、box 分组、autonumber、激活、备注、着色框、嵌套控制块；多行备注暂不支持
+- `classDiagram` —— 完整关系语法、成员块、namespace、`direction`、`classDef` / `cssClass` 样式；`click` 降级为警告，`note` 接受并跳过
 - `stateDiagram` —— choice/fork/join 伪状态、备注、复合状态（扁平化并警告）
 - `erDiagram` —— 完整鸦脚基数语法，属性块带 PK/FK/UK 标记
 

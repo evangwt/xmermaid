@@ -1158,6 +1158,9 @@ export class SVGRenderer {
         cross.setAttribute('d', `M ${tipX - 4} ${message.y - 4} L ${tipX + 4} ${message.y + 4} M ${tipX - 4} ${message.y + 4} L ${tipX + 4} ${message.y - 4}`);
         cross.setAttribute('fill', 'none'); cross.setAttribute('stroke', this.theme.colors.edgeStroke); cross.setAttribute('stroke-width', '1.5');
         messageGroup.appendChild(cross);
+      } else if (message.end_marker === 'none') {
+        // `->` / `-->` are bare lines: the path above is the whole message, so
+        // no head element is drawn.
       } else {
         const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
         arrow.classList.add('sequence-message-arrow');

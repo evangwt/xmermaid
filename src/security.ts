@@ -58,15 +58,19 @@ export function detectSecurityDiagnostics(source: string, policy: SecurityPolicy
     // HTML labels are not gated here: the parser sanitizes them to plain text
     // and line breaks before rendering, and labels are never rendered as
     // trusted HTML, so markup in a label cannot inject anything.
+  }
 
-    for (const url of unsafeUrls(line, policy)) {
-      diagnostics.push({
-        code: 'security_blocked_url',
-        message: `URL protocol ${url.protocol} is blocked by the active security policy.`,
-        severity: 'error',
-        range: url.range,
-      });
-    }
+  // The URL scan runs over the whole source (not line by line) so a scheme
+  // split across a line break — `java\nscript:` — is still recognized as a
+  // single token. ASCII control whitespace inside the scheme is folded before
+  // the protocol comparison; nothing is decoded.
+  for (const url of unsafeUrls(source, policy)) {
+    diagnostics.push({
+      code: 'security_blocked_url',
+      message: `URL protocol ${url.protocol} is blocked by the active security policy.`,
+      severity: 'error',
+      range: url.range,
+    });
   }
 
   return diagnostics;
@@ -100,26 +104,64 @@ interface UnsafeUrl {
   range: SourceRange;
 }
 
-function unsafeUrls(line: SourceLine, policy: SecurityPolicy): UnsafeUrl[] {
+function unsafeUrls(source: string, policy: SecurityPolicy): UnsafeUrl[] {
   const allowed = new Set(policy.allowedUrlProtocols);
   const matches: UnsafeUrl[] = [];
+  // The scheme may contain ASCII control whitespace so that a protocol split by
+  // a tab or a newline (`java\tscript:`, `java\nscript:`) is still seen as one
+  // token; `normalizeProtocol` folds those characters before comparison.
   const pattern = /(?:^|[\s"'(<[{|])([A-Za-z][A-Za-z0-9+.\-\t\r\n]*:)[^\s"'<>)}\]]*/g;
   let match: RegExpExecArray | null;
 
-  while ((match = pattern.exec(line.text)) !== null) {
+  while ((match = pattern.exec(source)) !== null) {
     const protocol = normalizeProtocol(match[1]);
-    const tokenStart = match.index + match[0].indexOf(match[1]);
-    const token = line.text.slice(tokenStart, tokenStart + match[0].length - (tokenStart - match.index));
+    const schemeStart = match.index + match[0].indexOf(match[1]);
+    const token = match[0].slice(schemeStart - match.index);
     const dangerous = isDangerousProtocol(protocol);
     if (!dangerous && allowed.has(protocol)) continue;
     if (!dangerous && !token.startsWith(`${protocol}//`)) continue;
     matches.push({
       protocol,
-      range: tokenRange(line, tokenStart, token.length),
+      range: offsetRange(source, schemeStart, token.length),
     });
   }
 
   return matches;
+}
+
+/** Build a SourceRange for an absolute [start, start + length) span. */
+function offsetRange(source: string, start: number, length: number): SourceRange {
+  const end = start + length;
+  const startPosition = positionAt(source, start);
+  const endPosition = positionAt(source, end);
+  return {
+    startOffset: start,
+    endOffset: end,
+    startLine: startPosition.line,
+    startColumn: startPosition.column,
+    endLine: endPosition.line,
+    endColumn: endPosition.column,
+  };
+}
+
+/** 1-based line/column for an absolute offset, treating CRLF as one break. */
+function positionAt(source: string, offset: number): { line: number; column: number } {
+  let line = 1;
+  let column = 1;
+  for (let index = 0; index < offset && index < source.length; index += 1) {
+    const character = source[index];
+    if (character === '\n') {
+      line += 1;
+      column = 1;
+    } else if (character === '\r') {
+      if (source[index + 1] === '\n') index += 1;
+      line += 1;
+      column = 1;
+    } else {
+      column += 1;
+    }
+  }
+  return { line, column };
 }
 
 function isDangerousProtocol(protocol: string): boolean {
